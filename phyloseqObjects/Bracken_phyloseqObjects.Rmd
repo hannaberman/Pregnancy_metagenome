@@ -1,0 +1,189 @@
+---
+title: "Bracken Phyloseq Object"
+author: "Hanna Berman"
+date: "1/9/2019"
+output:
+  html_document: default
+  html_notebook: default
+  pdf_document: default
+---
+The following is to create phyloseq objects from a merged metaphlan output from running Kraken2 then Bracken with the paired end files ONLY from files uploaded by D Goltsman. Only pe files were used as Kraken2 cannot handle and odd number of file inputs. (Single reads files were less than 1% of reads) 
+# Setup
+
+## Load packages
+```{r libraries, warning=FALSE}
+library(tidyverse);packageVersion("tidyverse")
+library(phyloseq);packageVersion("phyloseq")
+```
+
+## Define file paths
+```{r}
+main_dir <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/"
+readCounts_path <- file.path(main_dir, "RelativeAbundanceOutputs", "merged_braken_pe.tsv")
+output_dir <- file.path(main_dir, "abundanceMethodsComparisons", "PS_RData")
+df <- file.path(main_dir, "metadata", "shotgunMetadata.tsv")
+```
+
+# Make phyloseq object: all OTUs (including and excluding hDNA)
+A phyloseq object will merge sample metadata, OTU data, and taxonomy data 
+
+## Sample Metadata
+```{r}
+sam <- df %>%
+  read.table(header=TRUE, sep="\t", quote="", stringsAsFactors=FALSE) %>%
+  data.frame() %>%
+  select(SubjectID, SampleID, GWcoll, RNAlater, SampleID_a, GWcoll_16S)
+rownames(sam) <- sam$SampleID
+SAM <- sample_data(sam)
+head(SAM)
+```
+
+## Import merged Braken output
+`./RelativeAbundanceOutputs/merged_braken_KrakenReads_pe.tsv` : merged table of bracken outputs, the merge function was edited to show the number of reads and abundances directly assigned by kraken as opposed to 
+
+**1)**Import table and divide into reads number and abundance tables
+```{r}
+brackenTable <-readr::read_tsv(readCounts_path) %>%
+  as.data.frame()  
+rownames(brackenTable) <- brackenTable$name 
+
+#make separate reads number and abundance tables
+get_num_cols <- function(x){
+  grepl("_num", x)
+}
+get_ab_cols <- function(x){
+  grepl("_frac", x)
+}
+num.cols <- unlist(lapply(colnames(brackenTable), get_num_cols))
+numTable <- brackenTable[,num.cols] #table with reads numbers
+ab.cols <- unlist(lapply(colnames(brackenTable), get_ab_cols))
+abTable <- brackenTable[,ab.cols] #table with abundance values
+
+#rename colnames of the two tables
+colnames(numTable) <- substr(colnames((numTable)), 1, 10)
+colnames(abTable) <- substr(colnames((abTable)), 1, 10)
+
+sapply(list(readsPerSample=colSums(numTable), readsPerTaxa=rowSums(numTable), abundancePerSample=colSums(abTable)), summary)
+```
+
+**2)**prepare OTU table
+```{r}
+OTU <- otu_table(numTable, taxa_are_rows = TRUE)
+head(OTU[,1:7])
+```
+
+## Prepare taxonomy
+```{r}
+# Get the tax table
+tax <- readCounts_path %>%
+  readr::read_tsv() %>%
+  as.data.frame() %>%
+  select(c(name, taxonomy_id, taxonomy_lvl))
+
+tax0 <- str_split_fixed(tax$name, " ", 2)
+colnames(tax0) <- c("Genus", "Species")
+rownames(tax0) <- tax$name
+  
+TAX <- tax_table(tax0)
+head(TAX)
+```
+
+## Make phyloseq object with all OTUs (including and excluding hDNA)
+```{r}
+PS_bracken0<- phyloseq(SAM, OTU, TAX) #has human
+PS_bracken_all <- PS_bracken0 %>%
+  subset_taxa(Genus != "Homo") %>% #no human
+  transform_sample_counts((function(x) {x/sum(x)}))
+```
+
+# Make Phyloseq object with *Lactobacillus* at species level and all other taxa at genus level
+```{r}
+PS_bracken_L <- PS_bracken_all %>%
+  subset_taxa(Genus=="Lactobacillus") %>%
+  tax_glom(taxrank="Species")
+PS_bracken_G <- PS_bracken_all %>%
+  subset_taxa(Genus!="Lactobacillus") %>%
+  tax_glom(taxrank="Genus")  
+PS_bracken_LG <- merge_phyloseq(PS_bracken_L, PS_bracken_G)
+summary(sample_sums(PS_bracken_LG))
+PS_bracken_LG@tax_table[is.na(PS_bracken_LG@tax_table[,"Species"]),"Species"] <- " " #change those NAs to a space (" ")
+```
+
+# Pull out Taxa of Interest and make data frames using psmelt
+```{r}
+#all species
+bracken_a_toi_o <- PS_bracken_all %>%
+  subset_taxa((Genus=="Gardnerella"|Genus=="Lactobacillus" | Genus=="Mycoplasma" | Genus=="Atopobium" | Genus=="Prevotella") & 
+                (Species=="crispatus" | Species=="iners" | Species=="gasseri" | Species=="jensenii" | Species=="vaginalis" | Species=="hominis" | Species == "bivia" | Species=="vaginae") & 
+                !(Genus=="Lactobacillus"&Species=="vaginalis"))
+summary(sample_sums(bracken_a_toi_o))
+
+bracken_a_toi <- bracken_a_toi_o %>%
+  transform_sample_counts(function(x) {x/sum(x)})
+summary(sample_sums(bracken_a_toi))
+
+otherCounts <- data.frame(OTU = "Other",
+                     Abundance = 1 - sample_sums(bracken_a_toi_o),
+                     SampleID = as.numeric(names(sample_sums(bracken_a_toi_o))),
+                     Genus="Other",
+                     Species=" ",
+                     stringsAsFactors = FALSE) %>%
+                left_join(as.data.frame(PS_bracken_all@sam_data), by="SampleID")
+  
+#make tables for subsequent plotting:
+brackenA_toi_o_df <- bracken_a_toi_o %>%
+                        psmelt() %>%
+                        filter(Abundance > 0) %>%
+                        select(OTU, Abundance, SampleID, SubjectID, GWcoll, GWcoll_16S, Genus, Species, SampleID_a, RNAlater) %>%
+                        full_join(otherCounts) %>% # add other column
+                        mutate(Taxon=paste(Genus, Species))
+
+brackenA_toi_df <- bracken_a_toi %>%
+                        psmelt() %>%
+                        filter(Abundance > 0) %>%
+                        select(OTU, Abundance, SampleID, SubjectID, GWcoll, GWcoll_16S, Genus, Species, SampleID_a, RNAlater) %>%
+                        mutate(Taxon=paste(Genus, Species))
+
+#Lactobacillus at species level and all others at genus level
+bracken_lg_toi_o <- PS_bracken_LG %>%
+  subset_taxa((Genus=="Gardnerella"|Genus=="Lactobacillus" | Genus=="Mycoplasma" | Genus=="Atopobium" | Genus=="Prevotella") & (Species=="crispatus" | Species=="iners" | Species=="gasseri" | Species=="jensenii" | Species==" "))
+summary(sample_sums(bracken_lg_toi_o))
+
+bracken_lg_toi <- bracken_lg_toi_o %>%
+  transform_sample_counts(function(x) {x/sum(x)})
+summary(sample_sums(bracken_lg_toi))
+
+otherCounts1 <- data.frame(OTU = "Other",
+                     Abundance = 1 - sample_sums(bracken_lg_toi_o),
+                     SampleID = as.numeric(names(sample_sums(bracken_lg_toi_o))),
+                     Genus="Other",
+                     Species=" ",
+                     stringsAsFactors = FALSE) %>%
+                left_join(as.data.frame(PS_bracken_all@sam_data), by="SampleID")
+  
+#make tables for subsequent plotting:
+brackenLG_toi_o_df <- bracken_lg_toi_o %>%
+                        psmelt() %>%
+                        filter(Abundance > 0) %>%
+                        select(OTU, Abundance, SampleID, SubjectID, GWcoll, GWcoll_16S, Genus, Species, SampleID_a, RNAlater) %>%
+                        full_join(otherCounts1) %>% # add other column
+                        mutate(Taxon=paste(Genus, Species))
+
+
+brackenLG_toi_df <- bracken_lg_toi %>%
+                        psmelt() %>%
+                        filter(Abundance > 0) %>%
+                        select(OTU, Abundance, SampleID, SubjectID, GWcoll, GWcoll_16S, Genus, Species, SampleID_a, RNAlater) %>%
+                        mutate(Taxon=paste(Genus, Species))
+
+```
+
+# Save phyloseq objects to an RData file
+```{r}
+save(PS_bracken_all, PS_bracken_LG, brackenA_toi_o_df, brackenA_toi_df, brackenLG_toi_o_df, brackenLG_toi_df, file = file.path(output_dir, "bracken_PS.RData"))
+```
+# Session Info
+```{r}
+sessionInfo()
+```
+
