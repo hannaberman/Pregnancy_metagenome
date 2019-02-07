@@ -29,7 +29,7 @@ Steps for analyzing shotgun metagenome data uploaded by DGoltsman
 	merge: `./brcScripts/bracken_merge_outs_pe.sh
 	c)make PS object: `./phyloseqObjects/Bracken_phyloseqObjects.Rmd
  
- **Find phyloseq objects and tables for post processing in ./PS_RData**
+ **Find phyloseq objects and tables for post processing in `./PS_RData`**
  
 6) Compare abundance methods: `./abundanceMethodsComparisons.Rmd`
 
