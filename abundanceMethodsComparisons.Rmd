@@ -28,9 +28,9 @@ df_path <- file.path(main_dir, "shotgunMetadata.tsv")
 
 ## load PS objects and dataframe
 ```{r}
-load(metaphlanPS, envir = parent.frame(), verbose = FALSE)
-load(brackenPS, envir = parent.frame(), verbose = FALSE)
-load(sixteenSPS, envir = parent.frame(), verbose = FALSE)
+load(metaphlanPS)
+load(brackenPS)
+load(sixteenSPS)
 df <- read.table(df_path, sep="\t", header=TRUE, stringsAsFactors = FALSE)
 ```
 
