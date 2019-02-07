@@ -1,4 +1,4 @@
-# Pregnancy Metagenomics
+# Pregnancy Metagenomics: Comparison of Profiling Methods
 Analysis of shotgun metagenomic data from vaginal swabs of 35 pregnant women 
 Comparing Relative Abundance Assignment Methods:
 
