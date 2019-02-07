@@ -1,9 +1,9 @@
 # Pregnancy Metagenomics
 Analysis of shotgun metagenomic data from vaginal swabs of 35 pregnant women 
 Comparing Relative Abundance Assignment Methods:
-1)16S Amplicon --> DADA2
-2)shot gun metagenome --> metaphlan2
-3)shot gun metagenome --> Kraken2/Bracken
+\n1)16S Amplicon --> DADA2
+\n2)shot gun metagenome --> metaphlan2
+\n3)shot gun metagenome --> Kraken2/Bracken
 
 
 Steps for analyzing shotgun metagenome data uploaded by DGoltsman
