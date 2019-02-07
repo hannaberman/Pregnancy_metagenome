@@ -1,7 +1,7 @@
 # Pregnancy Metagenomics
 Analysis of shotgun metagenomic data from vaginal swabs of 35 pregnant women 
 Comparing Relative Abundance Assignment Methods:
-1)16S
+1)16S Amplicon --> DADA2
 2)shot gun metagenome --> metaphlan2
 3)shot gun metagenome --> Kraken2/Bracken
 
@@ -28,7 +28,9 @@ Steps for analyzing shotgun metagenome data uploaded by DGoltsman
 	merge: `./brcScripts/bracken_merge_outs_pe.sh
 	c)make PS object: `./phyloseqObjects/Bracken_phyloseqObjects.Rmd
  
-6) Compare abundance methods: `./abundanceMethodComparisons/abundanceMethodsComparisons.Rmd`
+ **Find phyloseq objects and tables for post processing in ./PS_RData**
+ 
+6) Compare abundance methods: `./abundanceMethodsComparisons.Rmd`
 
 7) ASSESS KRAKEN READS
 	a) merge bracken outs to give read assignments made by Kraken2 `./brcScripts/bracken_merge_outs_krakenReads.sh`
