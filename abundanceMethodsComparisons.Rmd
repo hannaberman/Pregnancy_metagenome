@@ -1,0 +1,510 @@
+---
+title: "Compare Relative Abundance Assignment Methods"
+author: "Hanna Berman"
+date: "2/04/2019"
+output: html_notebook
+---
+
+Compare microbiome relative abundance measures from 16S, Metaphlan2, and Kraken2/Bracken. Taxa of interest (TOI) including *Lactobacillus crispatus*, *Lactobacillus iners*, *Lactobacillus gasseri*, *Lactobacillus jensenii*, *Gardnerella vaginalis*, *Mycoplasma hominis*, *Prevotella bivia*, *Atopobium vaginae* (or only *Lactobacillus* at species level and the four others at genus level)
+
+# Setup
+##Load packages
+```{r libraries, warning=FALSE}
+library(tidyverse); packageVersion("tidyverse")
+library(phyloseq); packageVersion("phyloseq")
+library(ggpubr) ; packageVersion("ggpubr")
+```
+
+## Define file paths
+```{r}
+main_dir <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/abundanceMethodsComparisons"
+PS_path <- file.path(main_dir, "PS_RData")
+metaphlanPS <- file.path(PS_path, "metaphlan_PS.RData")
+brackenPS <- file.path(PS_path, "bracken_PS.RData")
+sixteenSPS <- file.path(PS_path, "16S_PS.RData")
+output_dir <- file.path(main_dir, "analysisOutput")
+df_path <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/metadata/shotgunMetadata.tsv"
+```
+
+## load PS objects and dataframe
+```{r}
+load(metaphlanPS, envir = parent.frame(), verbose = FALSE)
+load(brackenPS, envir = parent.frame(), verbose = FALSE)
+load(sixteenSPS, envir = parent.frame(), verbose = FALSE)
+df <- read.table(df_path, sep="\t", header=TRUE, stringsAsFactors = FALSE)
+```
+
+## Plot subject traces
+### 16S vs metaphlan w. other
+```{r}
+ggplot() + 
+  geom_line(data=sixteenS_toi_o_df, aes(x = GWcoll, y = Abundance, color = Taxon), stat = "identity") +
+  geom_line(data=metaphlLG_toi_o_df, aes(x = GWcoll, y = Abundance, color = Taxon), stat = "identity", linetype="dashed") +
+  scale_color_manual(breaks=c("Lactobacillus crispatus", "Lactobacillus gasseri", "Lactobacillus jensenii", "Lactobacillus iners", "Gardnerella  ", "Prevotella  ", "Atopobium  ", "Mycoplasma  ", "Other  "),
+                     values = c("#F8766D", "#D39200", "#00BA38", "#93AA00", "#00B9E3", "#00C19F", "#DB72FB", "#777777", "#FF61C3"))+
+  facet_wrap(~SubjectID, nrow = 7) +
+  theme(text =element_text(size=30)) +
+  labs(title = "Proportions of taxa of interest\n16S (solid) vs. Metaphlan (dashed)", x="Gestation Weeks at Collection",y= "Proportion", color = "Taxon") +
+  ggsave(file.path(output_dir, "Abundance_metaphlV16S_other.png"), width = 20, height = 15)
+```
+
+### 16S vs metaphlan w.o other
+```{r}
+ggplot() + 
+  geom_line(data = sixteenS_toi_df, aes(x = GWcoll, y = Abundance, color = Taxon), stat = "identity") +
+  geom_line(data = metaphlLG_toi_df, aes(x = GWcoll, y = Abundance, color = Taxon), stat = "identity", linetype="dashed") +
+  scale_color_manual(breaks=c("Lactobacillus crispatus", "Lactobacillus gasseri", "Lactobacillus jensenii", "Lactobacillus iners", "Gardnerella  ", "Prevotella  ", "Atopobium  ", "Mycoplasma  "),
+                     values = c("#F8766D", "#D39200", "#00BA38", "#93AA00", "#00B9E3", "#00C19F", "#DB72FB", "#FF61C3"))+
+  facet_wrap(~SubjectID, nrow = 7) +
+  theme(text =element_text(size=30)) +
+  labs(title = "Proportions of taxa of interest\n16S (solid) vs. Metaphlan (dashed)", x="Gestation Weeks at Collection", y="Proportion", color = "Taxon") +
+  ggsave(file.path(output_dir, "Abundance_metaphlV16S.png"), width = 20, height = 15)
+```
+
+### 16S vs bracken w. other
+```{r}
+ggplot() + 
+  geom_line(data= sixteenS_toi_o_df, aes(x = GWcoll, y = Abundance, color = Taxon), stat = "identity") +
+  geom_line(data=brackenLG_toi_o_df, aes(x = GWcoll, y = Abundance, color = Taxon), stat = "identity", linetype="dashed") +
+  scale_color_manual(breaks=c("Lactobacillus crispatus", "Lactobacillus gasseri", "Lactobacillus jensenii", "Lactobacillus iners", "Gardnerella  ", "Prevotella  ", "Atopobium  ", "Mycoplasma  ", "Other  "),
+                     values = c("#F8766D", "#D39200", "#00BA38", "#93AA00", "#00B9E3", "#00C19F", "#DB72FB", "#777777", "#FF61C3"))+
+  facet_wrap(~SubjectID, nrow = 7) +
+  theme(text =element_text(size=30)) +
+  labs(title = "Proportions of taxa of interest\n16S (solid) vs. Bracken (dashed)", x="Gestation Weeks at Collection", y="Proportions", color = "Taxon") +
+  ggsave(file.path(output_dir, "Abundance_brackenV16S_other.png"), width = 20, height = 15)
+```
+
+### 16S vs bracken w.o other
+```{r}
+ggplot() + 
+  geom_line(data= sixteenS_toi_df, aes(x = GWcoll, y = Abundance, color = Taxon), stat = "identity") +
+  geom_line(data=brackenLG_toi_df, aes(x = GWcoll, y = Abundance, color = Taxon), stat = "identity", linetype="dashed") +
+  scale_color_manual(breaks=c("Lactobacillus crispatus", "Lactobacillus gasseri", "Lactobacillus jensenii", "Lactobacillus iners", "Gardnerella  ", "Prevotella  ", "Atopobium  ", "Mycoplasma  "),
+                     values = c("#F8766D", "#D39200", "#00BA38", "#93AA00", "#00B9E3", "#00C19F", "#DB72FB", "#FF61C3"))+
+  facet_wrap(~SubjectID, nrow = 7) +
+  theme(text =element_text(size=30)) +
+  labs(title = "Proportions of taxa of interest\n16S (solid) vs. Bracken (dashed)", x="Gestation Weeks at Collection", y="Proportion", color = "Taxon") +
+  ggsave(file.path(output_dir, "Abundance_brackenV16S.png"), width = 20, height = 15)
+```
+
+### metaphlan vs bracken w. other
+```{r}
+ggplot() + 
+  geom_line(data= metaphlA_toi_o_df, aes(x = GWcoll, y = Abundance, color = Taxon), stat = "identity") +
+  geom_line(data=brackenA_toi_o_df, aes(x = GWcoll, y = Abundance, color = Taxon), stat = "identity", linetype="dashed") +
+  scale_color_manual(breaks=c("Lactobacillus crispatus", "Lactobacillus gasseri", "Lactobacillus jensenii", "Lactobacillus iners", "Gardnerella vaginalis", "Prevotella bivia", "Atopobium vaginae", "Mycoplasma hominis", "Other  "),
+                     values = c("#F8766D", "#D39200", "#00BA38", "#93AA00", "#00B9E3", "#00C19F", "#DB72FB", "#777777", "#FF61C3"))+
+  facet_wrap(~SubjectID, nrow = 7) +
+  theme(text =element_text(size=30)) +
+  labs(title = "Proportions of taxa of interest\nMetaphlan (solid) vs. Bracken (dashed)", x="Gestation Weeks at Collection", y="Proportion", color = "Taxon") +
+  ggsave(file.path(output_dir, "Abundance_brackenVmetaphlan_other.png"), width = 20, height = 15)
+```
+
+### metaphlan vs bracken w.o other
+```{r}
+ggplot() + 
+  geom_line(data= metaphlA_toi_df, aes(x = GWcoll, y = Abundance, color = Taxon), stat = "identity") +
+  geom_line(data=brackenA_toi_df, aes(x = GWcoll, y = Abundance, color = Taxon), stat = "identity", linetype="dashed") +
+  scale_color_manual(breaks=c("Lactobacillus crispatus", "Lactobacillus gasseri", "Lactobacillus jensenii", "Lactobacillus iners", "Gardnerella vaginalis", "Prevotella bivia", "Atopobium  vaginae", "Mycoplasma hominis"),
+                     values = c("#F8766D", "#D39200", "#00BA38", "#93AA00", "#00B9E3", "#00C19F", "#DB72FB", "#FF61C3"))+
+  facet_wrap(~SubjectID, nrow = 7) +
+  theme(text =element_text(size=30)) +
+  labs(title = "Proportions of taxa of interest\nMetaphlan (solid) vs. Bracken (dashed)", x="Gestation Weeks at Collection", "Proportion", color = "Taxon") +
+  ggsave(file.path(output_dir, "Abundance_brackenVmetaphlan.png"), width = 20, height = 15)
+```
+
+## Scatterplot by taxa
+
+### Make merged data frame 
+first edit the data frames to make columns necessary for table merging and further analyses
+```{r}
+
+prepTable16S <- function(dafr_in, abname){
+  dafr_out <- dafr_in %>%
+    select(SampleID, Taxon, Abundance)
+  colnames(dafr_out) <- c("SampleID_a", "Taxon", abname)
+  return(dafr_out)}
+
+prepTableShotgun <- function(dafr_in, abname){
+  dafr_out <- dafr_in %>%
+    select(SampleID_a, Taxon, Abundance) %>%
+    mutate(SampleID_a=as.character(SampleID_a)) 
+  colnames(dafr_out) <- c("SampleID_a", "Taxon", abname)
+  return(dafr_out)}
+
+sixteenS_toi_df0 <- prepTable16S(sixteenS_toi_df, "Abundance_16S")
+sixteenS_toi_o_df0 <- prepTable16S(sixteenS_toi_o_df, "Abundance_16S")
+metaphlA_toi_df0 <- prepTableShotgun(metaphlA_toi_df, "Abundance_metaphl")
+metaphlA_toi_o_df0 <- prepTableShotgun(metaphlA_toi_o_df, "Abundance_metaphl")
+metaphlLG_toi_df0 <- prepTableShotgun(metaphlLG_toi_df, "Abundance_metaphl")
+metaphlLG_toi_o_df0 <- prepTableShotgun(metaphlLG_toi_o_df, "Abundance_metaphl")
+brackenA_toi_df0 <- prepTableShotgun(brackenA_toi_df, "Abundance_brack")
+brackenA_toi_o_df0 <- prepTableShotgun(brackenA_toi_o_df, "Abundance_brack")
+brackenLG_toi_df0 <- prepTableShotgun(brackenLG_toi_df, "Abundance_brack")
+brackenLG_toi_o_df0 <- prepTableShotgun(brackenLG_toi_o_df, "Abundance_brack")
+```
+
+Merge into one data frame
+```{r}
+RNA.later <- df$SampleID_a[df$RNAlater=="Yes"]
+
+#vs. 16S with other:
+meta_brack_16S_other <- full_join(sixteenS_toi_o_df0,
+                                  metaphlLG_toi_o_df0, 
+                                  by=c("SampleID_a", "Taxon")) %>%
+                        full_join(brackenLG_toi_o_df0, 
+                                   by=c("SampleID_a", "Taxon")) %>%
+                        replace_na(list(Abundance_metaphl=0, Abundance_brack=0, Abundance_16S=0)) %>%
+                        mutate(RNAlater=NA)
+meta_brack_16S_other$RNAlater[meta_brack_16S_other$SampleID_a %in% RNA.later] <- "Yes"
+meta_brack_16S_other$RNAlater[!(meta_brack_16S_other$SampleID_a %in% RNA.later)] <- "No"
+
+meta_brack_16S <- full_join(sixteenS_toi_df0,
+                            metaphlLG_toi_df0, 
+                            by=c("SampleID_a", "Taxon")) %>%
+                  full_join(brackenLG_toi_df0, 
+                            by=c("SampleID_a", "Taxon")) %>%
+                  replace_na(list(Abundance_metaphl=0, Abundance_brack=0, Abundance_16S=0)) %>%
+                  mutate(RNAlater=NA)
+meta_brack_16S$RNAlater[meta_brack_16S$SampleID_a %in% RNA.later] <- "Yes"
+meta_brack_16S$RNAlater[!(meta_brack_16S$SampleID_a %in% RNA.later)] <- "No"
+
+meta_brack_other <- full_join(metaphlA_toi_o_df0,
+                              brackenA_toi_o_df0,
+                              by=c("SampleID_a", "Taxon")) %>%
+                    replace_na(list(Abundance_metaphl=0, Abundance_brack=0, Abundance_16S=0)) %>%
+                    mutate(RNAlater=NA)
+meta_brack_other$RNAlater[meta_brack_other$SampleID_a %in% RNA.later] <- "Yes"
+meta_brack_other$RNAlater[!(meta_brack_other$SampleID_a %in% RNA.later)] <- "No"
+
+meta_brack <- full_join(metaphlA_toi_df0,
+                        brackenA_toi_df0, 
+                        by=c("SampleID_a", "Taxon")) %>%
+              replace_na(list(Abundance_metaphl=0, Abundance_brack=0, Abundance_16S=0)) %>%
+              mutate(RNAlater=NA)
+meta_brack$RNAlater[meta_brack$SampleID_a %in% RNA.later] <- "Yes"
+meta_brack$RNAlater[!(meta_brack$SampleID_a %in% RNA.later)] <- "No"
+```
+
+### 16 vs. Metaphlan w. other
+```{r}
+ggplot(data= meta_brack_16S_other) + 
+  geom_point(aes(x = Abundance_metaphl, y = Abundance_16S, color=RNAlater), stat = "identity") + 
+  facet_wrap(~Taxon) + 
+  coord_fixed() + 
+  labs(title = "Proportions:\n16S Amplicon vs. Metaphlan", x="Proportion (Metaphlan)", y="Proportion (16S Amplicon)", color = "RNA Later ") +
+  ggsave(file.path(output_dir, "Metaphlan16S_byTaxon_o.png"))
+```
+
+### 16 vs. Bracken w. other
+```{r}
+ggplot(data= meta_brack_16S_other) + 
+  geom_point(aes(x = Abundance_brack, y = Abundance_16S, color=RNAlater), stat = "identity") + 
+  facet_wrap(~Taxon) + 
+  coord_fixed() + 
+  labs(title = "Porportions:\n16S Amplicon vs. Bracken", x="Proportions (Bracken)", y="Proportions (16S Amplicon)", color = "RNA Later ") +
+  ggsave(file.path(output_dir, "Bracken16S_byTaxon_o.png"))
+```
+
+### Metaphlan vs. Bracken w. other
+```{r}
+ggplot(data= meta_brack_other) + 
+  geom_point(aes(x = Abundance_brack, y = Abundance_metaphl), color="#000000", stat = "identity") + 
+  facet_wrap(~Taxon) + 
+  coord_fixed() + 
+  labs(title = "Proportions:\nMetaphlan vs. Bracken", x="Proportion (Bracken)", y="Proportion (Metaphlan)") +
+  ggsave(file.path(output_dir, "BrackenMetaphl_byTaxon_o.png"))
+```
+
+### 16 vs. Metaphlan w.o other
+```{r}
+ggplot(data= meta_brack_16S) + 
+  geom_point(aes(x = Abundance_metaphl, y = Abundance_16S, color=RNAlater), stat = "identity") + 
+  facet_wrap(~Taxon) + 
+  coord_fixed() + 
+  labs(title = "Proportions:\n16S Amplicon vs. Metaphlan", x="Proportion (Metaphlan)", y="Proportion (16S Amplicon)", color = "RNA Later ") +
+  ggsave(file.path(output_dir, "Metaphlan16S_byTaxon.png"))
+```
+
+### 16 vs. Bracken w.o other
+```{r}
+ggplot(data= meta_brack_16S) + 
+  geom_point(aes(x = Abundance_brack, y = Abundance_16S, color=RNAlater), stat = "identity") + 
+  facet_wrap(~Taxon) + 
+  coord_fixed() + 
+  labs(title = "Proportions:\n16S Amplicon vs. Bracken", x="Proportion (Bracken)", y="Proportion (16S Amplicon)", color = "RNA Later ") +
+  ggsave(file.path(output_dir, "Bracken16S_byTaxon.png"))
+```
+
+### Metaphlan vs. Bracken w.o other
+```{r}
+ggplot(data= meta_brack) + 
+  geom_point(aes(x = Abundance_brack, y = Abundance_metaphl), color="#000000", stat = "identity") + 
+  facet_wrap(~Taxon) + 
+  coord_fixed() + 
+  labs(title = "Proportions:\nMetaphlan vs. Bracken", x="Proportion (Bracken)", y="Proportion (Metaphlan)") +
+  ggsave(file.path(output_dir, "BrackenMetaphl_byTaxon.png"))
+```
+
+# Abundance vs. presence absence
+## Add presence absence informtation to tables
+```{r}
+#for vs. 16S
+meta_brack_16S_other <- meta_brack_16S_other %>%
+  mutate(sixteenS_yn=case_when(Abundance_16S == 0 ~ "No", 
+                               Abundance_16S != 0 ~ "Yes"),
+         metaphl_yn=case_when(Abundance_metaphl == 0 ~ "No", 
+                              Abundance_metaphl!= 0 ~ "Yes"), 
+         brack_yn=case_when(Abundance_brack == 0 ~ "No",
+                            Abundance_brack != 0 ~ "Yes"))
+
+#for metaphlan vs. bracken only
+meta_brack_other <- meta_brack_other %>%
+  mutate(metaphl_yn=case_when(Abundance_metaphl == 0 ~ "No", 
+                              Abundance_metaphl!= 0 ~ "Yes"), 
+         brack_yn=case_when(Abundance_brack == 0 ~ "No",
+                            Abundance_brack != 0 ~ "Yes"),
+         sixteenS_yn=case_when(Abundance_brack == 0 ~ "No", 
+                               Abundance_brack != 0 ~ "Yes"))
+```
+
+## Plot
+```{r}
+#metaphlan vs. 16S
+ggplot(meta_brack_16S_other)+ 
+  geom_point(aes(x=Abundance_metaphl, y=sixteenS_yn, color=RNAlater)) +
+  facet_wrap(~Taxon) +
+  labs(title = "Presence vs. Proportion\n16S Amplicon vs. Metaphlan", x="Proportion (Metaphlan)", y="Detected (16S Amplicon)") +
+  ggsave(file.path(output_dir, "presVprop_16SVMetaphl.png"), height = 9, width = 9)
+
+ggplot(meta_brack_16S_other)+ 
+  geom_point(aes(x=Abundance_16S, y=metaphl_yn, color=RNAlater)) +
+  facet_wrap(~Taxon) +
+  labs(title = "Presence vs. Proportion\nMetaphlan vs. 16S Amplicon", x="Proportion (16S Amplicon)", y="Detected (Metaphlan)") +
+  ggsave(file.path(output_dir, "presVprob_metaphlV16S.png"), height = 9, width = 9)
+
+#bracken vs. 16S
+ggplot(meta_brack_16S_other)+ 
+  geom_point(aes(x=Abundance_brack, y=sixteenS_yn, color=RNAlater)) +
+  facet_wrap(~Taxon) +
+  labs(title = "Presence vs. Proportion\n16S Amplicon vs. Bracken", x="Proportion (Bracken)", y="Detected (16S Amplicon)") +
+  ggsave(file.path(output_dir, "presVprop_16SVbrack.png"), height = 9, width = 9)
+
+ggplot(meta_brack_16S_other)+ 
+  geom_point(aes(x=Abundance_16S, y=brack_yn, color=RNAlater)) +
+  facet_wrap(~Taxon) +
+  labs(title = "Presence vs. Proportion\nBracken vs. 16S Amplicon", x="Proportion (16S Amplicon)", y="Detected (Bracken)") +
+  ggsave(file.path(output_dir, "presVprop_brackV16S.png"), height = 9, width = 9)
+
+#bracken vs. metaphlan
+ggplot(meta_brack_other)+ 
+  geom_point(aes(x=Abundance_brack, y=metaphl_yn),  color = "#000000") +
+  facet_wrap(~Taxon) +
+  labs(title = "Presence vs. Proportion\nMetaphlan vs. Bracken", x="Proportion (Bracken)", y="Detected (Metaphlan)") +
+  ggsave(file.path(output_dir, "presVprop_metaphlVbrack.png"), height = 9, width = 9)
+
+ggplot(meta_brack_other)+ 
+  geom_point(aes(x=Abundance_metaphl, y=brack_yn), color="#000000") +
+  facet_wrap(~Taxon) +
+  labs(title = "Presence vs. Proportion\nBracken vs. Metaphlan", x="Proportion (Metaphlan)", y="Detected (Bracken)") +
+  ggsave(file.path(output_dir, "presVprop_brackVmetaphl.png"), height = 9, width = 9)
+```
+
+# Compare log ratios of taxa
+
+```{r}
+#get ratio comparison conditions
+taxaLG <- c("Lactobacillus iners", "Lactobacillus gasseri", "Lactobacillus crispatus", "Lactobacillus jensenii", "Gardnerella  ", "Mycoplasma  ", "Prevotella  ", "Atopobium  ")
+pairLG <- combn(taxaLG, 2)
+
+taxaS <- c("Lactobacillus iners", "Lactobacillus gasseri", "Lactobacillus crispatus", "Lactobacillus jensenii", "Gardnerella vaginalis", "Mycoplasma hominis", "Prevotella bivia", "Atopobium vaginae")
+pairS <- combn(taxaS, 2)
+
+#make list of 16S taxa ratios
+ratios16S <- c(NULL)
+for(i in c(1:length(df$SampleID_a))){
+  sam <- df$SampleID_a[i]
+  for (j in c(1:dim(pairLG)[2])){
+    a <- meta_brack_16S_other$Abundance_16S[meta_brack_16S_other$SampleID_a==sam & meta_brack_16S_other$Taxon==pairLG[1,j]]
+    b <- meta_brack_16S_other$Abundance_16S[meta_brack_16S_other$SampleID_a==sam & meta_brack_16S_other$Taxon==pairLG[2,j]] 
+    c <- a/b
+    ifelse((length(c)>0), 
+           d <- log10(c),
+           d <- NA)
+    names(d) <- paste0(sam, "_", pairLG[1,j], ":", pairLG[2,j])
+    ratios16S <- c(ratios16S, d)
+    }
+}
+
+#make list of metaphlan taxa ratios (lactobacillus at species level, only)
+#16S
+ratios16S <- matrix(nrow = 0, ncol = 3)
+colnames(ratios16S) <- c("SampleID_a", "Taxa", "logRatio_16S")
+for(i in c(1:length(df$SampleID_a))){
+  sam <- df$SampleID_a[i]
+  for (j in c(1:dim(pairLG)[2])){
+    a <- meta_brack_16S_other$Abundance_16S[meta_brack_16S_other$SampleID_a==sam & meta_brack_16S_other$Taxon==pairLG[1,j]]
+    b <- meta_brack_16S_other$Abundance_16S[meta_brack_16S_other$SampleID_a==sam & meta_brack_16S_other$Taxon==pairLG[2,j]] 
+    c <- a/b
+    ifelse((length(c)>0), 
+           d <- log10(c),
+           d <- NA)
+    e <- c(sam, paste0(pairLG[1,j], ":", pairLG[2,j]), d)
+    ratios16S <- rbind(ratios16S, e)
+    }
+}
+ratios16S[ratios16S=="Inf"|ratios16S=="-Inf"|ratios16S=="NaN"] <- NA
+
+#metaphlan
+ratiosMetaphlan <- matrix(nrow = 0, ncol = 3)
+colnames(ratiosMetaphlan) <- c("SampleID_a", "Taxa", "logRatio_metaphlan")
+for(i in c(1:length(df$SampleID_a))){
+  sam <- df$SampleID_a[i]
+  for (j in c(1:dim(pairLG)[2])){
+    a <- meta_brack_16S_other$Abundance_metaphl[meta_brack_16S_other$SampleID_a==sam & meta_brack_16S_other$Taxon==pairLG[1,j]]
+    b <- meta_brack_16S_other$Abundance_metaphl[meta_brack_16S_other$SampleID_a==sam & meta_brack_16S_other$Taxon==pairLG[2,j]] 
+    c <- a/b
+    ifelse((length(c)>0), 
+           d <- log10(c),
+           d <- NA)
+    e <- c(sam, paste0(pairLG[1,j], ":", pairLG[2,j]), d)
+    ratiosMetaphlan <- rbind(ratiosMetaphlan, e)
+    }
+}
+ratiosMetaphlan[ratiosMetaphlan=="Inf"|ratiosMetaphlan=="-Inf"|ratiosMetaphlan=="NaN"] <- NA
+
+#bracken
+ratiosBracken <- matrix(nrow = 0, ncol = 3)
+colnames(ratiosBracken) <- c("SampleID_a", "Taxa", "logRatio_bracken")
+for(i in c(1:length(df$SampleID_a))){
+  sam <- df$SampleID_a[i]
+  for (j in c(1:dim(pairLG)[2])){
+    a <- meta_brack_16S_other$Abundance_brack[meta_brack_16S_other$SampleID_a==sam & meta_brack_16S_other$Taxon==pairLG[1,j]]
+    b <- meta_brack_16S_other$Abundance_brack[meta_brack_16S_other$SampleID_a==sam & meta_brack_16S_other$Taxon==pairLG[2,j]] 
+    c <- a/b
+    ifelse((length(c)>0), 
+           d <- log10(c),
+           d <- NA)
+    e <- c(sam, paste0(pairLG[1,j], ":", pairLG[2,j]), d)
+    ratiosBracken <- rbind(ratiosBracken, e)
+    }
+}
+ratiosBracken[ratiosBracken=="Inf"|ratiosBracken=="-Inf"|ratiosBracken=="NaN"] <- NA
+
+#ratios with species for metaphlan vs bracken
+#metaphlan
+ratiosMetaphlanS <- matrix(nrow = 0, ncol = 3)
+colnames(ratiosMetaphlanS) <- c("SampleID_a", "Taxa", "logRatio_metaphlan")
+for(i in c(1:length(df$SampleID_a))){
+  sam <- df$SampleID_a[i]
+  for (j in c(1:dim(pairLG)[2])){
+    a <- meta_brack_other$Abundance_metaphl[meta_brack_other$SampleID_a==sam & meta_brack_other$Taxon==pairS[1,j]]
+    b <- meta_brack_other$Abundance_metaphl[meta_brack_other$SampleID_a==sam & meta_brack_other$Taxon==pairS[2,j]] 
+    c <- a/b
+    ifelse((length(c)>0), 
+           d <- log10(c),
+           d <- NA)
+    e <- c(sam, paste0(pairS[1,j], ":", pairS[2,j]), d)
+    ratiosMetaphlanS <- rbind(ratiosMetaphlanS, e)
+    }
+}
+ratiosMetaphlanS[ratiosMetaphlanS=="Inf"|ratiosMetaphlanS=="-Inf"|ratiosMetaphlanS=="NaN"] <- NA
+
+#bracken
+ratiosBrackenS <- matrix(nrow = 0, ncol = 3)
+colnames(ratiosBrackenS) <- c("SampleID_a", "Taxa", "logRatio_bracken")
+for(i in c(1:length(df$SampleID_a))){
+  sam <- df$SampleID_a[i]
+  for (j in c(1:dim(pairLG)[2])){
+    a <- meta_brack_other$Abundance_brack[meta_brack_other$SampleID_a==sam & meta_brack_other$Taxon==pairS[1,j]]
+    b <- meta_brack_other$Abundance_brack[meta_brack_other$SampleID_a==sam & meta_brack_other$Taxon==pairS[2,j]] 
+    c <- a/b
+    ifelse((length(c)>0), 
+           d <- log10(c),
+           d <- NA)
+    e <- c(sam, paste0(pairS[1,j], ":", pairS[2,j]), d)
+    ratiosBrackenS <- rbind(ratiosBrackenS, e)
+    }
+}
+ratiosBrackenS[ratiosBrackenS=="Inf"|ratiosBrackenS=="-Inf"|ratiosBrackenS=="NaN"] <- NA
+
+#merge tables
+ratiosLG <- as.data.frame(ratios16S) %>%
+  full_join(as.data.frame(ratiosMetaphlan), by = c("SampleID_a", "Taxa")) %>%
+  full_join(as.data.frame(ratiosBracken), by = c("SampleID_a", "Taxa")) %>%
+  mutate(logRatio_16S=as.numeric(as.character(logRatio_16S)),
+         logRatio_metaphlan=as.numeric(as.character(logRatio_metaphlan)),
+         logRatio_bracken=as.numeric(as.character(logRatio_bracken)), 
+         RNAlater = case_when(SampleID_a %in% df$SampleID_a[df$RNAlater=="Yes"] ~ "Yes",
+                              SampleID_a %in% df$SampleID_a[df$RNAlater=="No"] ~ "No")
+         )
+
+
+ratiosS <- as.data.frame(ratiosMetaphlanS) %>%
+  full_join(as.data.frame(ratiosBrackenS), by = c("SampleID_a", "Taxa")) %>%
+  mutate(logRatio_metaphlan=as.numeric(as.character(logRatio_metaphlan)),
+         logRatio_bracken=as.numeric(as.character(logRatio_bracken)),
+         RNAlater = case_when(SampleID_a %in% df$SampleID_a[df$RNAlater=="Yes"] ~ "Yes",
+                              SampleID_a %in% df$SampleID_a[df$RNAlater=="No"] ~ "No"))
+```
+
+# Taxa ratios: plot separately
+
+```{r}
+ggplot(data=ratiosLG) +
+        geom_point(aes(x=logRatio_metaphlan, y=logRatio_16S, color=RNAlater), na.rm = TRUE) +
+        geom_smooth(aes(x=logRatio_metaphlan, y=logRatio_16S), se=FALSE, color="#000000", method = "lm", na.rm=TRUE) + # all
+        geom_smooth(aes(x=logRatio_metaphlan, y=logRatio_16S, group=RNAlater, color=RNAlater), se=FALSE, method = "lm", show.legend = FALSE, na.rm=TRUE) + # by RNA later 
+        labs(title = "Log ratios of taxa:\n16S Amplicon vs. Metaphlan", x="Metaphlan", y="16S Amplicon") + 
+        theme(text = element_text(size=7),
+              axis.title = element_text(size = 19),
+              title=element_text(size=20),
+              legend.text = element_text(size=15),
+              strip.text = element_text(size=9)) +
+        coord_fixed() +
+        xlim(-5,5)+
+        ylim(-5,5) +
+        facet_wrap(~Taxa) + 
+        stat_regline_equation(aes(x=logRatio_metaphlan, y=logRatio_16S, label = paste(..eq.label.., ..rr.label.., sep = "~~~")), label.y = -5, na.rm = TRUE, formula=y~x) +
+        stat_regline_equation(aes(x=logRatio_metaphlan, y=logRatio_16S, label = paste(..eq.label.., ..rr.label.., sep = "~~~"), color=RNAlater, group=RNAlater), label.y = c(-3,-4), na.rm = TRUE, formula=y~x, show.legend = FALSE) +
+ggsave(file.path(output_dir, "logRatio_16SVmetaphl_R.png"),height = 15, width = 18.5)
+
+ggplot(data=ratiosLG) +
+        geom_point(aes(x=logRatio_bracken, y=logRatio_16S, color=RNAlater), na.rm = TRUE) +
+        geom_smooth(aes(x=logRatio_bracken, y=logRatio_16S), se=FALSE, color="#000000", method = "lm", na.rm=TRUE) + # all
+        geom_smooth(aes(x=logRatio_bracken, y=logRatio_16S, group=RNAlater, color=RNAlater), se=FALSE, method = "lm", show.legend = FALSE, na.rm=TRUE) + # by RNA later 
+        labs(title = "Log ratios of taxa:\n16S Amplicon vs. Bracken", x="Bracken", y="16S Amplicon") + 
+        theme(text = element_text(size=7),
+              axis.title = element_text(size = 19),
+              title=element_text(size=20),
+              legend.text = element_text(size=15),
+              strip.text = element_text(size=9)) +
+        coord_fixed() +
+        xlim(-5,5)+
+        ylim(-5,5) +
+        facet_wrap(~Taxa) +
+        stat_regline_equation(aes(x=logRatio_bracken, y=logRatio_16S, label = paste(..eq.label.., ..rr.label.., ..eq.label.., sep = "~~~")), label.y = -5, na.rm = TRUE, formula=y~x) +
+        stat_regline_equation(aes(x=logRatio_bracken, y=logRatio_16S, label = paste(..eq.label.., ..rr.label.., sep = "~~~"), color=RNAlater, group=RNAlater), label.y = c(-3,-4), na.rm = TRUE, formula=y~x, show.legend = FALSE) +
+ggsave(file.path(output_dir, "logRatio_16SVbrack_R.png"),height = 15, width = 18.5)
+
+ggplot(data=ratiosS) +
+        geom_point(aes(x=logRatio_metaphlan, y=logRatio_bracken), color = "#000000", na.rm = TRUE) +
+        geom_smooth(aes(x=logRatio_metaphlan, y=logRatio_bracken), se=FALSE, color="#000000", method = "lm", na.rm=TRUE) + # all
+        labs(title = "Log ratios of taxa:\nBracken vs. Metaphlan", x="Metaphlan", y="Bracken") + 
+        theme(text = element_text(size=7),
+              axis.title = element_text(size = 19),
+              title=element_text(size=20),
+              legend.text = element_text(size=15),
+              strip.text = element_text(size=9)) +
+        coord_fixed() +
+        xlim(-5,5)+
+        ylim(-5,5) +
+        facet_wrap(~Taxa) +
+        stat_regline_equation(aes(x=logRatio_metaphlan, y=logRatio_bracken, label = paste(..eq.label.., ..rr.label.., sep = "~~~")), label.y = -5, na.rm = TRUE, formula=y~x, color = "#000000") +
+ggsave(file.path(output_dir, "logRatio_brackVmetaphl_R.png"),height = 15, width = 18.5)
+```
+
+# Session Info
+```{r}
+sessionInfo()
+```
