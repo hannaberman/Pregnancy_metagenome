@@ -17,13 +17,13 @@ library(ggpubr) ; packageVersion("ggpubr")
 
 ## Define file paths
 ```{r}
-main_dir <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/abundanceMethodsComparisons"
+main_dir <- #<DEFINE>
 PS_path <- file.path(main_dir, "PS_RData")
 metaphlanPS <- file.path(PS_path, "metaphlan_PS.RData")
 brackenPS <- file.path(PS_path, "bracken_PS.RData")
 sixteenSPS <- file.path(PS_path, "16S_PS.RData")
 output_dir <- file.path(main_dir, "analysisOutput")
-df_path <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/metadata/shotgunMetadata.tsv"
+df_path <- file.path(main_dir, "shotgunMetadata.tsv")
 ```
 
 ## load PS objects and dataframe
