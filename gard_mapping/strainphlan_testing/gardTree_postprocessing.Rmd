@@ -1,0 +1,96 @@
+---
+title: "Metadata for Strainphlan Tree"
+author: "Hanna Berman"
+date: "2/15/2019"
+output: html_document
+---
+
+# Set up
+## Packages
+```{r}
+library(tidyverse)
+library(ggtree)
+```
+
+## Paths and Directories
+```{r}
+main_dir <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/"
+ref_genomes_df_path <- file.path(main_dir, "Gard WGS", "GardnerellaMetadata.csv")
+sg_genomes_df_path <- file.path(main_dir,"vagMicrobiomeMetagenome", "metadata", "shotgunMetadata.tsv")
+output_dir <- getwd()
+strainphlan_tree_path <- file.path(output_dir, "strainphlan_out", "RAxML_bestTree.g__Gardnerella.tree")
+epa_tree_path <- file.path(output_dir, "epa", "RAxML_labelledTree.20190217_strainphaln_epaTree.tree")
+```
+
+## Load metadata data frames
+```{r}
+ref_df <- read.table(ref_genomes_df_path, header = TRUE, stringsAsFactors = FALSE, sep = ",") #reference WGS sequences
+sg_df <- read.table(sg_genomes_df_path, header = TRUE, stringsAsFactors = FALSE, sep = "\t") #metagenome sequences
+```
+
+# Create new metadata data frame
+```{r}
+new_df <- data_frame(SampleID=c(ref_df$Strain, sg_df$SampleID),
+                     SubjectID=c(rep("Reference", nrow(ref_df)), sg_df$SubjectID),
+                     SampleSite=c(ref_df$Isolation_Source, rep("Vagina", nrow(sg_df))),
+                     PTB=c(rep(NA, nrow(ref_df)), sg_df$TermPre),
+                     BV=c(ref_df$BV_Status, rep(NA, nrow(sg_df))),
+                     V4var=c(ref_df$sixteenS_variant, rep(NA, nrow(sg_df)))) %>%
+                                    
+          mutate(BV=na_if(BV, "unknown"),
+                 SequenceSource=case_when(SubjectID=="Reference" ~ "Reference",
+                                          SubjectID!="Reference"~ "Shotgun"))
+#write_delim(new_df, file.path("tree_metadata.txt"), delim = "\t")
+```
+
+# Load Strainphaln Tree and annotate
+```{r}
+tree <- read.newick(strainphlan_tree_path)
+
+ggtree(tree, layout = "equal_angle", aes(color=V4var)) %<+% 
+  new_df + 
+  geom_tiplab(aes()) +
+  geom_tippoint(aes(color=SequenceSource)) +
+  #geom_hilight(aes(color=V4var)) +
+  theme(legend.position = "right") 
+ggsave(file.path("strainphlan_unrooted_tree.png"), height=15, width = 15, units="in")
+
+ggtree(tree, aes(color=V4var), ladderize = TRUE) %<+% 
+  new_df + 
+  geom_tiplab(aes()) +
+  geom_tippoint(aes(color=SequenceSource)) +
+  #geom_hilight(aes(color=V4var)) +
+  theme(legend.position = "right") 
+ggsave(file.path("strainphlan_rectangular_tree.png"), height=15, width = 15, units="in")
+```
+
+# Load EPA Tree and annotate
+```{r}
+epa_tree <- read.newick(epa_tree_path)
+
+ggtree(epa_tree, layout = "equal_angle", aes(color=V4var)) %<+% 
+  new_df + 
+  geom_tiplab(aes()) +
+  geom_tippoint(aes(color=SequenceSource)) +
+  #geom_hilight(aes(color=V4var)) +
+  theme(legend.position = "right") 
+ggsave(file.path("epa_unrooted_tree.png"), height=15, width = 15, units="in")
+
+ggtree(epa_tree, aes(color=V4var), ladderize=TRUE) %<+% 
+  new_df + 
+  geom_tiplab(aes()) +
+  geom_tippoint(aes(color=SequenceSource)) +
+  #geom_hilight(aes(color=V4var)) +
+  theme(legend.position = "right") 
+ggsave(file.path("epa_rectangular_tree.png"), height=16, width = 15, units="in")
+```
+
+# what is missing from strainphlan alignment
+```{r}
+setdiff(new_df$SampleID, tree$tip.label)
+```
+
+# Session Info
+```{r}
+sessionInfo()
+```

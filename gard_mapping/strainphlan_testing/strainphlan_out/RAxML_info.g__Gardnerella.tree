@@ -1,0 +1,114 @@
+
+
+IMPORTANT WARNING: Sequences JCP8017A and JCP8017B are exactly identical
+
+
+IMPORTANT WARNING: Sequences UMB0061 and 18-4 are exactly identical
+
+
+IMPORTANT WARNING: Sequences UMB0386 and UMB0298 are exactly identical
+
+
+IMPORTANT WARNING: Sequences UMB0233 and 23-12 are exactly identical
+
+
+IMPORTANT WARNING: Sequences UMB0032A and UMB0032B are exactly identical
+
+
+IMPORTANT WARNING: Sequences 14019_MetR and ATCC14018a are exactly identical
+
+
+IMPORTANT WARNING: Sequences 14019_MetR and ATCC14018c are exactly identical
+
+
+IMPORTANT WARNING: Sequences 14019_MetR and ATCC14018b are exactly identical
+
+
+IMPORTANT WARNING: Sequences UMB0913 and UMB0912 are exactly identical
+
+
+IMPORTANT WARNING: Sequences FDAARGOS_296 and ATCC49145 are exactly identical
+
+
+IMPORTANT WARNING: Sequences JCP8481B and JCP8481A are exactly identical
+
+IMPORTANT WARNING
+Found 11 sequences that are exactly identical to other sequences in the alignment.
+Normally they should be excluded from the analysis.
+
+Just in case you might need it, an alignment file with 
+sequence duplicates removed is printed to file /home/hlberman/VMMG/strainphlan/strainphlan_out/g__Gardnerella.fasta.reduced
+
+
+Using BFGS method to optimize GTR rate parameters, to disable this specify "--no-bfgs" 
+
+
+
+This is RAxML version 8.2.12 released by Alexandros Stamatakis on May 2018.
+
+With greatly appreciated code contributions by:
+Andre Aberer      (HITS)
+Simon Berger      (HITS)
+Alexey Kozlov     (HITS)
+Kassian Kobert    (HITS)
+David Dao         (KIT and HITS)
+Sarah Lutteropp   (KIT and HITS)
+Nick Pattengale   (Sandia)
+Wayne Pfeiffer    (SDSC)
+Akifumi S. Tanabe (NRIFS)
+Charlie Taylor    (UF)
+
+
+Alignment has 9275 distinct alignment patterns
+
+Proportion of gaps and completely undetermined characters in this alignment: 0.00%
+
+RAxML rapid hill-climbing mode
+
+Using 1 distinct models/data partitions with joint branch length optimization
+
+
+Executing 1 inferences on the original alignment using 1 distinct randomized MP trees
+
+All free model parameters will be estimated by RAxML
+ML estimate of 25 per site rate categories
+
+Likelihood of final tree will be evaluated and optimized under GAMMA
+
+GAMMA Model parameters will be estimated up to an accuracy of 0.1000000000 Log Likelihood units
+
+Partition: 0
+Alignment Patterns: 9275
+Name: No Name Provided
+DataType: DNA
+Substitution Matrix: GTR
+
+
+
+
+RAxML was called as follows:
+
+raxmlHPC -s /home/hlberman/VMMG/strainphlan/strainphlan_out/g__Gardnerella.fasta -w /home/hlberman/VMMG/strainphlan/strainphlan_out -n g__Gardnerella.tree -p 1234 -m GTRCAT 
+
+
+Partition: 0 with name: No Name Provided
+Base frequencies: 0.255 0.213 0.248 0.284 
+
+Inference[0]: Time 291.177538 CAT-based likelihood -439891.531640, best rearrangement setting 5
+alpha[0]: 1.000000 rates[0] ac ag at cg ct gt: 0.987922 3.384068 0.916411 0.178060 4.215402 1.000000 
+
+
+Conducting final model optimizations on all 1 trees under GAMMA-based models ....
+
+Inference[0] final GAMMA-based Likelihood: -473827.892757 tree written to file /home/hlberman/VMMG/strainphlan/strainphlan_out/RAxML_result.g__Gardnerella.tree
+
+
+Starting final GAMMA-based thorough Optimization on tree 0 likelihood -473827.892757 .... 
+
+Final GAMMA-based Score of best tree -473827.892757
+
+Program execution info written to /home/hlberman/VMMG/strainphlan/strainphlan_out/RAxML_info.g__Gardnerella.tree
+Best-scoring ML tree written to: /home/hlberman/VMMG/strainphlan/strainphlan_out/RAxML_bestTree.g__Gardnerella.tree
+
+Overall execution time: 548.189786 secs or 0.152275 hours or 0.006345 days
+
