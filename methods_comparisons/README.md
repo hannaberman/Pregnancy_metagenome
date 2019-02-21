@@ -18,7 +18,7 @@ Steps for analyzing shotgun metagenome data uploaded by DGoltsman
 	a) Run in metaphlan2 on cluster using scripts: `./brcScripts/metaphlanCommands_pe.sh`
 	to call: `./brcScripts/metaphlan2_pe.sh`
 
-	b) Use `merge_metaphlan_tables.py` helper script to make metaphlan output tables into one merged script
+	b) Use `merge_metaphlan_tables.py` helper script to make metaphlan output tables into one merged script (`./brcScripts/mergeMetaphlanTables_pe.sh`)
 
 	c)make phyloseq object with: `./phyloseqObjecs/Metaphlan_phyloseqObjects.Rmd`
 

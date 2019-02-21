@@ -12,17 +12,19 @@ library(tidyverse); packageVersion("tidyverse")
 library(phyloseq); packageVersion("phyloseq")
 library(ggpubr) ; packageVersion("ggpubr")
 library(tables); packageVersion("tables")
+library(epitools)
+`%!in%` = Negate(`%in%`)
 ```
 
 ## Define file paths
 ```{r}
-main_dir <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/abundanceMethodsComparisons"
-PS_path <- file.path(main_dir, "PS_RData")
+input_dir <- <specify input dir>
+PS_path <- file.path(input_dir, "PS_RData")
 metaphlanPS <- file.path(PS_path, "metaphlan_PS.RData")
 brackenPS <- file.path(PS_path, "bracken_PS.RData")
 sixteenSPS <- file.path(PS_path, "16S_PS.RData")
-output_dir <- file.path(main_dir, "analysisOutput")
-df_path <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/metadata/shotgunMetadata.tsv"
+output_dir <- <specify output dir>
+df_path <- file.path(input_dir, "shotgunMetadata.tsv")
 ```
 
 ## load PS objects and dataframe
@@ -93,6 +95,36 @@ C0 <- C %>%
 DominantTaxa <- A0 %>%
   full_join(B0, by="SampleID_a") %>%
   full_join(C0, by="SampleID_a")
+write_csv(DominantTaxa, file.path(output_dir, "dominantTaxa.csv"))
+```
+
+# Asses by "G2" 
+## Add what samples are G2 vs not
+```{r}
+G2samples <- c("1060801198", "4007535238", "1005601098", "1005601348", "1005601168", "1062601258", "1003101188", "1003101278", "1900401198", "1062601228", "1062101108", "1062101338", "1062101238", "4007235278", "4007235168", "1003101118", "1062601368", "4007535198", "1060801338", "1060835148", "4005935278", "1061235118", "4007535358", "1050835178", "1060435348", "4002101298", "1060435318")
+
+nG2 <- length(G2samples)
+
+G2df <- DominantTaxa %>% #add whether the dominant gard strain is G2 (based on this first test of strainphlan)
+  left_join(df[,c("SampleID_a", "SampleID", "TermPre")], by="SampleID_a") %>%
+  mutate(GardDomMet=case_when(MetaphlGenus=="Gardnerella"~TRUE,
+                              MetaphlGenus!= "Gardnerella"~FALSE)) 
+G2df0 <- G2df %>%
+  mutate(G2strain=case_when(SampleID %in% G2samples~TRUE, 
+                            SampleID %!in% G2samples~FALSE)) %>%
+  left_join(df[,c("SampleID", "UAB")], by="SampleID")
+#test number of G2 strains
+length(G2df0$G2strain[G2df0$G2strain==TRUE]) == nG2
+```
+
+##G2 strains vs PTB or Gardnerella dominance
+```{r}
+epitab(G2df0$G2strain, G2df0$TermPre, method = "oddsratio")
+epitab(G2df0$GardDomMet, G2df0$TermPre, method = "oddsratio")
+epitab(G2df0$G2strain, G2df0$GardDomMet, method = "oddsratio")
+
+epitab(G2df0$GardDomMet[G2df0$G2strain==TRUE], G2df0$TermPre[G2df0$G2strain==TRUE], method = "oddsratio")
+epitab(G2df0$GardDomMet[G2df0$G2strain==FALSE], G2df0$TermPre[G2df0$G2strain==FALSE], method = "oddsratio")
 ```
 
 Session Info
