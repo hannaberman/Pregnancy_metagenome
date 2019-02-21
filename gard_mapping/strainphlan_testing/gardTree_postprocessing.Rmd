@@ -53,7 +53,7 @@ ggtree(tree, layout = "equal_angle", aes(color=V4var)) %<+%
   geom_tippoint(aes(color=SequenceSource)) +
   #geom_hilight(aes(color=V4var)) +
   theme(legend.position = "right") 
-ggsave(file.path("strainphlan_unrooted_tree.png"), height=15, width = 15, units="in")
+#ggsave(file.path("strainphlan_unrooted_tree.png"), height=15, width = 15, units="in")
 
 ggtree(tree, aes(color=V4var), ladderize = TRUE) %<+% 
   new_df + 
@@ -61,7 +61,7 @@ ggtree(tree, aes(color=V4var), ladderize = TRUE) %<+%
   geom_tippoint(aes(color=SequenceSource)) +
   #geom_hilight(aes(color=V4var)) +
   theme(legend.position = "right") 
-ggsave(file.path("strainphlan_rectangular_tree.png"), height=15, width = 15, units="in")
+#ggsave(file.path("strainphlan_rectangular_tree.png"), height=15, width = 15, units="in")
 ```
 
 # Load EPA Tree and annotate
@@ -74,7 +74,7 @@ ggtree(epa_tree, layout = "equal_angle", aes(color=V4var)) %<+%
   geom_tippoint(aes(color=SequenceSource)) +
   #geom_hilight(aes(color=V4var)) +
   theme(legend.position = "right") 
-ggsave(file.path("epa_unrooted_tree.png"), height=15, width = 15, units="in")
+#ggsave(file.path("epa_unrooted_tree.png"), height=15, width = 15, units="in")
 
 ggtree(epa_tree, aes(color=V4var), ladderize=TRUE) %<+% 
   new_df + 
@@ -82,13 +82,9 @@ ggtree(epa_tree, aes(color=V4var), ladderize=TRUE) %<+%
   geom_tippoint(aes(color=SequenceSource)) +
   #geom_hilight(aes(color=V4var)) +
   theme(legend.position = "right") 
-ggsave(file.path("epa_rectangular_tree.png"), height=16, width = 15, units="in")
+#ggsave(file.path("epa_rectangular_tree.png"), height=16, width = 15, units="in")
 ```
 
-# what is missing from strainphlan alignment
-```{r}
-setdiff(new_df$SampleID, tree$tip.label)
-```
 
 # Session Info
 ```{r}
