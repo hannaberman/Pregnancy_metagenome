@@ -19,7 +19,7 @@ library(epitools)
 ## Define file paths
 ```{r}
 input_dir <- <specify input dir>
-PS_path <- file.path(input_dir, "PS_RData")
+PS_path <- file.path(input_dir, "methods_comparisons", "PS_RData")
 metaphlanPS <- file.path(PS_path, "metaphlan_PS.RData")
 brackenPS <- file.path(PS_path, "bracken_PS.RData")
 sixteenSPS <- file.path(PS_path, "16S_PS.RData")

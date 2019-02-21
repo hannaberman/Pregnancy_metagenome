@@ -14,10 +14,10 @@ library(ggtree)
 
 ## Paths and Directories
 ```{r}
-main_dir <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/"
-ref_genomes_df_path <- file.path(main_dir, "Gard WGS", "GardnerellaMetadata.csv")
-sg_genomes_df_path <- file.path(main_dir,"vagMicrobiomeMetagenome", "metadata", "shotgunMetadata.tsv")
-output_dir <- getwd()
+input_dir <- <specify input dir>
+ref_genomes_df_path <- file.path(input_dir, "gard_mapping","strainphlan_testing", "GardnerellaMetadata.csv")
+sg_genomes_df_path <- file.path(input_dir, "shotgunMetadata.tsv")
+output_dir <- <specify output dir>
 strainphlan_tree_path <- file.path(output_dir, "strainphlan_out", "RAxML_bestTree.g__Gardnerella.tree")
 epa_tree_path <- file.path(output_dir, "epa", "RAxML_labelledTree.20190217_strainphaln_epaTree.tree")
 ```
