@@ -18,7 +18,7 @@ library(ggpubr) ; packageVersion("ggpubr")
 
 ## Define file paths
 ```{r}
-input_dir <- <specify input dir>
+input_dir <- <specify repository dir>
 PS_path <- file.path(input_dir, "methods_comparisons","PS_RData")
 metaphlanPS <- file.path(PS_path, "metaphlan_PS.RData")
 brackenPS <- file.path(PS_path, "bracken_PS.RData")
@@ -120,9 +120,10 @@ ggplot() +
 ```{r}
 #data frames with taxa not in toi listed as "other"
 meta_brack_16S_other <- metaphlLG_toi_o_df %>%
-  select(SampleID, SampleID_a, PaperCohort, RNAlater,Genus, Species, Abundance) %>%
-  left_join(brackenLG_toi_o_df[,c("SampleID_a", "Genus", "Species", "Abundance")], by=c("SampleID_a", "Genus", "Species")) %>%
-  left_join(sixteenS_toi_o_df[,c("SampleID_a", "Genus", "Species", "Abundance")], by=c("SampleID_a", "Genus", "Species")) %>%
+  select(SampleID_a, PaperCohort, RNAlater, Genus, Species, Abundance) %>%
+  full_join(brackenLG_toi_o_df[,c("SampleID_a", "Genus", "Species", "Abundance","RNAlater", "PaperCohort")], by=c("SampleID_a", "Genus", "Species", "RNAlater", "PaperCohort")) %>%
+  full_join(sixteenS_toi_o_df[,c("SampleID_a", "Genus", "Species", "Abundance", "RNAlater", "PaperCohort")], by=c("SampleID_a", "Genus", "Species", "RNAlater", "PaperCohort")) %>%
+  left_join(df[,c("SampleID", "SampleID_a")], by="SampleID_a") %>%
   rename(Abundance_metaphl=Abundance.x, Abundance_brack=Abundance.y, Abundance_16S=Abundance) %>%
   replace_na(list(Abundance_metaphl=0, Abundance_brack=0, Abundance_16S=0)) %>% #make undetected values 0
   mutate(Abundance_16S=case_when(!is.na(PaperCohort) ~ na_if(Abundance_16S, TRUE)), #make sure samples that do not have 16S data do not have 0 values for 16S abundance
@@ -131,16 +132,17 @@ meta_brack_16S_other <- metaphlLG_toi_o_df %>%
          
 meta_brack_other <- metaphlA_toi_o_df %>%
   select(SampleID, SampleID_a, PaperCohort, RNAlater,Genus, Species, Abundance) %>%
-  left_join(brackenA_toi_o_df[,c("SampleID_a", "Genus", "Species", "Abundance")], by=c("SampleID_a", "Genus", "Species")) %>%
+  full_join(brackenA_toi_o_df[,c("SampleID", "SampleID_a", "Genus", "Species", "Abundance", "RNAlater", "PaperCohort")], by=c("SampleID", "SampleID_a", "Genus", "Species", "RNAlater", "PaperCohort")) %>%
   rename(Abundance_metaphl=Abundance.x, Abundance_brack=Abundance.y) %>%
   replace_na(list(Abundance_metaphl=0, Abundance_brack=0, Abundance_16S=0)) %>%
   mutate(Taxon=paste(Genus, Species))
 
 #data frames with toi taxa renormalized to 1
 meta_brack_16S <- metaphlLG_toi_df %>%
-  select(SampleID, SampleID_a, PaperCohort, RNAlater,Genus, Species, Abundance) %>%
-  left_join(brackenLG_toi_df[,c("SampleID_a", "Genus", "Species", "Abundance")], by=c("SampleID_a", "Genus", "Species")) %>%
-  left_join(sixteenS_toi_df[,c("SampleID_a", "Genus", "Species", "Abundance")], by=c("SampleID_a", "Genus", "Species")) %>%
+  select(SampleID_a, PaperCohort, RNAlater,Genus, Species, Abundance) %>%
+  full_join(brackenLG_toi_df[,c("SampleID_a", "Genus", "Species", "Abundance","RNAlater", "PaperCohort")], by=c("SampleID_a", "Genus", "Species", "RNAlater", "PaperCohort")) %>%
+  full_join(sixteenS_toi_df[,c("SampleID_a", "Genus", "Species", "Abundance", "RNAlater", "PaperCohort")], by=c("SampleID_a", "Genus", "Species", "RNAlater", "PaperCohort")) %>%
+  left_join(df[,c("SampleID", "SampleID_a")], by="SampleID_a") %>%
   rename(Abundance_metaphl=Abundance.x, Abundance_brack=Abundance.y, Abundance_16S=Abundance) %>%
   replace_na(list(Abundance_metaphl=0, Abundance_brack=0, Abundance_16S=0)) %>%
   mutate(Abundance_16S=case_when(!is.na(PaperCohort) ~ na_if(Abundance_16S, TRUE)),
@@ -149,7 +151,7 @@ meta_brack_16S <- metaphlLG_toi_df %>%
 
 meta_brack <- metaphlA_toi_df %>%
   select(SampleID, SampleID_a, PaperCohort, RNAlater,Genus, Species, Abundance) %>%
-  left_join(brackenA_toi_df[,c("SampleID_a", "Genus", "Species", "Abundance")], by=c("SampleID_a", "Genus", "Species")) %>%
+  full_join(brackenA_toi_df[,c("SampleID", "SampleID_a", "Genus", "Species", "Abundance", "RNAlater", "PaperCohort")], by=c("SampleID", "SampleID_a", "Genus", "Species", "RNAlater", "PaperCohort")) %>%
   rename(Abundance_metaphl=Abundance.x, Abundance_brack=Abundance.y) %>%
   replace_na(list(Abundance_metaphl=0, Abundance_brack=0, Abundance_16S=0)) %>%
   mutate(Taxon=paste(Genus, Species),
