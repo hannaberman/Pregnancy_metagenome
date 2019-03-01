@@ -22,13 +22,11 @@ output_dir <- file.path(repo_dir, "gard_mapping/clade_assignments/")
 df_path <- file.path(repo_dir, "shotgunMetadata.tsv")
 ref_df_path <- file.path(repo_dir, "GardnerellaMetadata.csv")
 genomeAlns_path <- file.path(repo_dir, "gard_mapping/clade_assignments/gardRefBamAlns.RData")
-scanBam_path <- file.path(repo_dir, "gard_mapping/clade_assignments/gardRefBamAlnsSB.RData")
 ```
 
 ## Load
 ```{r}
 load(file = genomeAlns_path)
-load(file = scanBam_path)
 refDF <- read_csv(ref_df_path)
 sgDF <- read_delim(df_path, delim="\t")
 ```
@@ -45,24 +43,40 @@ countStrains <- alnGenes %>%  #get just strains mapped in each sample
   map(~dplyr::count(.x, value)) %>% #get counts of strains 
   purrr::reduce(full_join, by="value") %>% #make on data frame 
   dplyr::rename(Strain=value) %>%
-  left_join(., refDF[,c("Strain", "Group")]) #add group
-colnames(countStrains) <- c("refStrain", names(alns), "Group") 
+  left_join(., refDF[,c("Strain", "Group")], by = "Strain") #add group
+colnames(countStrains) <- c("refStrain", names(alns), "Clade") 
 
 countClades <- countStrains %>%  #get reads mapped to each clade
   select(-refStrain) %>%
-  group_by(Group) %>%
+  group_by(Clade) %>%
   summarise_all(funs(sum), na.rm=TRUE) %>%
-  gather("Sample", "n", 2:108) 
+  gather("SampleID", "n", 2:108) %>%
+  mutate(Subject=str_sub(SampleID, 1, 5),
+         Clade=as.character(Clade),
+         SampleID=as.numeric(as.character(SampleID))) %>%
+  left_join(sgDF[,c("SampleID", "GWcoll")], by="SampleID")
+
+countClades0 <- countClades %>%
+  spread(Clade, n)
+
+countClades1 <- countClades %>% #make read counts into proportion
+  group_by(SampleID) %>%
+  mutate(n=n/sum(n))
 
 maxClade <- countClades %>%
-  aggregate(n~Sample, ., max) %>%
-  filter(n>0) %>%
-  inner_join(countClades)
+  aggregate(n~SampleID, ., max) %>%
+  filter(n>0)%>%
+  inner_join(countClades, by = c("SampleID", "n"))
+setdiff(sgDF$SampleID, maxClade$SampleID)
 ```
 
 # Plot
 ```{r}
-
+ggplot(data=countClades1, aes(x=GWcoll, y=n, color = Clade)) +
+  geom_point() +
+  geom_jitter() +
+  facet_wrap(~Subject) +
+  labs(y="Proportion reads mapped to clade", x="Gestation Weeks")
 ```
 
 # Session Info
