@@ -1,0 +1,71 @@
+---
+title: "Assign clades to short reads"
+author: "Hanna Berman"
+date: "2/28/2019"
+output: html_document
+---
+
+# Setup
+##Load packages
+```{r libraries, warning=FALSE}
+library(tidyverse); packageVersion("tidyverse")
+library(ShortRead);packageVersion("ShortRead")
+library(Biostrings);packageVersion("Biostrings")
+library(rlist);packageVersion("rlist")
+```
+
+## Define file paths
+```{r}
+repo_dir <- "/Users/hlberman/Documents/GitHub/pregnancy_metagenome/"
+gard_tree_dir <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/Gard WGS"
+output_dir <- file.path(repo_dir, "gard_mapping/clade_assignments/")
+df_path <- file.path(repo_dir, "shotgunMetadata.tsv")
+ref_df_path <- file.path(repo_dir, "GardnerellaMetadata.csv")
+genomeAlns_path <- file.path(repo_dir, "gard_mapping/clade_assignments/gardRefBamAlns.RData")
+scanBam_path <- file.path(repo_dir, "gard_mapping/clade_assignments/gardRefBamAlnsSB.RData")
+```
+
+## Load
+```{r}
+load(file = genomeAlns_path)
+load(file = scanBam_path)
+refDF <- read_csv(ref_df_path)
+sgDF <- read_delim(df_path, delim="\t")
+```
+
+# Count number of reads mapped to each strain
+```{r}
+alnGenes <- alns %>%  #make dfs of genes mapped in each sample
+  map(seqnames) %>%
+  map(as.data.frame)
+names(alnGenes) <- names(alns)
+
+countStrains <- alnGenes %>%  #get just strains mapped in each sample
+  map(~mutate(.x, value=str_sub(.x$value, 1L, -7L))) %>% #remove gene identifiers so that only strains appear
+  map(~dplyr::count(.x, value)) %>% #get counts of strains 
+  purrr::reduce(full_join, by="value") %>% #make on data frame 
+  dplyr::rename(Strain=value) %>%
+  left_join(., refDF[,c("Strain", "Group")]) #add group
+colnames(countStrains) <- c("refStrain", names(alns), "Group") 
+
+countClades <- countStrains %>%  #get reads mapped to each clade
+  select(-refStrain) %>%
+  group_by(Group) %>%
+  summarise_all(funs(sum), na.rm=TRUE) %>%
+  gather("Sample", "n", 2:108) 
+
+maxClade <- countClades %>%
+  aggregate(n~Sample, ., max) %>%
+  filter(n>0) %>%
+  inner_join(countClades)
+```
+
+# Plot
+```{r}
+
+```
+
+# Session Info
+```{r}
+sessionInfo()
+```

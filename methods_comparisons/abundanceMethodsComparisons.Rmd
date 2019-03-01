@@ -18,12 +18,12 @@ library(ggpubr) ; packageVersion("ggpubr")
 
 ## Define file paths
 ```{r}
-input_dir <- <specify repository dir>
+input_dir <- "/Users/hlberman/Documents/GitHub/pregnancy_metagenome/"
 PS_path <- file.path(input_dir, "methods_comparisons","PS_RData")
 metaphlanPS <- file.path(PS_path, "metaphlan_PS.RData")
 brackenPS <- file.path(PS_path, "bracken_PS.RData")
 sixteenSPS <- file.path(PS_path, "16S_PS.RData")
-output_dir <- <specify output dir>
+output_dir <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/abundanceMethodsComparisons/analysisOutput"
 df_path <- file.path(input_dir, "shotgunMetadata.tsv")
 ```
 
@@ -348,23 +348,7 @@ pairLG <- combn(taxaLG, 2)
 taxaS <- c("Lactobacillus iners", "Lactobacillus gasseri", "Lactobacillus crispatus", "Lactobacillus jensenii", "Gardnerella vaginalis", "Mycoplasma hominis", "Prevotella bivia", "Atopobium vaginae")
 pairS <- combn(taxaS, 2)
 
-#make list of 16S taxa ratios
-ratios16S <- c(NULL)
-for(i in c(1:length(df$SampleID_a))){
-  sam <- df$SampleID_a[i]
-  for (j in c(1:dim(pairLG)[2])){
-    a <- meta_brack_16S_other$Abundance_16S[meta_brack_16S_other$SampleID_a==sam & meta_brack_16S_other$Taxon==pairLG[1,j]]
-    b <- meta_brack_16S_other$Abundance_16S[meta_brack_16S_other$SampleID_a==sam & meta_brack_16S_other$Taxon==pairLG[2,j]] 
-    c <- a/b
-    ifelse((length(c)>0), 
-           d <- log10(c),
-           d <- NA)
-    names(d) <- paste0(sam, "_", pairLG[1,j], ":", pairLG[2,j])
-    ratios16S <- c(ratios16S, d)
-    }
-}
-
-#make list of metaphlan taxa ratios (lactobacillus at species level, only)
+#make list of taxa ratios (lactobacillus at species level, only)
 #16S
 ratios16S <- matrix(nrow = 0, ncol = 3)
 colnames(ratios16S) <- c("SampleID_a", "Taxa", "logRatio_16S")
@@ -466,7 +450,7 @@ ratiosLG <- as.data.frame(ratios16S) %>%
          RNAlater = case_when(SampleID_a %in% df$SampleID_a[df$RNAlater=="Yes"] ~ "Yes",
                               SampleID_a %in% df$SampleID_a[df$RNAlater=="No"] ~ "No"),
          PaperCohort=case_when(SampleID_a %in% df$SampleID_a[df$PaperCohort=="2015"] ~ "2015",
-                              SampleID_a %in% df$SampleID_a[df$PaperCohort=="2017"] ~ "2017"),
+                              SampleID_a %in% df$SampleID_a[df$PaperCohort=="2017"] ~ "2017")
          )
 
 
@@ -578,7 +562,7 @@ ggplot(data=ratiosLG) +
 #ggsave(file.path(output_dir, "logRatio_16SVbrack_papercohort.png"),height = 15, width = 18.5)
 ```
 
-## Filter out "Extreme" Values
+## Filtering
 Mean and spread of logratios
 ```{r}
 sapply(list(S16=ratiosLG$logRatio_16S, metaphl=ratiosLG$logRatio_metaphlan, brack=ratiosLG$logRatio_bracken), summary)
@@ -598,39 +582,70 @@ ggplot(data=ratiosLG0) +
 #ggsave(file.path(output_dir, "ratioBoxplots.png"))
 ```
 
-Remove outliers
+### Filter based on 16S and redo log ratios 
 ```{r}
-#Calculate IQRs
-IQR_M <- ratiosLG %>%
-  filter(!(is.na(logRatio_16S)|is.na(logRatio_bracken)|is.na(logRatio_metaphlan))) %>%
-  group_by(Taxa) %>%
-  summarise(iqrM=IQR(logRatio_metaphlan))
-IQR_B <- ratiosLG %>%
-  filter(!(is.na(logRatio_16S)|is.na(logRatio_bracken)|is.na(logRatio_metaphlan))) %>%
-  group_by(Taxa) %>%
-  summarise(iqrB=IQR(logRatio_bracken))
-IQR_B16S <- ratiosLG %>%
-  filter(!(is.na(logRatio_16S)|is.na(logRatio_bracken)|is.na(logRatio_metaphlan))) %>%
-  group_by(Taxa) %>%
-  summarise(iqr16S=IQR(logRatio_16S))
+#find greatest value of 16S not in metaphlan
+S16values <- meta_brack_16S_other$Abundance_16S[meta_brack_16S_other$metaphl_yn=="No"]
+max(S16values, na.rm = TRUE)
 
-ratiosLG1 <- ratiosLG %>%
-  left_join(IQR_M, by = "Taxa") %>%
-  left_join(IQR_B, by="Taxa") %>%
-  left_join(IQR_B16S, by="Taxa") %>%
-  filter(abs(logRatio_16S)<abs(1.5*iqr16S),
-         abs(logRatio_metaphlan)<abs(1.5*iqrM),
-         abs(logRatio_bracken)<abs(1.5*iqrB)) #filter out outliers
+meta_brack_16S_other0 <- meta_brack_16S_other %>%
+  filter(Abundance_16S>max(S16values, na.rm = TRUE)) #filter on the 0.0395 value
+
+#LOG RATIOS WITH 0.0395 CUTOFF
+#16S
+ratios16S0 <- matrix(nrow = 0, ncol = 3)
+colnames(ratios16S0) <- c("SampleID_a", "Taxa", "logRatio_16S")
+for(i in c(1:length(df$SampleID_a))){
+  sam <- df$SampleID_a[i]
+  for (j in c(1:dim(pairLG)[2])){
+    a <- meta_brack_16S_other0$Abundance_16S[meta_brack_16S_other0$SampleID_a==sam & meta_brack_16S_other0$Taxon==pairLG[1,j]]
+    b <- meta_brack_16S_other0$Abundance_16S[meta_brack_16S_other0$SampleID_a==sam & meta_brack_16S_other0$Taxon==pairLG[2,j]] 
+    c <- a/b
+    ifelse((length(c)>0), 
+           d <- log10(c),
+           d <- NA)
+    e <- c(sam, paste0(pairLG[1,j], ":", pairLG[2,j]), d)
+    ratios16S0 <- rbind(ratios16S0, e)
+    }
+}
+ratios16S0[ratios16S0=="Inf"|ratios16S0=="-Inf"|ratios16S0=="NaN"] <- NA
+
+#metaphlan
+ratiosMetaphlan0 <- matrix(nrow = 0, ncol = 3)
+colnames(ratiosMetaphlan0) <- c("SampleID_a", "Taxa", "logRatio_metaphlan")
+for(i in c(1:length(df$SampleID_a))){
+  sam <- df$SampleID_a[i]
+  for (j in c(1:dim(pairLG)[2])){
+    a <- meta_brack_16S_other0$Abundance_metaphl[meta_brack_16S_other0$SampleID_a==sam & meta_brack_16S_other0$Taxon==pairLG[1,j]]
+    b <- meta_brack_16S_other0$Abundance_metaphl[meta_brack_16S_other0$SampleID_a==sam & meta_brack_16S_other0$Taxon==pairLG[2,j]] 
+    c <- a/b
+    ifelse((length(c)>0), 
+           d <- log10(c),
+           d <- NA)
+    e <- c(sam, paste0(pairLG[1,j], ":", pairLG[2,j]), d)
+    ratiosMetaphlan0 <- rbind(ratiosMetaphlan0, e)
+    }
+}
+ratiosMetaphlan0[ratiosMetaphlan0=="Inf"|ratiosMetaphlan0=="-Inf"|ratiosMetaphlan0=="NaN"] <- NA
+#merge tables
+ratiosLG0 <- as.data.frame(ratios16S0) %>%
+  full_join(as.data.frame(ratiosMetaphlan0), by = c("SampleID_a", "Taxa")) %>%
+  mutate(logRatio_16S=as.numeric(as.character(logRatio_16S)),
+         logRatio_metaphlan=as.numeric(as.character(logRatio_metaphlan)),
+         RNAlater = case_when(SampleID_a %in% df$SampleID_a[df$RNAlater=="Yes"] ~ "Yes",
+                              SampleID_a %in% df$SampleID_a[df$RNAlater=="No"] ~ "No"),
+         PaperCohort=case_when(SampleID_a %in% df$SampleID_a[df$PaperCohort=="2015"] ~ "2015",
+                              SampleID_a %in% df$SampleID_a[df$PaperCohort=="2017"] ~ "2017"))
 ```
 
 Plot
 ```{r}
 #by RNA later
-ggplot(data=ratiosLG1) +
+ggplot(data=ratiosLG0) +
         geom_point(aes(x=logRatio_metaphlan, y=logRatio_16S, color=RNAlater), na.rm = TRUE) +
         geom_smooth(aes(x=logRatio_metaphlan, y=logRatio_16S), se=FALSE, color="#000000", method = "lm", na.rm=TRUE) + # all
         geom_smooth(aes(x=logRatio_metaphlan, y=logRatio_16S, group=RNAlater, color=RNAlater), se=FALSE, method = "lm", show.legend = FALSE, na.rm=TRUE) + # by RNA later 
-        labs(title = "Log ratios of taxa:\n16S Amplicon vs. Metaphlan (outliers removed)", x="Metaphlan", y="16S Amplicon") + 
+        labs(title = "Log ratios of taxa:\n16S Amplicon vs. Metaphlan (filter 16S<0.0395)", x="Metaphlan", y="16S Amplicon") + 
         theme(text = element_text(size=7),
               axis.title = element_text(size = 19),
               title=element_text(size=20),
@@ -643,13 +658,13 @@ ggplot(data=ratiosLG1) +
         facet_wrap(~Taxa) + 
         stat_regline_equation(aes(x=logRatio_metaphlan, y=logRatio_16S, label = paste(..eq.label.., ..rr.label.., sep = "~~~")), label.y = -5, na.rm = TRUE, formula=y~x) +
         stat_regline_equation(aes(x=logRatio_metaphlan, y=logRatio_16S, label = paste(..eq.label.., ..rr.label.., sep = "~~~"), color=RNAlater, group=RNAlater), label.y = c(-3,-4), na.rm = TRUE, formula=y~x, show.legend = FALSE)
-#ggsave(file.path(output_dir, "logRatio_16SVmetaphl_rnalater_xoutliers.png"),height = 15, width = 18.5)
+ggsave(file.path(output_dir, "logRatio_16SVmetaphl_rnalater_0.0395.png"),height = 15, width = 18.5)
 
-ggplot(data=ratiosLG1) +
+ggplot(data=ratiosLG0) +
         geom_point(aes(x=logRatio_metaphlan, y=logRatio_16S, color=PaperCohort), na.rm = TRUE) +
         geom_smooth(aes(x=logRatio_metaphlan, y=logRatio_16S), se=FALSE, color="#000000", method = "lm", na.rm=TRUE) + # all
         geom_smooth(aes(x=logRatio_metaphlan, y=logRatio_16S, group=PaperCohort, color=PaperCohort), se=FALSE, method = "lm", show.legend = FALSE, na.rm=TRUE) + # by RNA later 
-        labs(title = "Log ratios of taxa:\n16S Amplicon vs. Metaphlan (outliers removed)", x="Metaphlan", y="16S Amplicon") + 
+        labs(title = "Log ratios of taxa:\n16S Amplicon vs. Metaphlan (filter 16S<0.0395)", x="Metaphlan", y="16S Amplicon") + 
         theme(text = element_text(size=7),
               axis.title = element_text(size = 19),
               title=element_text(size=20),
@@ -662,7 +677,101 @@ ggplot(data=ratiosLG1) +
         facet_wrap(~Taxa) + 
         stat_regline_equation(aes(x=logRatio_metaphlan, y=logRatio_16S, label = paste(..eq.label.., ..rr.label.., sep = "~~~")), label.y = -5, na.rm = TRUE, formula=y~x) +
         stat_regline_equation(aes(x=logRatio_metaphlan, y=logRatio_16S, label = paste(..eq.label.., ..rr.label.., sep = "~~~"), color=PaperCohort, group=PaperCohort), label.y = c(-3,-4), na.rm = TRUE, formula=y~x, show.legend = FALSE)
-#ggsave(file.path(output_dir, "logRatio_16SVmetaphl_papercohort_xoutliers.png"),height = 15, width = 18.5)
+ggsave(file.path(output_dir, "logRatio_16SVmetaphl_papercohort_0.0395.png"),height = 15, width = 18.5)
+```
+
+```{r}
+meta_brack_16S_other1 <- meta_brack_16S_other %>%
+  filter(Abundance_16S>0.02) #filter on 0.02
+
+#LOG RATIOS WITH 0.02 CUTOFF
+#16S
+ratios16S1 <- matrix(nrow = 0, ncol = 3)
+colnames(ratios16S1) <- c("SampleID_a", "Taxa", "logRatio_16S")
+for(i in c(1:length(df$SampleID_a))){
+  sam <- df$SampleID_a[i]
+  for (j in c(1:dim(pairLG)[2])){
+    a <- meta_brack_16S_other1$Abundance_16S[meta_brack_16S_other1$SampleID_a==sam & meta_brack_16S_other1$Taxon==pairLG[1,j]]
+    b <- meta_brack_16S_other1$Abundance_16S[meta_brack_16S_other1$SampleID_a==sam & meta_brack_16S_other1$Taxon==pairLG[2,j]] 
+    c <- a/b
+    ifelse((length(c)>0), 
+           d <- log10(c),
+           d <- NA)
+    e <- c(sam, paste0(pairLG[1,j], ":", pairLG[2,j]), d)
+    ratios16S1 <- rbind(ratios16S1, e)
+    }
+}
+ratios16S1[ratios16S1=="Inf"|ratios16S1=="-Inf"|ratios16S1=="NaN"] <- NA
+
+#metaphlan
+ratiosMetaphlan1 <- matrix(nrow = 0, ncol = 3)
+colnames(ratiosMetaphlan1) <- c("SampleID_a", "Taxa", "logRatio_metaphlan")
+for(i in c(1:length(df$SampleID_a))){
+  sam <- df$SampleID_a[i]
+  for (j in c(1:dim(pairLG)[2])){
+    a <- meta_brack_16S_other1$Abundance_metaphl[meta_brack_16S_other1$SampleID_a==sam & meta_brack_16S_other1$Taxon==pairLG[1,j]]
+    b <- meta_brack_16S_other1$Abundance_metaphl[meta_brack_16S_other1$SampleID_a==sam & meta_brack_16S_other1$Taxon==pairLG[2,j]] 
+    c <- a/b
+    ifelse((length(c)>0), 
+           d <- log10(c),
+           d <- NA)
+    e <- c(sam, paste0(pairLG[1,j], ":", pairLG[2,j]), d)
+    ratiosMetaphlan1 <- rbind(ratiosMetaphlan1, e)
+    }
+}
+ratiosMetaphlan1[ratiosMetaphlan1=="Inf"|ratiosMetaphlan1=="-Inf"|ratiosMetaphlan1=="NaN"] <- NA
+#merge tables
+ratiosLG1 <- as.data.frame(ratios16S1) %>%
+  full_join(as.data.frame(ratiosMetaphlan1), by = c("SampleID_a", "Taxa")) %>%
+  mutate(logRatio_16S=as.numeric(as.character(logRatio_16S)),
+         logRatio_metaphlan=as.numeric(as.character(logRatio_metaphlan)),
+         RNAlater = case_when(SampleID_a %in% df$SampleID_a[df$RNAlater=="Yes"] ~ "Yes",
+                              SampleID_a %in% df$SampleID_a[df$RNAlater=="No"] ~ "No"),
+         PaperCohort=case_when(SampleID_a %in% df$SampleID_a[df$PaperCohort=="2015"] ~ "2015",
+                              SampleID_a %in% df$SampleID_a[df$PaperCohort=="2017"] ~ "2017"))
+```
+
+
+Plot
+```{r}
+#by RNA later
+ggplot(data=ratiosLG1) +
+        geom_point(aes(x=logRatio_metaphlan, y=logRatio_16S, color=RNAlater), na.rm = TRUE) +
+        geom_smooth(aes(x=logRatio_metaphlan, y=logRatio_16S), se=FALSE, color="#000000", method = "lm", na.rm=TRUE) + # all
+        geom_smooth(aes(x=logRatio_metaphlan, y=logRatio_16S, group=RNAlater, color=RNAlater), se=FALSE, method = "lm", show.legend = FALSE, na.rm=TRUE) + # by RNA later 
+        labs(title = "Log ratios of taxa:\n16S Amplicon vs. Metaphlan (filter 16S<0.02)", x="Metaphlan", y="16S Amplicon") + 
+        theme(text = element_text(size=7),
+              axis.title = element_text(size = 19),
+              title=element_text(size=20),
+              legend.text = element_text(size=15),
+              strip.text = element_text(size=9),
+              axis.text = element_text(size=10)) +
+        coord_fixed() +
+        xlim(-5,5)+
+        ylim(-5,5) +
+        facet_wrap(~Taxa) + 
+        stat_regline_equation(aes(x=logRatio_metaphlan, y=logRatio_16S, label = paste(..eq.label.., ..rr.label.., sep = "~~~")), label.y = -5, na.rm = TRUE, formula=y~x) +
+        stat_regline_equation(aes(x=logRatio_metaphlan, y=logRatio_16S, label = paste(..eq.label.., ..rr.label.., sep = "~~~"), color=RNAlater, group=RNAlater), label.y = c(-3,-4), na.rm = TRUE, formula=y~x, show.legend = FALSE)
+ggsave(file.path(output_dir, "logRatio_16SVmetaphl_rnalater_0.02.png"),height = 15, width = 18.5)
+
+ggplot(data=ratiosLG1) +
+        geom_point(aes(x=logRatio_metaphlan, y=logRatio_16S, color=PaperCohort), na.rm = TRUE) +
+        geom_smooth(aes(x=logRatio_metaphlan, y=logRatio_16S), se=FALSE, color="#000000", method = "lm", na.rm=TRUE) + # all
+        geom_smooth(aes(x=logRatio_metaphlan, y=logRatio_16S, group=PaperCohort, color=PaperCohort), se=FALSE, method = "lm", show.legend = FALSE, na.rm=TRUE) + # by RNA later 
+        labs(title = "Log ratios of taxa:\n16S Amplicon vs. Metaphlan (filter 16S<0.02)", x="Metaphlan", y="16S Amplicon") + 
+        theme(text = element_text(size=7),
+              axis.title = element_text(size = 19),
+              title=element_text(size=20),
+              legend.text = element_text(size=15),
+              strip.text = element_text(size=9),
+              axis.text = element_text(size=10)) +
+        coord_fixed() +
+        xlim(-5,5)+
+        ylim(-5,5) +
+        facet_wrap(~Taxa) + 
+        stat_regline_equation(aes(x=logRatio_metaphlan, y=logRatio_16S, label = paste(..eq.label.., ..rr.label.., sep = "~~~")), label.y = -5, na.rm = TRUE, formula=y~x) +
+        stat_regline_equation(aes(x=logRatio_metaphlan, y=logRatio_16S, label = paste(..eq.label.., ..rr.label.., sep = "~~~"), color=PaperCohort, group=PaperCohort), label.y = c(-3,-4), na.rm = TRUE, formula=y~x, show.legend = FALSE)
+ggsave(file.path(output_dir, "logRatio_16SVmetaphl_papercohort_0.02.png"),height = 15, width = 18.5)
 ```
 
 # Session Info
