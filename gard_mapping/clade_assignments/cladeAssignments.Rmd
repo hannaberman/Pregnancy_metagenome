@@ -9,9 +9,7 @@ output: html_document
 ##Load packages
 ```{r libraries, warning=FALSE}
 library(tidyverse); packageVersion("tidyverse")
-library(ShortRead);packageVersion("ShortRead")
-library(Biostrings);packageVersion("Biostrings")
-library(rlist);packageVersion("rlist")
+library(GenomicAlignments);packageVersion("GenomicAlignments")
 ```
 
 ## Define file paths
@@ -21,18 +19,25 @@ gard_tree_dir <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/Gard WGS"
 output_dir <- file.path(repo_dir, "gard_mapping/clade_assignments/")
 df_path <- file.path(repo_dir, "shotgunMetadata.tsv")
 ref_df_path <- file.path(repo_dir, "GardnerellaMetadata.csv")
-genomeAlns_path <- file.path(repo_dir, "gard_mapping/clade_assignments/gardRefBamAlns.RData")
+alns_path <- file.path(repo_dir, "gard_mapping/clade_assignments/gardBamsAlns.RData")
+bam_path <- file.path(repo_dir, "gard_mapping/clade_assignments/gardBams.RData")
+ref_db_path <- file.path(repo_dir, "gard_mapping/clade_assignments/ref_genes/refGenes.fasta")
+refGenesDF_path <- file.path(repo_dir, "gard_mapping/clade_assignments/ref_genes/refGenesDF.csv")
 ```
 
 ## Load
 ```{r}
-load(file = genomeAlns_path)
-refDF <- read_csv(ref_df_path)
-sgDF <- read_delim(df_path, delim="\t")
+load(file=alns_path); head(alns)[1:2]
+load(file=bam_path); head(bams)[1]
+ref_db <- readDNAStringSet(ref_db_path); head(ref_db)[1:5]
+refDF <- read_csv(ref_df_path); head(refDF)
+sgDF <- read_delim(df_path, delim="\t"); head(sgDF)
+refGenesDF <- read_csv(refGenesDF_path)
 ```
 
 # Count number of reads mapped to each strain
 ```{r}
+
 alnGenes <- alns %>%  #make dfs of genes mapped in each sample
   map(seqnames) %>%
   map(as.data.frame)
@@ -49,12 +54,13 @@ colnames(countStrains) <- c("refStrain", names(alns), "Clade")
 countClades <- countStrains %>%  #get reads mapped to each clade
   select(-refStrain) %>%
   group_by(Clade) %>%
-  summarise_all(funs(sum), na.rm=TRUE) %>%
+  summarise_all(list(sum), na.rm=TRUE) %>%
   gather("SampleID", "n", 2:108) %>%
   mutate(Subject=str_sub(SampleID, 1, 5),
          Clade=as.character(Clade),
          SampleID=as.numeric(as.character(SampleID))) %>%
-  left_join(sgDF[,c("SampleID", "GWcoll")], by="SampleID")
+  left_join(sgDF[,c("SampleID", "GWcoll")], by="SampleID") %>%
+  filter(Clade!="0"|Clade!="1"|Clade!="2"|Clade!="3"|Clade!="4")
 
 countClades0 <- countClades %>%
   spread(Clade, n)
@@ -70,13 +76,221 @@ maxClade <- countClades %>%
 setdiff(sgDF$SampleID, maxClade$SampleID)
 ```
 
-# Plot
+## Plot
 ```{r}
 ggplot(data=countClades1, aes(x=GWcoll, y=n, color = Clade)) +
-  geom_point() +
-  geom_jitter() +
+  geom_point()+
+  geom_jitter()+
   facet_wrap(~Subject) +
-  labs(y="Proportion reads mapped to clade", x="Gestation Weeks")
+  labs(y="Proportion alignments per clade", x="Gestation Weeks")+
+  theme(axis.text.y = element_text(size=7))
+
+ggplot(data=countClades1, aes(x=GWcoll, y=n, color = Clade, fill=Clade)) +
+  geom_bar(position="stack", stat = "identity", width =2) +
+  facet_wrap(~Subject) +
+  labs(y="Proportion alignments per clade", x="Gestation Weeks")+
+  theme(axis.text.y = element_text(size=7))
+```
+
+## 
+```{r}
+#make dataframes
+bamDFs <- bams %>% # data frames with bam info for all alignments for each samples
+  map(as.data.frame, stringsAsFactors=FALSE) %>%
+  map(~select(.x, qname, 
+                  rname,
+                  pos,
+                  qwidth,
+                  mapq,
+                  cigar,
+                  mrnm)) %>%
+  map(~mutate(.x, Strain=str_sub(.x$rname, 1L, -7L),
+              rname=as.character(rname))) %>%
+  map(~left_join(.x, refDF[,c("Strain","Group")], by="Strain"))
+
+#bamDFs0 <- bamDFs %>% try to get max map q score of duplicates
+#  map(~select(.x, qname=contains("qname"), 
+#                  rname=contains("rname"),
+#                  mapq=contains("mapq"),
+#                  Strain=contains("Strain"),
+#                  Group=contains("group"))) %>%
+#  map(~group_by(.x, .x$qname)) %>%
+#  map(~filter_if(.x, count(.x$qname)>1, mapq==max(.x$mapq)))
+```
+
+
+Assess duplicates
+```{r}
+dupDFs <- bamDFs %>%  # dataframes with multiples only
+  map(~group_by(.x, .x$qname)) %>%
+  map(~filter(.x, n()>1)) %>%
+  map(ungroup)
+
+nAlignments <- bamDFs %>% #number of alignments per sample
+  map(~select(.x, qname)) %>%
+  map(as_vector) %>%
+  map(length) %>%
+  unlist()
+summary(nAlignments)
+
+nUniqueReads <- bamDFs %>% #number of unique reads that mapped to the reference database
+  map(~select(.x, qname)) %>%
+  map(as_vector) %>%
+  map(unique) %>%
+  map(length) %>%
+  unlist()
+summary(nUniqueReads)
+
+nMultiples <- dupDFs %>% #number of alignments that have multiples (ie the query sequence in this alignment mapped to another reference sequence) in each sample
+  map(~select(.x, qname)) %>%
+  map(as_vector) %>%
+  map(length) %>%
+  unlist()
+
+alnCounts <- data.frame(alignments=nAlignments,
+                        uniqueReadsMapped=nUniqueReads,
+                        Multiples=nMultiples) %>%
+  mutate(readsWithMultiples=alignments-uniqueReadsMapped,
+         averageMultiples=Multiples/readsWithMultiples,
+         proportionReadsMultiples=readsWithMultiples/uniqueReadsMapped,
+         proportionAlnsMultiples=readsWithMultiples/alignments)
+table(alnCounts$averageMultiples)
+sapply(list(`Proportion Reads`=alnCounts$proportionReadsMultiples, `Porportion Alignments`=alnCounts$proportionAlnsMultiples), summary)
+hist(alnCounts$proportionReadsMultiples,
+          main = "Proportion of query short reads mapping to multiple reference sequences",
+          xlab ="Proportion of unique reads mapped")
+hist(alnCounts$proportionAlnsMultiples,
+          main = "Proportion of alingments that are additional duplicates",
+          xlab ="Proportion of alignments")
+```
+Reads with multiple alignments map to an average of 2 reads.
+An average of ~50% of reads are mapping to multiple sequences.
+About ~30% of alignments are "added" duplicates (i.e. about 1/3 of alignments would be removed if there were one alignment per read). 
+
+Find what reads are mapping to duplicates
+```{r}
+dupDFs0 <- dupDFs %>% #unique multiples -- remove alignments that are reads mapping the same gene at different locations
+  map(~select(.x, qname, 
+                  rname,
+                  Strain,
+                  Group)) %>%
+  map(~unique.data.frame(.x))
+
+nUniqueMultiples <- dupDFs0 %>%
+  map(nrow) %>%
+  map(as_vector) %>%
+  unlist()
+
+dupDFs1 <- dupDFs0 %>% #alignment duplicates that represent reads mapping to different reference sequences
+  map(~group_by(.x, qname)) %>%
+  map(~filter(.x, n()>1)) %>%
+  map(ungroup)
+
+nDifferentRefGenes <- dupDFs1 %>%
+  map(nrow) %>%
+  map(as_vector) %>%
+  unlist
+
+alnCounts <- alnCounts %>%
+  mutate(multiplesDifferentGenes=nDifferentRefGenes,
+         proportionMultiplesDiferentGenes=multiplesDifferentGenes/alignments)
+sapply(list(`All Alignments`=alnCounts$alignments,`Multiples that are Different Genes`=alnCounts$multiplesDifferentGenes, `Proportion of Alignments`=alnCounts$proportionMultiplesDiferentGenes), summary)
+```
+
+```{r}
+#what genes are causing these duplicates??
+#make tidy data frame
+readsByAlnCounts <- bamDFs %>%
+  map(~group_by(.x, qname)) %>%
+  map(~dplyr::count(.x, rname)) %>%
+  map(ungroup) %>%
+  map(~mutate(.x, Strain=str_sub(.x$rname, 1L, -7L))) %>%
+  map2(., names(.), ~mutate(.x, Sample=.y)) %>%      
+  map(~left_join(.x, refDF[,c("Strain", "Group")], by="Strain")) %>%
+  purrr::reduce(full_join, by=c("Sample", "qname", "rname", "rname", "n", "Strain", "Group"))
+
+#get annotations
+geneAnnos <- refGenesDF %>%
+  gather("Strain", "rname", 15:ncol(.)) %>%
+  select(rname, Annotation)
+
+#get entries with n=2 (multiples are exact duplicates)
+duplicateAlignments <- readsByAlnCounts %>%
+  filter(n==2) %>%
+  left_join(geneAnnos, by="rname")
+
+n_distinct(duplicateAlignments)
+
+table(duplicateAlignments$Annotation)
+n_distinct(duplicateAlignments$Annotation)
+
+table(duplicateAlignments$Group)
+n_distinct(duplicateAlignments$Group)
+ 
+```
+
+What genes are short reads mapping to ambiguously (not just duplicates of the same genes)
+```{r}
+#Get only reads that are mapping to multiple genes
+readsByAlnCounts0 <- readsByAlnCounts %>%
+  filter(n==1) %>%
+  group_by(qname) %>%
+  filter(n()>1) %>%
+  ungroup(qname) %>%
+  left_join(geneAnnos, by="rname")
+
+table(readsByAlnCounts0$rname)
+n_distinct(readsByAlnCounts0$rname)
+table(readsByAlnCounts0$Annotation)
+n_distinct(readsByAlnCounts0$Annotation)
+table(readsByAlnCounts0$Group)
+n_distinct(readsByAlnCounts0$Group)
+```
+
+Get cases where reads are mapping to clades ambiguoulsy
+```{r}
+readsByAlnCounts1 <- readsByAlnCounts0 %>%
+  mutate(dup=rep(1:2, nrow(.)/2)) %>%
+  filter(dup==1) %>%
+  select(-n,-dup)
+
+readsByAlnCounts2 <- readsByAlnCounts0 %>%
+  mutate(dup=rep(1:2, nrow(.)/2)) %>%
+  filter(dup==2) %>%
+  select(-n,-dup) 
+
+readsByAlnCounts3 <- readsByAlnCounts1 %>%
+  left_join(readsByAlnCounts2, by=c("qname", "Sample"))
+
+#what samples is this happening in?
+table(readsByAlnCounts3$Sample)
+print("Number of reads with ambiguous mapping")
+n_distinct(readsByAlnCounts3)
+print("Number of times KA00225_00524 vs KA00225_00525")
+readsByAlnCounts3 %>%
+  filter(rname.x=="KA00225_00524"|rname.x=="KA00225_00525"&
+           rname.x=="KA00225_00524"|rname.y=="KA00225_00525") %>%
+  nrow()
+#number of times strains don't match
+print("Strains not matching")
+readsByAlnCounts3 %>%
+  filter(Strain.x!=Strain.y) %>%
+  nrow()
+readsByAlnCounts3 %>%
+  filter(Strain.x!=Strain.y,
+         Group.x==Group.y)
+#number of times clades do not match
+print("Clades not matching")
+readsByAlnCounts3 %>%
+  filter(Group.x!=Group.y) %>%
+  nrow()
+readsByAlnCounts3 %>%
+  filter(Group.x!=Group.y)
+```
+
+Assign best clades by best alignments and 
+```{r}
+
 ```
 
 # Session Info

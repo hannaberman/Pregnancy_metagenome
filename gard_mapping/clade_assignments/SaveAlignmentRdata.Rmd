@@ -7,8 +7,6 @@ output: html_document
 
 ```{r libraries, warning=FALSE}
 library(tidyverse); packageVersion("tidyverse")
-library(ShortRead);packageVersion("ShortRead")
-library(Biostrings);packageVersion("Biostrings")
 library(GenomicAlignments);packageVersion("GenomicAlignments")
 ```
 
@@ -26,15 +24,17 @@ bamFiles <- list.files(bam_path, pattern = "_FgardRef_s.bam$", full.names = TRUE
 
 #make list of bam file objects
 bamList <- map(bamFiles, BamFile)
-names(bamList) <- list.files(bam_path, pattern = "_FgardRef_s.bam$", full.names = FALSE) %>%
+bams <- bplapply(bamList, scanBam)
+names(bams) <- list.files(bam_path, pattern = "_FgardRef_s.bam$", full.names = FALSE) %>%
   str_sub(1,10)
 
-#make alignment objects
-alns <- map(bamList, readGAlignments)
+alns <- map(bamList, readGAlignmentPairs)
 ```
 
 ```{r}
-save(alns, file = file.path(output_dir, "gardRefBamAlns.RData"))
+#save(bamList, file=file.path(output_dir, "gardBams.RData"))
+save(bams, file=file.path(output_dir, "gardBams.RData"))
+save(alns, file=file.path(output_dir, "gardBamsAlns.RData"))
 ```
 
 #SessionInfo

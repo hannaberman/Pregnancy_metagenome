@@ -1,0 +1,50 @@
+---
+title: "Assess Human Filtering"
+author: "Hanna Berman"
+date: "3/5/2019"
+output: html_document
+---
+# Set up
+## Packages
+```{r setup, include=FALSE}
+library(tidyverse)
+library(Biostrings)
+library(BiocParallel)
+```
+
+## File paths 
+```{r}
+repo_dir <- "/Users/hlberman/Documents/GitHub/pregnancy_metagenome"
+sg_df_path <- file.path(repo_dir, "shotgunMetadata.tsv")
+cluster_path <- "/Users/hlberman/mnt/cluster/home/hlberman/VMMG"
+reads_path <- file.path(cluster_path, "reads", "upload")
+filtered_path <- file.path(cluster_path, "bowtie_human", "filtered_fastq")
+
+# Load
+sg_df <- read_delim(sg_df_path, delim = "\t")
+reads_list <- list.files(path = reads_path, all.files = FALSE, pattern="fastq", full.names = TRUE)
+filtered_list <-  list.files(path = filtered_path, all.files = FALSE, full.names = TRUE) 
+```
+
+# Compare amount of human reads filtered
+```{r}
+# Get fastas
+reads_names <- list.files(reads_path, full.names = FALSE, all.files = FALSE, pattern = "fastq") %>%
+  str_extract( pattern="[0-9]+_[12S]")
+upload_reads <- bplapply(reads_list, readDNAStringSet, format="fastq")
+names(upload_reads) <- reads_names
+
+filtered_names <- list.files(filtered_path, full.names = FALSE, all.files = FALSE, pattern = "fastq") %>%
+  str_extract( pattern="[0-9]+_[12S]")
+filtered_reads <- bplapply(filtered_list, readDNAStringSet, format="fastq")
+names(filtered_reads) <- filtered_names
+```
+
+```{r}
+#sapply(list(upload=upload_reads_counts, filtered=filtered_reads_counts), summary)
+```
+
+# Session Info
+```{r}
+sessionInfo()
+```
