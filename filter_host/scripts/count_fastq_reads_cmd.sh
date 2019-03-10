@@ -1,6 +1,12 @@
 #!/bin/bash
-#SBATCH -o filter_cmds_%j.out
+#SBATCH -o count_cmds_%j.out
 
+#get count of lines in fastq files. (to subsequently /4 to get read counts in each file.)
+
+out_dir=/home/hlberman/VMMG/bowtie_human
+echo "Sample uploadCount1 uploadCount2 uploadCountS filteredCount1 filteredCount2 filteredCountS" > $out_dir/fastq_counts.txt
+
+#set sample IDs
 declare -a arr=(1000801248
 1000801318
 1000801368
@@ -112,5 +118,5 @@ declare -a arr=(1000801248
 ## now loop through the above array
 for i in "${arr[@]}"
 do
-sbatch --exclude=node1,node2,node3,node4,node5,node10,node11,node12,node13,node14,node15,node16,node17 /home/hlberman/VMMG/gard_map/scripts/filterAlns.sh $i
+sbatch --exclude=node1,node2,node3,node4,node5,node10,node11,node12,node13,node14,node15,node16,node17 /home/hlberman/VMMG/bowtie_human/scripts/count_fastq_reads.sh $i
 done

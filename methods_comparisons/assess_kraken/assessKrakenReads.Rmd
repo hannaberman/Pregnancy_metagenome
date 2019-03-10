@@ -17,18 +17,16 @@ library(readr);packageVersion("readr")
 
 ## Define file paths
 ```{r}
-main_dir <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/"
-readCounts_path <- file.path(main_dir, "RelativeAbundanceOutputs", "merged_braken_KrakenReads_pe.tsv")
-output_dir <- file.path(main_dir, "abundanceMethodsComparisons", "assessKraken")
-df <- file.path(main_dir, "metadata", "Tables_4_Ben_edit.txt")
+
+readCounts_path <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/merged_braken_KrakenReads_pe.tsv"
+output_dir <- getwd()
+df <- "/Users/hlberman/Documents/GitHub/pregnancy_metagenome/shotgunMetadata.tsv"
 ```
 
 ## Load DF
 ```{r}
 DF <- df %>%
-  read.table(header=TRUE, sep="\t", quote="", stringsAsFactors=FALSE) %>%
-  data.frame() %>%
-  mutate(GW_Coll = GD_Coll/7)
+  read_delim(df, delim="\t")
 ```
 
 #import table with read counts
@@ -75,6 +73,7 @@ sumTable <- humanTable1 %>%
   select(c(Total_reads, Pct_Human, Human_bot_reads, krakenHuReads, krakenHuAbundance))
 summary(sumTable)
 
+write_delim(humanTable1, file.path(output_dir, "krakenHumanReads.tsv"), delim = "\t")
 
 ggplot(humanTable1) +
   geom_line(aes(x=SampleID, y=Human_bot_reads, group=1), color = "black", show.legend = TRUE) +

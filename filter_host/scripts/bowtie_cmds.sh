@@ -112,5 +112,5 @@ declare -a arr=(1000801248
 ## now loop through the above array
 for i in "${arr[@]}"
 do
-sbatch --exclude=node1,node2,node3,node4,node5,node10,node11,node12,node13,node14,node15,node16,node17 /home/hlberman/VMMG/gard_map/scripts/bowtieAlign.sh $i
+sbatch --exclude=node1,node2,node3,node4,node5,node10,node11,node12,node13,node14,node15,node16,node17 /home/hlberman/VMMG/bowtie_human/scripts/bowtie_filter_human.sh $i
 done

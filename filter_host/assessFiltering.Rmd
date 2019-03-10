@@ -14,34 +14,47 @@ library(BiocParallel)
 
 ## File paths 
 ```{r}
-repo_dir <- "/Users/hlberman/Documents/GitHub/pregnancy_metagenome"
+#set paths
+repo_dir <- "/Users/hlberman/Documents/GitHub/pregnancy_metagenome/"
+countsDF_path <- file.path(repo_dir, "filter_host", "fastq_counts.txt")
 sg_df_path <- file.path(repo_dir, "shotgunMetadata.tsv")
-cluster_path <- "/Users/hlberman/mnt/cluster/home/hlberman/VMMG"
-reads_path <- file.path(cluster_path, "reads", "upload")
-filtered_path <- file.path(cluster_path, "bowtie_human", "filtered_fastq")
+krakenReads <- read_delim(file.path(repo_dir, "methods_comparisons", "assess_kraken", "krakenHumanReads.tsv"), delim="\t")
 
-# Load
+#Load
 sg_df <- read_delim(sg_df_path, delim = "\t")
-reads_list <- list.files(path = reads_path, all.files = FALSE, pattern="fastq", full.names = TRUE)
-filtered_list <-  list.files(path = filtered_path, all.files = FALSE, full.names = TRUE) 
+countsDF <- read_delim(countsDF_path, delim="\ ")
 ```
 
 # Compare amount of human reads filtered
 ```{r}
-# Get fastas
-reads_names <- list.files(reads_path, full.names = FALSE, all.files = FALSE, pattern = "fastq") %>%
-  str_extract( pattern="[0-9]+_[12S]")
-upload_reads <- bplapply(reads_list, readDNAStringSet, format="fastq")
-names(upload_reads) <- reads_names
+countsDF0 <- countsDF %>%
+  mutate(uploadCount1=uploadCount1/4,
+         uploadCount2=uploadCount2/4,
+         uploadCountS=uploadCountS/4,
+         filteredCount1=filteredCount1/4,
+         filteredCount2=filteredCount2/4,
+         filteredCountS=filteredCountS/4,
+         uploadTotal=uploadCount1+uploadCount2+uploadCountS,
+         filteredTotal=filteredCount1+filteredCount2+filteredCountS,
+         pctFiltered=filteredTotal/uploadTotal,
+         pctHuman2=(uploadTotal-filteredTotal)/uploadTotal,
+         SampleID=Sample)
 
-filtered_names <- list.files(filtered_path, full.names = FALSE, all.files = FALSE, pattern = "fastq") %>%
-  str_extract( pattern="[0-9]+_[12S]")
-filtered_reads <- bplapply(filtered_list, readDNAStringSet, format="fastq")
-names(filtered_reads) <- filtered_names
-```
 
-```{r}
-#sapply(list(upload=upload_reads_counts, filtered=filtered_reads_counts), summary)
+sg_df0 <- sg_df %>%
+  left_join(., countsDF0[,c("SampleID", "pctHuman2")], by="SampleID") %>%
+  left_join(., krakenReads[,c("SampleID", "krakenHuAbundance")], by ="SampleID") %>%
+  mutate(difference=abs(pctHuman2-PctHuman),
+         differenceK=abs(pctHuman2-krakenHuAbundance))
+
+sapply(list(upload=sg_df0$PctHuman, hannaBowtie=sg_df0$pctHuman2, kracken=sg_df0$krakenHuAbundance, difference1=sg_df0$difference, differenceKracken=sg_df0$differenceK), summary)
+
+ggplot(sg_df0) +
+  geom_line(aes(x=as.character(SampleID), y=PctHuman, group=1), color = "black", show.legend = TRUE) +
+  geom_line(aes(x=as.character(SampleID), y=krakenHuAbundance,group=1), color="blue", show.legend = TRUE) +
+  geom_line(aes(x=as.character(SampleID), y=pctHuman2,group=1), color="red", show.legend = TRUE) +
+  theme(axis.text.x = element_blank())+
+  labs(title ="black:upload, red:Hanna Bowtie, blue:kraken", x="Sample", y="Proportion Human Reads") 
 ```
 
 # Session Info
