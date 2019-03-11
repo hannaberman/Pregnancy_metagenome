@@ -13,7 +13,7 @@ Compare microbiome relative abundance measures from 16S, Metaphlan2, and Kraken2
 library(tidyverse); packageVersion("tidyverse")
 library(phyloseq); packageVersion("phyloseq")
 library(ggpubr) ; packageVersion("ggpubr")
-`%!in%` = Negate(`%in%`)
+#`%!in%` = Negate(`%in%`)
 ```
 
 ## Define file paths
@@ -343,123 +343,57 @@ ggplot(meta_brack_16S_other)+
 ```{r}
 #get ratio comparison conditions
 taxaLG <- c("Lactobacillus iners", "Lactobacillus gasseri", "Lactobacillus crispatus", "Lactobacillus jensenii", "Gardnerella  ", "Mycoplasma  ", "Prevotella  ", "Atopobium  ")
-pairLG <- combn(taxaLG, 2)
+pairLG <- combn(taxaLG, 2) %>%
+  as.data.frame() %>%
+  t()
 
 taxaS <- c("Lactobacillus iners", "Lactobacillus gasseri", "Lactobacillus crispatus", "Lactobacillus jensenii", "Gardnerella vaginalis", "Mycoplasma hominis", "Prevotella bivia", "Atopobium vaginae")
-pairS <- combn(taxaS, 2)
+pairS <- combn(taxaS, 2) %>%
+  as.data.frame() %>%
+  t()
 
-#make list of taxa ratios (lactobacillus at species level, only)
-#16S
-ratios16S <- matrix(nrow = 0, ncol = 3)
-colnames(ratios16S) <- c("SampleID_a", "Taxa", "logRatio_16S")
-for(i in c(1:length(df$SampleID_a))){
-  sam <- df$SampleID_a[i]
-  for (j in c(1:dim(pairLG)[2])){
-    a <- meta_brack_16S_other$Abundance_16S[meta_brack_16S_other$SampleID_a==sam & meta_brack_16S_other$Taxon==pairLG[1,j]]
-    b <- meta_brack_16S_other$Abundance_16S[meta_brack_16S_other$SampleID_a==sam & meta_brack_16S_other$Taxon==pairLG[2,j]] 
-    c <- a/b
-    ifelse((length(c)>0), 
-           d <- log10(c),
-           d <- NA)
-    e <- c(sam, paste0(pairLG[1,j], ":", pairLG[2,j]), d)
-    ratios16S <- rbind(ratios16S, e)
-    }
-}
-ratios16S[ratios16S=="Inf"|ratios16S=="-Inf"|ratios16S=="NaN"] <- NA
+#log ratios (lactobacillus at species level, only)
+ratiosLG <- cbind(SampleID_a=rep(df$SampleID_a, nrow(pairLG)), #make data_frame with list of all taxa pairs for each sample
+              Taxon=rep(pairLG[,1], nrow(df)),
+              Taxon2=rep(pairLG[,2], nrow(df))) %>%
+  as.data.frame(stringsAsFactors=FALSE) %>%
+  mutate(SampleID_a=as.numeric(as.character(SampleID_a))) %>%
+  left_join(meta_brack_16S_other[,c("SampleID_a", "RNAlater", "PaperCohort", "Taxon", "Abundance_16S", "Abundance_metaphl", "Abundance_brack")], by=c("SampleID_a", "Taxon")) %>% #add abundance for first taxon of each pair
+  rename(Taxon1=Taxon, #rename columns
+         ab_16S1=Abundance_16S,
+         ab_metaphl1=Abundance_metaphl,
+         ab_brack1=Abundance_brack,
+         Taxon=Taxon2) %>%
+  left_join(meta_brack_16S_other[,c("SampleID_a", "Taxon", "Abundance_16S", "Abundance_metaphl", "Abundance_brack")], by=c("SampleID_a", "Taxon")) %>% #add abundance for second taxon of each pair
+  rename(Taxon2=Taxon, #rename columns
+         ab_16S2=Abundance_16S,
+         ab_metaphl2=Abundance_metaphl,
+         ab_brack2=Abundance_brack) %>%
+  mutate(Taxa=paste0(Taxon1, ":", Taxon2), #compute log ratios
+         logRatio_16S=log10(ab_16S1/ab_16S2),
+         logRatio_metaphlan=log10(ab_metaphl1/ab_metaphl2),
+         logRatio_Braken=log10(ab_brack1/ab_brack2))
+ratiosLG[ratiosLG=="Inf"|ratiosLG=="-Inf"|ratiosLG=="NaN"] <- NA
 
-#metaphlan
-ratiosMetaphlan <- matrix(nrow = 0, ncol = 3)
-colnames(ratiosMetaphlan) <- c("SampleID_a", "Taxa", "logRatio_metaphlan")
-for(i in c(1:length(df$SampleID_a))){
-  sam <- df$SampleID_a[i]
-  for (j in c(1:dim(pairLG)[2])){
-    a <- meta_brack_16S_other$Abundance_metaphl[meta_brack_16S_other$SampleID_a==sam & meta_brack_16S_other$Taxon==pairLG[1,j]]
-    b <- meta_brack_16S_other$Abundance_metaphl[meta_brack_16S_other$SampleID_a==sam & meta_brack_16S_other$Taxon==pairLG[2,j]] 
-    c <- a/b
-    ifelse((length(c)>0), 
-           d <- log10(c),
-           d <- NA)
-    e <- c(sam, paste0(pairLG[1,j], ":", pairLG[2,j]), d)
-    ratiosMetaphlan <- rbind(ratiosMetaphlan, e)
-    }
-}
-ratiosMetaphlan[ratiosMetaphlan=="Inf"|ratiosMetaphlan=="-Inf"|ratiosMetaphlan=="NaN"] <- NA
-
-#bracken
-ratiosBracken <- matrix(nrow = 0, ncol = 3)
-colnames(ratiosBracken) <- c("SampleID_a", "Taxa", "logRatio_bracken")
-for(i in c(1:length(df$SampleID_a))){
-  sam <- df$SampleID_a[i]
-  for (j in c(1:dim(pairLG)[2])){
-    a <- meta_brack_16S_other$Abundance_brack[meta_brack_16S_other$SampleID_a==sam & meta_brack_16S_other$Taxon==pairLG[1,j]]
-    b <- meta_brack_16S_other$Abundance_brack[meta_brack_16S_other$SampleID_a==sam & meta_brack_16S_other$Taxon==pairLG[2,j]] 
-    c <- a/b
-    ifelse((length(c)>0), 
-           d <- log10(c),
-           d <- NA)
-    e <- c(sam, paste0(pairLG[1,j], ":", pairLG[2,j]), d)
-    ratiosBracken <- rbind(ratiosBracken, e)
-    }
-}
-ratiosBracken[ratiosBracken=="Inf"|ratiosBracken=="-Inf"|ratiosBracken=="NaN"] <- NA
-
-#ratios with species for metaphlan vs bracken
-#metaphlan
-ratiosMetaphlanS <- matrix(nrow = 0, ncol = 3)
-colnames(ratiosMetaphlanS) <- c("SampleID_a", "Taxa", "logRatio_metaphlan")
-for(i in c(1:length(df$SampleID_a))){
-  sam <- df$SampleID_a[i]
-  for (j in c(1:dim(pairLG)[2])){
-    a <- meta_brack_other$Abundance_metaphl[meta_brack_other$SampleID_a==sam & meta_brack_other$Taxon==pairS[1,j]]
-    b <- meta_brack_other$Abundance_metaphl[meta_brack_other$SampleID_a==sam & meta_brack_other$Taxon==pairS[2,j]] 
-    c <- a/b
-    ifelse((length(c)>0), 
-           d <- log10(c),
-           d <- NA)
-    e <- c(sam, paste0(pairS[1,j], ":", pairS[2,j]), d)
-    ratiosMetaphlanS <- rbind(ratiosMetaphlanS, e)
-    }
-}
-ratiosMetaphlanS[ratiosMetaphlanS=="Inf"|ratiosMetaphlanS=="-Inf"|ratiosMetaphlanS=="NaN"] <- NA
-
-#bracken
-ratiosBrackenS <- matrix(nrow = 0, ncol = 3)
-colnames(ratiosBrackenS) <- c("SampleID_a", "Taxa", "logRatio_bracken")
-for(i in c(1:length(df$SampleID_a))){
-  sam <- df$SampleID_a[i]
-  for (j in c(1:dim(pairLG)[2])){
-    a <- meta_brack_other$Abundance_brack[meta_brack_other$SampleID_a==sam & meta_brack_other$Taxon==pairS[1,j]]
-    b <- meta_brack_other$Abundance_brack[meta_brack_other$SampleID_a==sam & meta_brack_other$Taxon==pairS[2,j]] 
-    c <- a/b
-    ifelse((length(c)>0), 
-           d <- log10(c),
-           d <- NA)
-    e <- c(sam, paste0(pairS[1,j], ":", pairS[2,j]), d)
-    ratiosBrackenS <- rbind(ratiosBrackenS, e)
-    }
-}
-ratiosBrackenS[ratiosBrackenS=="Inf"|ratiosBrackenS=="-Inf"|ratiosBrackenS=="NaN"] <- NA
-
-#merge tables
-ratiosLG <- as.data.frame(ratios16S) %>%
-  full_join(as.data.frame(ratiosMetaphlan), by = c("SampleID_a", "Taxa")) %>%
-  full_join(as.data.frame(ratiosBracken), by = c("SampleID_a", "Taxa")) %>%
-  mutate(logRatio_16S=as.numeric(as.character(logRatio_16S)),
-         logRatio_metaphlan=as.numeric(as.character(logRatio_metaphlan)),
-         logRatio_bracken=as.numeric(as.character(logRatio_bracken)), 
-         RNAlater = case_when(SampleID_a %in% df$SampleID_a[df$RNAlater=="Yes"] ~ "Yes",
-                              SampleID_a %in% df$SampleID_a[df$RNAlater=="No"] ~ "No"),
-         PaperCohort=case_when(SampleID_a %in% df$SampleID_a[df$PaperCohort=="2015"] ~ "2015",
-                              SampleID_a %in% df$SampleID_a[df$PaperCohort=="2017"] ~ "2017")
-         )
-
-
-ratiosS <- as.data.frame(ratiosMetaphlanS) %>%
-  full_join(as.data.frame(ratiosBrackenS), by = c("SampleID_a", "Taxa")) %>%
-  mutate(logRatio_metaphlan=as.numeric(as.character(logRatio_metaphlan)),
-         logRatio_bracken=as.numeric(as.character(logRatio_bracken)),
-         RNAlater = case_when(SampleID_a %in% df$SampleID_a[df$RNAlater=="Yes"] ~ "Yes",
-                              SampleID_a %in% df$SampleID_a[df$RNAlater=="No"] ~ "No"))
+#log ratios (all taxa at species level) 
+ratiosS <- cbind(SampleID_a=rep(df$SampleID_a, nrow(pairLG)), #make data_frame with list of all taxa pairs for each sample
+              Taxon=rep(pairS[,1], nrow(df)),
+              Taxon2=rep(pairS[,2], nrow(df))) %>%
+  as.data.frame(stringsAsFactors=FALSE) %>%
+  mutate(SampleID_a=as.numeric(as.character(SampleID_a))) %>%
+  left_join(meta_brack_other[,c("SampleID_a", "RNAlater", "PaperCohort", "Taxon",  "Abundance_metaphl", "Abundance_brack")], by=c("SampleID_a", "Taxon")) %>% #add abundance for first taxon of each pair
+  rename(Taxon1=Taxon,
+         ab_metaphl1=Abundance_metaphl,
+         ab_brack1=Abundance_brack,
+         Taxon=Taxon2) %>%
+  left_join(meta_brack_other[,c("SampleID_a", "Taxon", "Abundance_metaphl", "Abundance_brack")], by=c("SampleID_a", "Taxon")) %>% #add abundance for second taxon of each pair
+  rename(Taxon2=Taxon,
+         ab_metaphl2=Abundance_metaphl,
+         ab_brack2=Abundance_brack) %>%
+  mutate(Taxa=paste0(Taxon1, ":", Taxon2), #compute log ratios
+         logRatio_metaphlan=log10(ab_metaphl1/ab_metaphl2),
+         logRatio_Braken=log10(ab_brack1/ab_brack2)) 
+ratiosS[ratiosS=="Inf"|ratiosS=="-Inf"|ratiosS=="NaN"] <- NA
 ```
 
 ## Plot
@@ -588,54 +522,9 @@ ggplot(data=ratiosLG0) +
 S16values <- meta_brack_16S_other$Abundance_16S[meta_brack_16S_other$metaphl_yn=="No"]
 max(S16values, na.rm = TRUE)
 
-meta_brack_16S_other0 <- meta_brack_16S_other %>%
-  filter(Abundance_16S>max(S16values, na.rm = TRUE)) #filter on the 0.0395 value
-
-#LOG RATIOS WITH 0.0395 CUTOFF
-#16S
-ratios16S0 <- matrix(nrow = 0, ncol = 3)
-colnames(ratios16S0) <- c("SampleID_a", "Taxa", "logRatio_16S")
-for(i in c(1:length(df$SampleID_a))){
-  sam <- df$SampleID_a[i]
-  for (j in c(1:dim(pairLG)[2])){
-    a <- meta_brack_16S_other0$Abundance_16S[meta_brack_16S_other0$SampleID_a==sam & meta_brack_16S_other0$Taxon==pairLG[1,j]]
-    b <- meta_brack_16S_other0$Abundance_16S[meta_brack_16S_other0$SampleID_a==sam & meta_brack_16S_other0$Taxon==pairLG[2,j]] 
-    c <- a/b
-    ifelse((length(c)>0), 
-           d <- log10(c),
-           d <- NA)
-    e <- c(sam, paste0(pairLG[1,j], ":", pairLG[2,j]), d)
-    ratios16S0 <- rbind(ratios16S0, e)
-    }
-}
-ratios16S0[ratios16S0=="Inf"|ratios16S0=="-Inf"|ratios16S0=="NaN"] <- NA
-
-#metaphlan
-ratiosMetaphlan0 <- matrix(nrow = 0, ncol = 3)
-colnames(ratiosMetaphlan0) <- c("SampleID_a", "Taxa", "logRatio_metaphlan")
-for(i in c(1:length(df$SampleID_a))){
-  sam <- df$SampleID_a[i]
-  for (j in c(1:dim(pairLG)[2])){
-    a <- meta_brack_16S_other0$Abundance_metaphl[meta_brack_16S_other0$SampleID_a==sam & meta_brack_16S_other0$Taxon==pairLG[1,j]]
-    b <- meta_brack_16S_other0$Abundance_metaphl[meta_brack_16S_other0$SampleID_a==sam & meta_brack_16S_other0$Taxon==pairLG[2,j]] 
-    c <- a/b
-    ifelse((length(c)>0), 
-           d <- log10(c),
-           d <- NA)
-    e <- c(sam, paste0(pairLG[1,j], ":", pairLG[2,j]), d)
-    ratiosMetaphlan0 <- rbind(ratiosMetaphlan0, e)
-    }
-}
-ratiosMetaphlan0[ratiosMetaphlan0=="Inf"|ratiosMetaphlan0=="-Inf"|ratiosMetaphlan0=="NaN"] <- NA
-#merge tables
-ratiosLG0 <- as.data.frame(ratios16S0) %>%
-  full_join(as.data.frame(ratiosMetaphlan0), by = c("SampleID_a", "Taxa")) %>%
-  mutate(logRatio_16S=as.numeric(as.character(logRatio_16S)),
-         logRatio_metaphlan=as.numeric(as.character(logRatio_metaphlan)),
-         RNAlater = case_when(SampleID_a %in% df$SampleID_a[df$RNAlater=="Yes"] ~ "Yes",
-                              SampleID_a %in% df$SampleID_a[df$RNAlater=="No"] ~ "No"),
-         PaperCohort=case_when(SampleID_a %in% df$SampleID_a[df$PaperCohort=="2015"] ~ "2015",
-                              SampleID_a %in% df$SampleID_a[df$PaperCohort=="2017"] ~ "2017"))
+ratiosLG0 <- ratiosLG %>%
+  filter(ab_16S1>max(S16values, na.rm = TRUE),
+         ab_16S2>max(S16values, na.rm = TRUE)) #filter on the 0.0395 value
 ```
 
 Plot
@@ -681,54 +570,9 @@ ggsave(file.path(output_dir, "logRatio_16SVmetaphl_papercohort_0.0395.png"),heig
 ```
 
 ```{r}
-meta_brack_16S_other1 <- meta_brack_16S_other %>%
-  filter(Abundance_16S>0.02) #filter on 0.02
-
-#LOG RATIOS WITH 0.02 CUTOFF
-#16S
-ratios16S1 <- matrix(nrow = 0, ncol = 3)
-colnames(ratios16S1) <- c("SampleID_a", "Taxa", "logRatio_16S")
-for(i in c(1:length(df$SampleID_a))){
-  sam <- df$SampleID_a[i]
-  for (j in c(1:dim(pairLG)[2])){
-    a <- meta_brack_16S_other1$Abundance_16S[meta_brack_16S_other1$SampleID_a==sam & meta_brack_16S_other1$Taxon==pairLG[1,j]]
-    b <- meta_brack_16S_other1$Abundance_16S[meta_brack_16S_other1$SampleID_a==sam & meta_brack_16S_other1$Taxon==pairLG[2,j]] 
-    c <- a/b
-    ifelse((length(c)>0), 
-           d <- log10(c),
-           d <- NA)
-    e <- c(sam, paste0(pairLG[1,j], ":", pairLG[2,j]), d)
-    ratios16S1 <- rbind(ratios16S1, e)
-    }
-}
-ratios16S1[ratios16S1=="Inf"|ratios16S1=="-Inf"|ratios16S1=="NaN"] <- NA
-
-#metaphlan
-ratiosMetaphlan1 <- matrix(nrow = 0, ncol = 3)
-colnames(ratiosMetaphlan1) <- c("SampleID_a", "Taxa", "logRatio_metaphlan")
-for(i in c(1:length(df$SampleID_a))){
-  sam <- df$SampleID_a[i]
-  for (j in c(1:dim(pairLG)[2])){
-    a <- meta_brack_16S_other1$Abundance_metaphl[meta_brack_16S_other1$SampleID_a==sam & meta_brack_16S_other1$Taxon==pairLG[1,j]]
-    b <- meta_brack_16S_other1$Abundance_metaphl[meta_brack_16S_other1$SampleID_a==sam & meta_brack_16S_other1$Taxon==pairLG[2,j]] 
-    c <- a/b
-    ifelse((length(c)>0), 
-           d <- log10(c),
-           d <- NA)
-    e <- c(sam, paste0(pairLG[1,j], ":", pairLG[2,j]), d)
-    ratiosMetaphlan1 <- rbind(ratiosMetaphlan1, e)
-    }
-}
-ratiosMetaphlan1[ratiosMetaphlan1=="Inf"|ratiosMetaphlan1=="-Inf"|ratiosMetaphlan1=="NaN"] <- NA
-#merge tables
-ratiosLG1 <- as.data.frame(ratios16S1) %>%
-  full_join(as.data.frame(ratiosMetaphlan1), by = c("SampleID_a", "Taxa")) %>%
-  mutate(logRatio_16S=as.numeric(as.character(logRatio_16S)),
-         logRatio_metaphlan=as.numeric(as.character(logRatio_metaphlan)),
-         RNAlater = case_when(SampleID_a %in% df$SampleID_a[df$RNAlater=="Yes"] ~ "Yes",
-                              SampleID_a %in% df$SampleID_a[df$RNAlater=="No"] ~ "No"),
-         PaperCohort=case_when(SampleID_a %in% df$SampleID_a[df$PaperCohort=="2015"] ~ "2015",
-                              SampleID_a %in% df$SampleID_a[df$PaperCohort=="2017"] ~ "2017"))
+ratiosLG1 <- ratiosLG %>% #filter on 0.02 (arbitrary)
+  filter(ab_16S1>0.02,
+         ab_16S2>0.02)
 ```
 
 
