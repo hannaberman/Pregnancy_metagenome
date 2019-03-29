@@ -1,7 +1,7 @@
 ---
 title: "Assign clades to short reads"
 author: "Hanna Berman"
-date: "2/28/2019"
+date: "3/27/2019"
 output: html_document
 ---
 
@@ -9,7 +9,8 @@ output: html_document
 ##Load packages
 ```{r libraries, warning=FALSE}
 library(tidyverse); packageVersion("tidyverse")
-library(GenomicAlignments);packageVersion("GenomicAlignments")
+library(Biostrings)
+options(scipen=10000)
 ```
 
 ## Define file paths
@@ -19,279 +20,458 @@ gard_tree_dir <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/Gard WGS"
 output_dir <- file.path(repo_dir, "gard_mapping/clade_assignments/")
 df_path <- file.path(repo_dir, "shotgunMetadata.tsv")
 ref_df_path <- file.path(repo_dir, "GardnerellaMetadata.csv")
-alns_path <- file.path(repo_dir, "gard_mapping/clade_assignments/gardBamsAlns.RData")
-bam_path <- file.path(repo_dir, "gard_mapping/clade_assignments/gardBams.RData")
 ref_db_path <- file.path(repo_dir, "gard_mapping/clade_assignments/ref_genes/refGenes.fasta")
 refGenesDF_path <- file.path(repo_dir, "gard_mapping/clade_assignments/ref_genes/refGenesDF.csv")
-```
-
-## Load
-```{r}
-load(file=alns_path); head(alns)[1:2]
-load(file=bam_path); head(bams)[1]
+#usearchAlns <- "/Users/hlberman/mnt/cluster/home/hlberman/VMMG/gard_map/usearch_alns20" #path to blast6 tables from usearch alignments
 ref_db <- readDNAStringSet(ref_db_path); head(ref_db)[1:5]
 refDF <- read_csv(ref_df_path); head(refDF)
 sgDF <- read_delim(df_path, delim="\t"); head(sgDF)
+sgDF <- sgDF %>%
+  mutate(SampleID=as.character(SampleID), 
+         SubjectID=as.character(SubjectID))
 refGenesDF <- read_csv(refGenesDF_path)
 ```
 
-# Count number of reads mapped to each strain
+# Asses second filtering by usearch
+
+## set up (load data)
 ```{r}
-
-alnGenes <- alns %>%  #make dfs of genes mapped in each sample
-  map(seqnames) %>%
-  map(as.data.frame)
-names(alnGenes) <- names(alns)
-
-countStrains <- alnGenes %>%  #get just strains mapped in each sample
-  map(~mutate(.x, value=str_sub(.x$value, 1L, -7L))) %>% #remove gene identifiers so that only strains appear
-  map(~dplyr::count(.x, value)) %>% #get counts of strains 
-  purrr::reduce(full_join, by="value") %>% #make on data frame 
-  dplyr::rename(Strain=value) %>%
-  left_join(., refDF[,c("Strain", "Group")], by = "Strain") #add group
-colnames(countStrains) <- c("refStrain", names(alns), "Clade") 
-
-countClades <- countStrains %>%  #get reads mapped to each clade
-  select(-refStrain) %>%
-  group_by(Clade) %>%
-  summarise_all(list(sum), na.rm=TRUE) %>%
-  gather("SampleID", "n", 2:108) %>%
-  mutate(Subject=str_sub(SampleID, 1, 5),
-         Clade=as.character(Clade),
-         SampleID=as.numeric(as.character(SampleID))) %>%
-  left_join(sgDF[,c("SampleID", "GWcoll")], by="SampleID") %>%
-  filter(Clade!="0"|Clade!="1"|Clade!="2"|Clade!="3"|Clade!="4")
-
-countClades0 <- countClades %>%
-  spread(Clade, n)
-
-countClades1 <- countClades %>% #make read counts into proportion
-  group_by(SampleID) %>%
-  mutate(n=n/sum(n))
-
-maxClade <- countClades %>%
-  aggregate(n~SampleID, ., max) %>%
-  filter(n>0)%>%
-  inner_join(countClades, by = c("SampleID", "n"))
-setdiff(sgDF$SampleID, maxClade$SampleID)
+#alns <- list.files(usearchAlns, all.files = FALSE, full.names = TRUE) %>%
+#  map(read_delim, delim="\t", col_names=c("query", "reference", "pcntid", "length", "mismatch", "gap_open", "qstart", "qend", #"rstart", "rend", "evalue", "bitscore")) #read in blast tables
+#names(alns) <-  list.files(usearchAlns, all.files = FALSE, full.names = FALSE) %>%
+#  str_extract("[0-9]+")
+#save(alns, file="/Users/hlberman/Desktop/alns.Rdata")
+load("/Users/hlberman/Desktop/alns.Rdata")
 ```
 
-## Plot
+## Set up (formatting)
 ```{r}
-ggplot(data=countClades1, aes(x=GWcoll, y=n, color = Clade)) +
+#remove strains where no gard mapped
+nrows <- map(alns, nrow) 
+alns <- alns[nrows>0]
+
+#add annotation info
+refAnnotations <- refGenesDF %>%
+  select(Annotation, refDF$Strain[refDF$In_Directory==TRUE]) %>%
+  gather("strain", "reference", 2:ncol(.))
+alns0 <- alns %>%
+  map2(., names(alns), ~mutate(.x, SampleID=.y)) %>%
+  map(~left_join(.x, refAnnotations[,c("Annotation", "reference")], by="reference")) %>%
+  map(~mutate(.x, Strain=str_sub(.x$reference, 1L, -7L))) %>% #remove gene identifiers so that only strains appear in Strain column
+  map(~left_join(.x, refDF[,c("Strain", "Clade")], by="Strain")) # add reference gene/strain clade information
+```
+
+## Some descriptives
+```{r}
+countHitsbySample <- alns %>% #count number of hits coming back in each sample 
+  map(~nrow(.x)) %>%
+  as_tibble() %>%
+  t() %>%
+  as_tibble()
+ggplot(data = countHitsbySample, aes(V1)) +
+  geom_histogram() +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(0, 900000, by = 100000)) +
+  scale_y_continuous(breaks = seq(0, 40, by = 5)) +
+  labs(title = "Hits per sample", x = "Hits")
+
+countReadsPerSample <- alns0 %>%
+  map(~group_by(.x, SampleID)) %>%
+  map(~summarise(.x, readspersample=n_distinct(query))) %>%
+  map(~ungroup(.x)) %>%
+  purrr::reduce(full_join, by=c("SampleID", "readspersample"))
+ggplot(data = countReadsPerSample, aes(readspersample)) +
+  geom_histogram() +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(0, 20000, by = 2000)) +
+  scale_y_continuous(breaks = seq(0, 50, by = 5)) +
+  labs(title = "Reads per sample", x = "# Reads")
+  
+countQueriesByAnnotation <- alns0 %>% #number of reads that map to each annotation
+  map(~group_by(.x, Annotation)) %>%
+  map(~summarize(.x, queriesbyannotation=n_distinct(query))) %>%
+  map(~ungroup(.x)) %>%
+  map2(., names(alns0), ~mutate(.x, sampleID=.y)) %>%  
+  purrr::reduce(full_join, by=c("Annotation", "queriesbyannotation", "sampleID"))
+ggplot(data = countQueriesByAnnotation, aes(queriesbyannotation)) +
+  geom_histogram() +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(0, 2000, by = 100)) +
+  scale_y_continuous(breaks = seq(0, 2000, by = 100)) +
+  labs(title = "Queries (reads) that map to each annotation", x = "# Queries (reads)")
+ 
+countReferencesByQuery <- alns0 %>%  #number of references that each query maps to
+  map(~group_by(.x, query)) %>%
+  map(~summarize(.x, referencesbyquery=n_distinct(reference))) %>%
+  map(~ungroup(.x)) %>%
+  map2(., names(alns0), ~mutate(.x, sampleID=.y)) %>%
+  purrr:: reduce(full_join, by=c("query", "referencesbyquery", "sampleID"))
+ggplot(data = countReferencesByQuery, aes(referencesbyquery)) +
+  geom_histogram() +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(0, 80, by = 10)) +
+  scale_y_continuous(breaks = seq(0, 50000, by = 5000)) +
+  labs(title = "Number of reference genes that each query maps to", x = "# Reference Genes") 
+ 
+countQueriesByReference <- alns0 %>% #number of queries that map to each reference (per sample)
+  map(~group_by(.x, reference)) %>%
+  map(~summarize(.x, queriesbyreference=n_distinct(query))) %>%
+  map(~ungroup(.x)) %>%
+  map2(., names(alns0), ~mutate(.x, sampleID=.y)) %>%
+  purrr:: reduce(full_join, by=c("reference", "queriesbyreference", "sampleID"))
+ggplot(data = countQueriesByReference, aes(queriesbyreference)) +
+  geom_histogram() +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(0, 1500, by = 150)) +
+  scale_y_continuous(breaks = seq(0, 150000, by = 15000)) +
+  labs(title = "Number of queries(unique reads) that map to each reference (per sample)", x = "# queries (reads)") 
+
+countStrainsBySample <- alns0 %>%  #get count of strains mapped in each sample
+  map_df(~summarise(.x, nSamples=n_distinct(.x$Strain))) %>%
+  mutate(SampleID=names(alns))
+ggplot(data = countStrainsBySample, aes(nSamples)) +
+  geom_histogram() +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(0, 80, by = 5)) +
+  scale_y_continuous(breaks = seq(0, 100, by = 10)) +
+  labs(title = "Number of strains found in each sample", x = "# strains") 
+
+countCladesBySample <- alns0 %>%  #get count of clades mapped in each sample
+  map_df(~summarise(.x, nClades=n_distinct(Clade))) %>%
+  mutate(SampleID=names(alns))
+ggplot(data = countCladesBySample, aes(nClades)) +
+  geom_histogram() +
+  theme_classic() +
+  scale_y_continuous(breaks = seq(0, 100, by = 10)) +
+  labs(title = "Number of clades found in each sample", x = "# clades")  
+ 
+sapply(list(Reads_per_sample=countReadsPerSample$readspersample,
+            Hits_per_sample=countHitsbySample$V1,
+            Queries_per_annotation=countQueriesByAnnotation$queriesbyannotation,
+            References_per_query=countReferencesByQuery$referencesbyquery,
+            Queries_per_reference=countQueriesByReference$queriesbyreference,
+            Strains_per_sample=countStrainsBySample$nSamples, 
+            Clades_per_sample=countCladesBySample$nClades), 
+       summary)
+```
+
+## Assess top alignmnet percent identities
+```{r}
+allHits <- alns0 %>%
+  map2(., names(alns), ~mutate(.x, sampleID=.y)) %>%
+  map(~select(.x, sampleID, query, reference, Annotation, Strain, Clade, pcntid, length)) %>%
+  purrr::reduce(full_join, by=c("sampleID", "query", "reference", "Annotation", "Strain", "Clade", "pcntid", "length")) %>%
+  mutate(sampleID=as.character(sampleID))
+#reference by annotation
+#violin plot of each ref gene by annotation
+ggplot(data = allHits, aes(pcntid)) +
+  geom_histogram(binwidth = 1) +
+  theme_classic() +
+  labs(title = "Percent ID of all hits", x = "Percent ID") 
+ggplot(data=allHits, aes(x=Annotation, y=pcntid))+
+  geom_violin() +
+  theme(axis.text.x = element_text(angle=45, hjust=1)) +
+  scale_y_continuous(breaks = seq(0, 100, by = 2.5)) +
+  labs(y="Percent ID") +
+ggsave("/Users/hlberman/Desktop/test.pdf", height = 8, width = 11)
+ggplot(data=allHits, aes(x=sampleID, y=pcntid))+
+  geom_violin() +
+  theme(axis.text.x = element_text(angle=45, hjust=1)) +
+  scale_y_continuous(breaks = seq(0, 100, by = 2.5)) +
+  labs(y="Percent ID") +
+#+ggsave("/Users/hlberman/Desktop/test2.pdf", height = 8, width = 40)
+
+maxByQuery <- alns %>%  
+  map(~group_by(.x, query)) %>%
+  map(~summarise(.x, maxbyquery=max(pcntid))) %>%
+  map(~ungroup(.x)) %>%
+  map2(., names(alns), ~mutate(.x, sampleID=.y)) %>%
+  purrr::reduce(full_join, by=c("query", "maxbyquery", "sampleID"))
+ggplot(data = maxByQuery, aes(maxbyquery)) +
+  geom_histogram(binwidth = 1) +
+  theme_classic() +
+  labs(title = "Max percent ID per read", x = "Percent ID")
+
+maxByReference <- alns %>%  
+  map(~group_by(.x, reference)) %>%
+  map(~summarise(.x, maxbyreference =max(pcntid))) %>%
+  map(~ungroup(.x)) %>%
+  map2(., names(alns), ~mutate(.x, sampleID=.y)) %>%
+  purrr::reduce(full_join, by=c("reference", "maxbyreference", "sampleID"))
+ggplot(data = maxByReference, aes(maxbyreference)) +
+  geom_histogram(binwidth = 1) +
+  theme_classic() +
+  labs(title = "Max percent ID per reference (per sample)", x = "Percent ID")
+
+maxByAnnotation <- alns0 %>%
+  map(~group_by(.x, Annotation)) %>%
+  map(~summarise(.x, maxbyannotation =max(pcntid))) %>%
+  map(~ungroup(.x)) %>%
+  map2(., names(alns), ~mutate(.x, sampleID=.y)) %>%
+  purrr::reduce(full_join, by=c("Annotation", "maxbyannotation", "sampleID"))
+ggplot(data = maxByAnnotation, aes(maxbyannotation)) +
+  geom_histogram(binwidth = 1) +
+  theme_classic() +
+  labs(title = "Max percent ID per annotation (per sample)", x = "Percent ID")
+
+sumstats2 <- sapply(list(PercentID=allHits$pcntid,
+            Max_by_query=maxByQuery$maxbyquery,
+            Max_by_reference=maxByReference$maxbyreference,
+            Max_by_annotation=maxByAnnotation$maxbyannotation),
+            summary) %>%
+  as.data.frame()
+write_csv(sumstats2, "/Users/hlberman/Desktop/sumstats2.csv")
+```
+
+# How does filtering affect clades? -- 99%
+```{r}
+alns99 <- alns0 %>%
+  map(~filter(.x, pcntid>=99))
+alns100 <- alns0 %>%
+  map(~filter(.x, pcntid>=100))
+
+countCladesBySample99 <- alns99 %>%  #get count of clades mapped in each sample
+  map_df(~summarise(.x, nClades=n_distinct(Clade))) %>%
+  mutate(SampleID=names(alns)) %>%
+  left_join(sgDF[,c("SampleID","SubjectID", "GWcoll")])
+ggplot(data = countCladesBySample99, aes(nClades)) +
+  geom_histogram() +
+  theme_classic() +
+  scale_y_continuous(breaks = seq(0, 100, by = 10)) +
+  labs(title = "Number of clades found in each sample (filter to %ID>=99)", x = "# clades")
+
+sample99clades <- alns99 %>%
+  map(~count(.x, Clade)) %>%
+  map(~mutate(.x, propClade=(n/sum(n)),
+              Clade=as.character(Clade))) %>%
+  map2(., names(alns99), ~mutate(.x, SampleID=.y)) %>%
+  purrr::reduce(full_join, by=c("SampleID", "Clade", "propClade")) %>%
+  left_join(sgDF[,c("SampleID","SubjectID", "GWcoll")])
+ggplot(data=sample99clades, aes(x=GWcoll, y=propClade, color = Clade)) +
   geom_point()+
   geom_jitter()+
-  facet_wrap(~Subject) +
-  labs(y="Proportion alignments per clade", x="Gestation Weeks")+
-  theme(axis.text.y = element_text(size=7))
-
-ggplot(data=countClades1, aes(x=GWcoll, y=n, color = Clade, fill=Clade)) +
-  geom_bar(position="stack", stat = "identity", width =2) +
-  facet_wrap(~Subject) +
-  labs(y="Proportion alignments per clade", x="Gestation Weeks")+
+  facet_wrap(~SubjectID) +
+  labs(title = "Proportion clades found in each sample (filter to %ID>=99)", y="Proportion alignments per clade", x="Gestation Weeks")+
   theme(axis.text.y = element_text(size=7))
 ```
 
-## 
+# How does filtering affect clades? -- 100%
 ```{r}
-#make dataframes
-bamDFs <- bams %>% # data frames with bam info for all alignments for each samples
-  map(as.data.frame, stringsAsFactors=FALSE) %>%
-  map(~select(.x, qname, 
-                  rname,
-                  pos,
-                  qwidth,
-                  mapq,
-                  cigar,
-                  mrnm)) %>%
-  map(~mutate(.x, Strain=str_sub(.x$rname, 1L, -7L),
-              rname=as.character(rname))) %>%
-  map(~left_join(.x, refDF[,c("Strain","Group")], by="Strain"))
+countCladesBySample100 <- alns100 %>%  #get count of clades mapped in each sample
+  map_df(~summarise(.x, nClades=n_distinct(Clade))) %>%
+  mutate(SampleID=names(alns)) %>%
+  left_join(sgDF[,c("SampleID","SubjectID", "GWcoll")])
+ggplot(data = countCladesBySample99, aes(nClades)) +
+  geom_histogram() +
+  theme_classic() +
+  scale_y_continuous(breaks = seq(0, 100, by = 10)) +
+  labs(title = "Number of clades found in each sample (filter to %ID=100)", x = "# clades")
 
-#bamDFs0 <- bamDFs %>% try to get max map q score of duplicates
-#  map(~select(.x, qname=contains("qname"), 
-#                  rname=contains("rname"),
-#                  mapq=contains("mapq"),
-#                  Strain=contains("Strain"),
-#                  Group=contains("group"))) %>%
-#  map(~group_by(.x, .x$qname)) %>%
-#  map(~filter_if(.x, count(.x$qname)>1, mapq==max(.x$mapq)))
+sample100clades <- alns100 %>%
+  map(~count(.x, Clade)) %>%
+  map(~mutate(.x, propClade=(n/sum(n)),
+              Clade=as.character(Clade))) %>%
+  map2(., names(alns99), ~mutate(.x, SampleID=.y)) %>%
+  purrr::reduce(full_join, by=c("SampleID", "Clade", "propClade")) %>%
+  left_join(sgDF[,c("SampleID","SubjectID", "GWcoll")])
+ggplot(data=sample100clades, aes(x=GWcoll, y=propClade, color = Clade)) +
+  geom_point()+
+  geom_jitter()+
+  facet_wrap(~SubjectID) +
+  labs(title = "Proportion clades found in each sample (filter to %ID=100)", y="Proportion alignments per clade", x="Gestation Weeks")+
+  theme(axis.text.y = element_text(size=7))
 ```
 
-
-Assess duplicates
+Assess duplicates --99%
 ```{r}
-dupDFs <- bamDFs %>%  # dataframes with multiples only
-  map(~group_by(.x, .x$qname)) %>%
-  map(~filter(.x, n()>1)) %>%
-  map(ungroup)
+hitsPerSample99 <- alns99 %>%
+  map(~nrow(.x)) %>%
+  as_tibble() %>%
+  t() %>%
+  as_tibble() %>%
+  mutate(SampleID=names(alns99))
 
-nAlignments <- bamDFs %>% #number of alignments per sample
-  map(~select(.x, qname)) %>%
-  map(as_vector) %>%
-  map(length) %>%
-  unlist()
-summary(nAlignments)
+ggplot(data = hitsPerSample99, aes(V1))+
+  geom_histogram() +
+  labs(title="hits per sample >99% id", x="hits") +
+  theme_classic()
+summary(hitsPerSample99$V1)
 
-nUniqueReads <- bamDFs %>% #number of unique reads that mapped to the reference database
-  map(~select(.x, qname)) %>%
-  map(as_vector) %>%
-  map(unique) %>%
-  map(length) %>%
-  unlist()
-summary(nUniqueReads)
-
-nMultiples <- dupDFs %>% #number of alignments that have multiples (ie the query sequence in this alignment mapped to another reference sequence) in each sample
-  map(~select(.x, qname)) %>%
-  map(as_vector) %>%
-  map(length) %>%
-  unlist()
-
-alnCounts <- data.frame(alignments=nAlignments,
-                        uniqueReadsMapped=nUniqueReads,
-                        Multiples=nMultiples) %>%
-  mutate(readsWithMultiples=alignments-uniqueReadsMapped,
-         averageMultiples=Multiples/readsWithMultiples,
-         proportionReadsMultiples=readsWithMultiples/uniqueReadsMapped,
-         proportionAlnsMultiples=readsWithMultiples/alignments)
-table(alnCounts$averageMultiples)
-sapply(list(`Proportion Reads`=alnCounts$proportionReadsMultiples, `Porportion Alignments`=alnCounts$proportionAlnsMultiples), summary)
-hist(alnCounts$proportionReadsMultiples,
-          main = "Proportion of query short reads mapping to multiple reference sequences",
-          xlab ="Proportion of unique reads mapped")
-hist(alnCounts$proportionAlnsMultiples,
-          main = "Proportion of alingments that are additional duplicates",
-          xlab ="Proportion of alignments")
-```
-Reads with multiple alignments map to an average of 2 reads.
-An average of ~50% of reads are mapping to multiple sequences.
-About ~30% of alignments are "added" duplicates (i.e. about 1/3 of alignments would be removed if there were one alignment per read). 
-
-Find what reads are mapping to duplicates
-```{r}
-dupDFs0 <- dupDFs %>% #unique multiples -- remove alignments that are reads mapping the same gene at different locations
-  map(~select(.x, qname, 
-                  rname,
-                  Strain,
-                  Group)) %>%
-  map(~unique.data.frame(.x))
-
-nUniqueMultiples <- dupDFs0 %>%
-  map(nrow) %>%
-  map(as_vector) %>%
-  unlist()
-
-dupDFs1 <- dupDFs0 %>% #alignment duplicates that represent reads mapping to different reference sequences
-  map(~group_by(.x, qname)) %>%
-  map(~filter(.x, n()>1)) %>%
-  map(ungroup)
-
-nDifferentRefGenes <- dupDFs1 %>%
-  map(nrow) %>%
-  map(as_vector) %>%
-  unlist
-
-alnCounts <- alnCounts %>%
-  mutate(multiplesDifferentGenes=nDifferentRefGenes,
-         proportionMultiplesDiferentGenes=multiplesDifferentGenes/alignments)
-sapply(list(`All Alignments`=alnCounts$alignments,`Multiples that are Different Genes`=alnCounts$multiplesDifferentGenes, `Proportion of Alignments`=alnCounts$proportionMultiplesDiferentGenes), summary)
-```
-
-```{r}
-#what genes are causing these duplicates??
-#make tidy data frame
-readsByAlnCounts <- bamDFs %>%
-  map(~group_by(.x, qname)) %>%
-  map(~dplyr::count(.x, rname)) %>%
+duplicateReferences99 <- alns99 %>%  # dataframes with multiples only
+  map(~group_by(.x, query)) %>%
+  map(~count(.x, reference)) %>%
   map(ungroup) %>%
-  map(~mutate(.x, Strain=str_sub(.x$rname, 1L, -7L))) %>%
-  map2(., names(.), ~mutate(.x, Sample=.y)) %>%      
-  map(~left_join(.x, refDF[,c("Strain", "Group")], by="Strain")) %>%
-  purrr::reduce(full_join, by=c("Sample", "qname", "rname", "rname", "n", "Strain", "Group"))
-
-#get annotations
-geneAnnos <- refGenesDF %>%
-  gather("Strain", "rname", 15:ncol(.)) %>%
-  select(rname, Annotation)
-
-#get entries with n=2 (multiples are exact duplicates)
-duplicateAlignments <- readsByAlnCounts %>%
-  filter(n==2) %>%
-  left_join(geneAnnos, by="rname")
-
-n_distinct(duplicateAlignments)
-
-table(duplicateAlignments$Annotation)
-n_distinct(duplicateAlignments$Annotation)
-
-table(duplicateAlignments$Group)
-n_distinct(duplicateAlignments$Group)
- 
-```
-
-What genes are short reads mapping to ambiguously (not just duplicates of the same genes)
+  map(~filter(.x,n>1)) %>%
+  map(., names(alns99), ~mutate(.x, SampleID=))
+nDups99 <- map(duplicateReferences, nrow) %>%
+  unlist()
+nDups99 
+``` 
+no duplicates left after filterint at 99
+Assess duplicates --100%
 ```{r}
-#Get only reads that are mapping to multiple genes
-readsByAlnCounts0 <- readsByAlnCounts %>%
-  filter(n==1) %>%
-  group_by(qname) %>%
-  filter(n()>1) %>%
-  ungroup(qname) %>%
-  left_join(geneAnnos, by="rname")
+hitsPerSample100 <- alns100 %>%
+  map(~nrow(.x)) %>%
+  as_tibble() %>%
+  t() %>%
+  as_tibble() %>%
+  mutate(SampleID=names(alns100))
 
-table(readsByAlnCounts0$rname)
-n_distinct(readsByAlnCounts0$rname)
-table(readsByAlnCounts0$Annotation)
-n_distinct(readsByAlnCounts0$Annotation)
-table(readsByAlnCounts0$Group)
-n_distinct(readsByAlnCounts0$Group)
-```
+ggplot(data = hitsPerSample100, aes(V1))+
+  geom_histogram() +
+  labs(title="hits per sample = 100% id", x="hits") +
+  theme_classic()
+summary(hitsPerSample100$V1)
+``` 
 
-Get cases where reads are mapping to clades ambiguoulsy
-```{r}
-readsByAlnCounts1 <- readsByAlnCounts0 %>%
-  mutate(dup=rep(1:2, nrow(.)/2)) %>%
-  filter(dup==1) %>%
-  select(-n,-dup)
+<!-- old -->
+<!-- ```{r}  -->
+<!-- nAlignments <- alns0 %>% #number of alignments per sample -->
+<!--   map(~select(.x, query)) %>% -->
+<!--   map(as_vector) %>% -->
+<!--   map(length) %>% -->
+<!--   unlist() -->
+<!-- summary(nAlignments) -->
 
-readsByAlnCounts2 <- readsByAlnCounts0 %>%
-  mutate(dup=rep(1:2, nrow(.)/2)) %>%
-  filter(dup==2) %>%
-  select(-n,-dup) 
+<!-- nUniqueReads <- alns0 %>% #number of unique reads that mapped to the reference database -->
+<!--   map(~select(.x, query)) %>% -->
+<!--   map(as_vector) %>% -->
+<!--   map(unique) %>% -->
+<!--   map(length) %>% -->
+<!--   unlist() -->
+<!-- summary(nUniqueReads) -->
 
-readsByAlnCounts3 <- readsByAlnCounts1 %>%
-  left_join(readsByAlnCounts2, by=c("qname", "Sample"))
+<!-- nMultiples <- dupDFs %>% #number of alignments that have multiples (ie the query sequence in this alignment mapped to another reference sequence) in each sample -->
+<!--   map(~select(.x, query)) %>% -->
+<!--   map(as_vector) %>% -->
+<!--   map(length) %>% -->
+<!--   unlist() -->
 
-#what samples is this happening in?
-table(readsByAlnCounts3$Sample)
-print("Number of reads with ambiguous mapping")
-n_distinct(readsByAlnCounts3)
-print("Number of times KA00225_00524 vs KA00225_00525")
-readsByAlnCounts3 %>%
-  filter(rname.x=="KA00225_00524"|rname.x=="KA00225_00525"&
-           rname.x=="KA00225_00524"|rname.y=="KA00225_00525") %>%
-  nrow()
-#number of times strains don't match
-print("Strains not matching")
-readsByAlnCounts3 %>%
-  filter(Strain.x!=Strain.y) %>%
-  nrow()
-readsByAlnCounts3 %>%
-  filter(Strain.x!=Strain.y,
-         Group.x==Group.y)
-#number of times clades do not match
-print("Clades not matching")
-readsByAlnCounts3 %>%
-  filter(Group.x!=Group.y) %>%
-  nrow()
-readsByAlnCounts3 %>%
-  filter(Group.x!=Group.y)
-```
+<!-- alnCounts <- data.frame(alignments=nAlignments, -->
+<!--                         uniqueReadsMapped=nUniqueReads, -->
+<!--                         Multiples=nMultiples) %>% -->
+<!--   mutate(readsWithMultiples=alignments-uniqueReadsMapped, -->
+<!--          averageMultiples=Multiples/readsWithMultiples, -->
+<!--          proportionReadsMultiples=readsWithMultiples/uniqueReadsMapped, -->
+<!--          proportionAlnsMultiples=readsWithMultiples/alignments) -->
+<!-- table(alnCounts$averageMultiples) -->
+<!-- sapply(list(`Proportion Reads`=alnCounts$proportionReadsMultiples, `Porportion Alignments`=alnCounts$proportionAlnsMultiples), summary) -->
+<!-- hist(alnCounts$proportionReadsMultiples, -->
+<!--           main = "Proportion of query short reads mapping to multiple reference sequences", -->
+<!--           xlab ="Proportion of unique reads mapped") -->
+<!-- hist(alnCounts$proportionAlnsMultiples, -->
+<!--           main = "Proportion of alingments that are additional duplicates", -->
+<!--           xlab ="Proportion of alignments") -->
+<!-- ``` -->
+<!-- Reads with multiple alignments map to an average of 2 reads. -->
+<!-- An average of ~50% of reads are mapping to multiple sequences. -->
+<!-- About ~30% of alignments are "added" duplicates (i.e. about 1/3 of alignments would be removed if there were one alignment per read).  -->
 
-Assign best clades by best alignments and 
-```{r}
+<!-- Find what reads are mapping to duplicates -->
+<!-- ```{r} -->
+<!-- dupDFs0 <- dupDFs %>% #unique multiples -- remove alignments that are reads mapping the same gene at different locations -->
+<!--   map(~select(.x, qname,  -->
+<!--                   rname, -->
+<!--                   Strain, -->
+<!--                   Group)) %>% -->
+<!--   map(~unique.data.frame(.x)) -->
 
-```
+<!-- nUniqueMultiples <- dupDFs0 %>% -->
+<!--   map(nrow) %>% -->
+<!--   map(as_vector) %>% -->
+<!--   unlist() -->
+
+<!-- dupDFs1 <- dupDFs0 %>% #alignment duplicates that represent reads mapping to different reference sequences -->
+<!--   map(~group_by(.x, qname)) %>% -->
+<!--   map(~filter(.x, n()>1)) %>% -->
+<!--   map(ungroup) -->
+
+<!-- nDifferentRefGenes <- dupDFs1 %>% -->
+<!--   map(nrow) %>% -->
+<!--   map(as_vector) %>% -->
+<!--   unlist -->
+
+<!-- alnCounts <- alnCounts %>% -->
+<!--   mutate(multiplesDifferentGenes=nDifferentRefGenes, -->
+<!--          proportionMultiplesDiferentGenes=multiplesDifferentGenes/alignments) -->
+<!-- sapply(list(`All Alignments`=alnCounts$alignments,`Multiples that are Different Genes`=alnCounts$multiplesDifferentGenes, `Proportion of Alignments`=alnCounts$proportionMultiplesDiferentGenes), summary) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- #what genes are causing these duplicates?? -->
+
+<!-- #get entries with n>1 annotation -->
+<!-- duplicateReferences <- alns100 %>% -->
+<!--   map(~count(.x, Annotation)) %>% -->
+<!--   map(~filter(.x, n>1)) %>% -->
+<!--   map2(., names(alns100), ~mutate(.x, SampleID=.y)) %>% -->
+<!--   purrr::reduce(full_join, by=c("SampleID", "n", "Annotation")) -->
+
+<!-- ggplot(data=duplicateReferences, aes(Annotation))+ -->
+<!--   geom_histogram(stat = "count") + -->
+<!--   theme(axis.text.x = element_text(angle=45, hjust=1)) + -->
+<!--   ylab("Samples with multiple of this annotation") -->
+<!--   ggsave("/Users/hlberman/Desktop/annodups.pdf", width=11, height=8) -->
+<!-- ``` -->
+
+<!-- What genes are short reads mapping to ambiguously (not just duplicates of the same genes) -->
+<!-- ```{r} -->
+<!-- #Get only reads that are mapping to multiple genes -->
+<!-- readsByAlnCounts0 <- readsByAlnCounts %>% -->
+<!--   filter(n==1) %>% -->
+<!--   group_by(qname) %>% -->
+<!--   filter(n()>1) %>% -->
+<!--   ungroup(qname) %>% -->
+<!--   left_join(geneAnnos, by="rname") -->
+
+<!-- table(readsByAlnCounts0$rname) -->
+<!-- n_distinct(readsByAlnCounts0$rname) -->
+<!-- table(readsByAlnCounts0$Annotation) -->
+<!-- n_distinct(readsByAlnCounts0$Annotation) -->
+<!-- table(readsByAlnCounts0$Group) -->
+<!-- n_distinct(readsByAlnCounts0$Group) -->
+<!-- ``` -->
+
+<!-- Get cases where reads are mapping to clades ambiguoulsy -->
+<!-- ```{r} -->
+<!-- readsByAlnCounts1 <- readsByAlnCounts0 %>% -->
+<!--   mutate(dup=rep(1:2, nrow(.)/2)) %>% -->
+<!--   filter(dup==1) %>% -->
+<!--   select(-n,-dup) -->
+
+<!-- readsByAlnCounts2 <- readsByAlnCounts0 %>% -->
+<!--   mutate(dup=rep(1:2, nrow(.)/2)) %>% -->
+<!--   filter(dup==2) %>% -->
+<!--   select(-n,-dup)  -->
+
+<!-- readsByAlnCounts3 <- readsByAlnCounts1 %>% -->
+<!--   left_join(readsByAlnCounts2, by=c("qname", "Sample")) -->
+
+<!-- #what samples is this happening in? -->
+<!-- table(readsByAlnCounts3$Sample) -->
+<!-- print("Number of reads with ambiguous mapping") -->
+<!-- n_distinct(readsByAlnCounts3) -->
+<!-- print("Number of times KA00225_00524 vs KA00225_00525") -->
+<!-- readsByAlnCounts3 %>% -->
+<!--   filter(rname.x=="KA00225_00524"|rname.x=="KA00225_00525"& -->
+<!--            rname.x=="KA00225_00524"|rname.y=="KA00225_00525") %>% -->
+<!--   nrow() -->
+<!-- #number of times strains don't match -->
+<!-- print("Strains not matching") -->
+<!-- readsByAlnCounts3 %>% -->
+<!--   filter(Strain.x!=Strain.y) %>% -->
+<!--   nrow() -->
+<!-- readsByAlnCounts3 %>% -->
+<!--   filter(Strain.x!=Strain.y, -->
+<!--          Group.x==Group.y) -->
+<!-- #number of times clades do not match -->
+<!-- print("Clades not matching") -->
+<!-- readsByAlnCounts3 %>% -->
+<!--   filter(Group.x!=Group.y) %>% -->
+<!--   nrow() -->
+<!-- readsByAlnCounts3 %>% -->
+<!--   filter(Group.x!=Group.y) -->
+<!-- ``` -->
 
 # Session Info
 ```{r}

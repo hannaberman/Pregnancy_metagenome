@@ -1,0 +1,84 @@
+---
+title: "Assign clades to short reads"
+author: "Hanna Berman"
+date: "2/28/2019"
+output: html_document
+---
+
+# Setup
+##Load packages
+```{r libraries, warning=FALSE}
+library(tidyverse); packageVersion("tidyverse")
+#library(GenomicAlignments);packageVersion("GenomicAlignments")
+library(Biostrings)
+```
+
+## Define file paths
+```{r}
+repo_dir <- "/Users/hlberman/Documents/GitHub/pregnancy_metagenome/"
+output_dir <- file.path(repo_dir, "gard_mapping/clade_assignments/")
+df_path <- file.path(repo_dir, "shotgunMetadata.tsv")
+ref_df_path <- file.path(repo_dir, "GardnerellaMetadata.csv")
+fastq_20_path <- "/Users/hlberman/mnt/cluster/home/hlberman/VMMG/gard_map/filtered_fastq_20" #fastsq files filtered by bowtie
+fastq_42_path <- "/Users/hlberman/mnt/cluster/home/hlberman/VMMG/gard_map/filtered_fastq_42" #fastq files filtered by bowtie
+```
+
+# Assess filtering by Bowtie
+## get fastq seqs 
+```{r}
+fastq_20_filesp <- list.files(path=fastq_20_path, all.files = FALSE, full.names = TRUE, pattern = "_1.fastq.gz")
+fastq_42_filesp <- list.files(path=fastq_42_path, all.files = FALSE, full.names = TRUE, pattern = "_1.fastq.gz")
+
+fastq_20_filess <- list.files(path=fastq_20_path, all.files = FALSE, full.names = TRUE, pattern = "_S.fastq.gz")
+fastq_42_filess <- list.files(path=fastq_42_path, all.files = FALSE, full.names = TRUE, pattern = "_S.fastq.gz")
+
+fastq_20p <- lapply(fastq_20_filesp, readDNAStringSet, format="fastq")
+names(fastq_20p) <- list.files(path=fastq_20_path, all.files = FALSE, full.names = FALSE, pattern = "_1.fastq.gz") %>%
+  str_extract(pattern="[0-9]+(?=_FgardRef_1.fastq.gz)")
+
+fastq_20s <- lapply(fastq_20_filess, readDNAStringSet, format="fastq")
+names(fastq_20s) <- list.files(path=fastq_20_path, all.files = FALSE, full.names = FALSE, pattern = "_S.fastq.gz") %>%
+  str_extract(pattern="[0-9]+(?=_FgardRef_1.fastq.gz)")
+
+fastq_42p <- lapply(fastq_42_filesp, readDNAStringSet, format="fastq")
+names(fastq_42p) <- list.files(path=fastq_42_path, all.files = FALSE, full.names = FALSE, pattern = "_1.fastq.gz") %>%
+  str_extract(pattern="[0-9]+(?=_FgardRef_1.fastq.gz)")
+
+fastq_42s <- lapply(fastq_42_filess, readDNAStringSet, format="fastq")
+names(fastq_42s) <- list.files(path=fastq_42_path, all.files = FALSE, full.names = FALSE, pattern = "_S.fastq.gz") %>%
+  str_extract(pattern="[0-9]+(?=_FgardRef_1.fastq.gz)")
+```
+
+## Look at number of reads kept with each filtering threshold
+```{r}
+n_df <- data.frame(n20p=sapply(fastq_20p, length),
+                   n20s=sapply(fastq_20s, length),
+                   n42p=sapply(fastq_42p, length),
+                   n42s=sapply(fastq_42s, length)) %>%
+  mutate(SampleID=rownames(.),
+         n20=n20p*2+n20s,
+         n42=n42p*2+n42s)
+  
+sapply(list(n20_pairs=n_df$n20p, n42_pairs=n_df$n42p, n20_singles=n_df$n20s, n42_singles=n_df$n42s, n20_total=n_df$n20, n42_total=n_df$n42), summary)
+
+n20pct_single <- n_df$n20s/n_df$n20
+n42pct_single <- n_df$n42s/n_df$n42
+sapply(list(pct_single_n20=n20pct_single, pct_single_n42=n42pct_single), summary)
+
+length(n_df$n20p[n_df$n20p==0])
+length(n_df$n42p[n_df$n42p==0])
+
+n_df0 <- n_df %>%
+  select(SampleID, n20, n42) %>%
+  gather("Threshold", "n", 2:3)
+
+ggplot(data=n_df0, aes(y=n_df0$n, x=Threshold)) +
+  geom_jitter() +
+  labs(y="reads") +
+  geom_boxplot(alpha=0) 
+```
+
+# Session Info
+```{r}
+sessionInfo()
+```
