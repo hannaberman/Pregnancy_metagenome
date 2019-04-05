@@ -1,0 +1,109 @@
+---
+title: "Variants based on 16S amplicons"
+author: "Hanna Berman"
+date: "4/3/2019"
+output: html_document
+---
+# Set up
+## packages
+```{r}
+library(tidyverse)
+library(phyloseq)
+library(Biostrings)
+```
+
+## Paths
+```{r}
+repo_dir <- "/Users/hlberman/Documents/GitHub/pregnancy_metagenome/"
+sgDF_path <- file.path(repo_dir, "shotgunMetadata.tsv")
+S16_path <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/16S_data/RepRefine_Scripts/input/processed.rda"
+#S16_path <- "/Users/hlberman/Documents/GitHub/pregnancy_metagenome/methods_comparisons/PS_RData/16S_PS.RData"
+load(S16_path)
+sgDF <- read_delim(file = file.path(sgDF_path), delim = "\t")
+rRNAs16S <- readDNAStringSet(file.path(repo_dir, "gard_mapping", "clade_assignments", "16SrRNAs.fasta"))
+refDF_path <- file.path(repo_dir, "GardnerellaMetadata.csv")
+refDF <- read_csv(refDF_path)
+figure_out <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/gardMapping/clade_assignments/figures"
+```
+
+# Get variants
+```{r}
+studyIDs <- sgDF$SampleID_a
+
+PS17 <- phyloseq(otu_table(st, taxa_are_rows=FALSE), sample_data(df), tax_table(tax))
+  #transform_sample_counts(function(x) {x/sum(x)}) #make read counts into relative abundances
+
+has.shotgun <- PS17@sam_data$SampleID %in% studyIDs
+PS16S_170 <- PS17 %>%
+  subset_samples(has.shotgun) #keep only samples of interest in OTU table
+
+sgDF0 <- sgDF %>%
+  filter(PaperCohort==2017) %>%
+  mutate(SampleID=as.character(SampleID),
+         SampleID_a=as.character(SampleID_a))
+
+gardVarTable <- PS16S_170 %>%
+  psmelt() %>% 
+  dplyr::rename(SampleID_a = SampleID) %>%
+  filter(Genus=="Gardnerella", 
+         Abundance>0) %>%
+  left_join(., sgDF0[,c("SampleID_a", "SampleID", "RNAlater")], by="SampleID_a")
+```
+Note: there are 9 variants among the entire sample set for 2017, but only 5 within these 81 samples
+
+## Function to get the variants among all sequences
+```{r}
+varSequences <- function(label, sequences){
+  sequenceVariants <- unique(sequences)
+  names(sequenceVariants) <- paste(label, c(1:length(sequenceVariants)), sep =  "_")
+  print(sequenceVariants)
+}
+```
+
+## Relate Variant assignments to clades
+```{r}
+strains <- names(rRNAs16S) %>%
+  str_extract(., ".*(?=_[0-9]{5} 16S ribosomal RNA$)")
+varClades <- vars %>%
+  map(.,~vcountPattern(.x, rRNAs16S)) %>%
+  data.frame(Strain=strains) %>%
+  mutate(Var=case_when(G_1==1~"G1",
+                       G_2==1~"G2",
+                       G_3==1~"G3",
+                       G_4==1~"G4",
+                       G_5==1~"G5",)) %>%
+  left_join(refDF[,c("Strain", "Clade")], by="Strain") %>%
+  select(Var, Clade) %>%
+  mutate(Clade=as.character(Clade)) %>%
+  unique()
+varClades
+```
+
+## Get variants and classify samples
+```{r}
+vars <- as.list(varSequences("G", gardVarTable$OTU))
+
+gardVarTable0 <- gardVarTable %>%
+  mutate(Var=case_when(OTU==vars$G_1~"G1: Clades 1/2",
+                        OTU==vars$G_2~"G2: Clades 3/4",
+                        OTU==vars$G_3~"G3: indetereminant",
+                        OTU==vars$G_4~"G4: Clade 5",
+                        OTU==vars$G_5~"G5: Clade 6")) %>%
+  group_by(SampleID) %>%
+  mutate(propGard=Abundance/sum(Abundance)) %>%
+  ungroup() %>%
+  select(OTU, SampleID, SubjectID, Abundance, propGard, GWcoll, RNAlater, Var) 
+
+ggplot(data=gardVarTable0, aes(x=GWcoll, y=propGard, color=Var, shape=RNAlater)) +
+  geom_point() +
+  facet_wrap(~SubjectID) +
+  scale_color_manual(values=c("orange", "blue", "black", "magenta", "purple")) +
+  labs(title = "Clade assignments by 16S Amplicon Sequencing", x= "GW collection", y="Proportion of Gardnerella", shape="RNA Later", color="V4 variant")
+#ggsave(filename = file.path(figure_out, "cladesBy16S.pdf"))
+```
+
+# Session Info
+```{r}
+sessionInfo()
+```
+
