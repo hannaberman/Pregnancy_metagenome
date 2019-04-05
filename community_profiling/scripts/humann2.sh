@@ -20,4 +20,4 @@ humann2 \
     --metaphlan /home/hlberman/Applications/metaphlan2 \
     --bowtie2 /home/hlberman/Applications/bowtie2-2.3.5 \
     --usearch /home/hlberman/bin/usearch \
-   --diamond /home/hlberman/Applications/diamond-0.8.38
+    --diamond /home/hlberman/Applications/diamond-0.8.38
