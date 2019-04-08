@@ -1,7 +1,7 @@
 ---
 title: "Variants based on 16S amplicons"
 author: "Hanna Berman"
-date: "4/3/2019"
+date: "4/8/2019"
 output: html_document
 ---
 # Set up
@@ -62,6 +62,8 @@ varSequences <- function(label, sequences){
 
 ## Relate Variant assignments to clades
 ```{r}
+vars <- as.list(varSequences("G", gardVarTable$OTU))
+
 strains <- names(rRNAs16S) %>%
   str_extract(., ".*(?=_[0-9]{5} 16S ribosomal RNA$)")
 varClades <- vars %>%
@@ -71,7 +73,7 @@ varClades <- vars %>%
                        G_2==1~"G2",
                        G_3==1~"G3",
                        G_4==1~"G4",
-                       G_5==1~"G5",)) %>%
+                       G_5==1~"G5")) %>%
   left_join(refDF[,c("Strain", "Clade")], by="Strain") %>%
   select(Var, Clade) %>%
   mutate(Clade=as.character(Clade)) %>%
@@ -79,10 +81,8 @@ varClades <- vars %>%
 varClades
 ```
 
-## Get variants and classify samples
+## classify samples
 ```{r}
-vars <- as.list(varSequences("G", gardVarTable$OTU))
-
 gardVarTable0 <- gardVarTable %>%
   mutate(Var=case_when(OTU==vars$G_1~"G1: Clades 1/2",
                         OTU==vars$G_2~"G2: Clades 3/4",
@@ -97,7 +97,7 @@ gardVarTable0 <- gardVarTable %>%
 ggplot(data=gardVarTable0, aes(x=GWcoll, y=propGard, color=Var, shape=RNAlater)) +
   geom_point() +
   facet_wrap(~SubjectID) +
-  scale_color_manual(values=c("orange", "blue", "black", "magenta", "purple")) +
+  scale_color_manual(values=c("indianred2", "steelblue2", "black", "darkorchid2", "yellowgreen")) +
   labs(title = "Clade assignments by 16S Amplicon Sequencing", x= "GW collection", y="Proportion of Gardnerella", shape="RNA Later", color="V4 variant")
 #ggsave(filename = file.path(figure_out, "cladesBy16S.pdf"))
 ```
