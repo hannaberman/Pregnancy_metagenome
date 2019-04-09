@@ -5,4 +5,7 @@ Analysis of shotgun metagenomic data from vaginal swabs of 35 pregnant women
 Compare microbiome profiles from 16S amplicon sequencing analyzed by DADA2 to profiles from shotgun metagenome sequencing analyzed by both Metaphlan2 and Kracken2+Bracken
 
 ## Gard mapping
-Map short reads from metagenome sequencing to a tree of WGS *Gardnerella vaginalis* strains
+Assign shortreads to clades of *Gardnerella vaginalis* using a set of 72 core genes from 72 *G. vaginalis* reference genomes. (Also tested strainphlan)
+
+## Community profiling
+Functional profiling of vaginal microbiomes using Humann2
