@@ -1,7 +1,7 @@
 ---
 title: "Assign clades to short reads"
 author: "Hanna Berman"
-date: "3/27/2019"
+date: "4/8/2019"
 output: html_document
 ---
 
@@ -30,6 +30,7 @@ sgDF <- sgDF %>%
   mutate(SampleID=as.character(SampleID), 
          SubjectID=as.character(SubjectID))
 refGenesDF <- read_csv(refGenesDF_path)
+gdrive_path <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/gardMapping/clade_assignments"
 ```
 
 # Asses second filtering by usearch
@@ -37,11 +38,11 @@ refGenesDF <- read_csv(refGenesDF_path)
 ## set up (load data)
 ```{r}
 #alns <- list.files(usearchAlns, all.files = FALSE, full.names = TRUE) %>%
-#  map(read_delim, delim="\t", col_names=c("query", "reference", "pcntid", "length", "mismatch", "gap_open", "qstart", "qend", #"rstart", "rend", "evalue", "bitscore")) #read in blast tables
+#  map(read_delim, delim="\t", col_names=c("query", "reference", "pcntid", "length", "mismatch", "gap_open", "qstart", "qend", "rstart", "rend", "evalue", "bitscore")) #read in blast tables
 #names(alns) <-  list.files(usearchAlns, all.files = FALSE, full.names = FALSE) %>%
 #  str_extract("[0-9]+")
-#save(alns, file="/Users/hlberman/Desktop/alns.Rdata")
-load("/Users/hlberman/Desktop/alns.Rdata")
+#save(alns, file=file.path(repo_dir, "gard_mapping", "clade_assignments", "alns.Rdata"))
+load(file.path(repo_dir, "gard_mapping", "clade_assignments", "alns.Rdata"))
 ```
 
 ## Set up (formatting)
@@ -58,101 +59,112 @@ alns0 <- alns %>%
   map2(., names(alns), ~mutate(.x, SampleID=.y)) %>%
   map(~left_join(.x, refAnnotations[,c("Annotation", "reference")], by="reference")) %>%
   map(~mutate(.x, Strain=str_sub(.x$reference, 1L, -7L))) %>% #remove gene identifiers so that only strains appear in Strain column
-  map(~left_join(.x, refDF[,c("Strain", "Clade")], by="Strain")) # add reference gene/strain clade information
+  map(~left_join(.x, refDF[,c("Strain", "Clade")], by="Strain")) %>% # add reference gene/strain clade information
+  map(~left_join(.x, sgDF[,c("SampleID", "SubjectID", "RNAlater", "GWcoll", "PaperCohort")], by="SampleID")) #add sample metadata
 ```
 
 ## Some descriptives
 ```{r}
-countHitsbySample <- alns %>% #count number of hits coming back in each sample 
+HitsPerSample <- alns %>% #count number of hits coming back in each sample 
   map(~nrow(.x)) %>%
   as_tibble() %>%
   t() %>%
   as_tibble()
-ggplot(data = countHitsbySample, aes(V1)) +
+ggplot(data = HitsPerSample, aes(V1)) +
   geom_histogram() +
   theme_classic() +
   scale_x_continuous(breaks = seq(0, 900000, by = 100000)) +
   scale_y_continuous(breaks = seq(0, 40, by = 5)) +
-  labs(title = "Hits per sample", x = "Hits")
+  labs(title = "'Hits' per sample", x = "'Hits'")
+#ggsave(file.path(gdrive_path, "figures", "hitspersample.pdf"))
 
-countReadsPerSample <- alns0 %>%
+ReadsPerSample <- alns0 %>%
   map(~group_by(.x, SampleID)) %>%
   map(~summarise(.x, readspersample=n_distinct(query))) %>%
   map(~ungroup(.x)) %>%
   purrr::reduce(full_join, by=c("SampleID", "readspersample"))
-ggplot(data = countReadsPerSample, aes(readspersample)) +
+ggplot(data = ReadsPerSample, aes(readspersample)) +
   geom_histogram() +
   theme_classic() +
   scale_x_continuous(breaks = seq(0, 20000, by = 2000)) +
   scale_y_continuous(breaks = seq(0, 50, by = 5)) +
   labs(title = "Reads per sample", x = "# Reads")
+#ggsave(file.path(gdrive_path, "figures", "readspersample.pdf"))
   
-countQueriesByAnnotation <- alns0 %>% #number of reads that map to each annotation
+QueriesPerAnnotation <- alns0 %>% #number of reads that map to each annotation
   map(~group_by(.x, Annotation)) %>%
   map(~summarize(.x, queriesbyannotation=n_distinct(query))) %>%
   map(~ungroup(.x)) %>%
   map2(., names(alns0), ~mutate(.x, sampleID=.y)) %>%  
   purrr::reduce(full_join, by=c("Annotation", "queriesbyannotation", "sampleID"))
-ggplot(data = countQueriesByAnnotation, aes(queriesbyannotation)) +
+ggplot(data = QueriesPerAnnotation, aes(queriesbyannotation)) +
   geom_histogram() +
   theme_classic() +
   scale_x_continuous(breaks = seq(0, 2000, by = 100)) +
   scale_y_continuous(breaks = seq(0, 2000, by = 100)) +
   labs(title = "Queries (reads) that map to each annotation", x = "# Queries (reads)")
+#ggsave(file.path(gdrive_path, "figures", "queriesperannotation.pdf"))
  
-countReferencesByQuery <- alns0 %>%  #number of references that each query maps to
+ReferencesPerQuery <- alns0 %>%  #number of references that each query maps to
   map(~group_by(.x, query)) %>%
   map(~summarize(.x, referencesbyquery=n_distinct(reference))) %>%
   map(~ungroup(.x)) %>%
   map2(., names(alns0), ~mutate(.x, sampleID=.y)) %>%
   purrr:: reduce(full_join, by=c("query", "referencesbyquery", "sampleID"))
-ggplot(data = countReferencesByQuery, aes(referencesbyquery)) +
+ggplot(data = ReferencesPerQuery, aes(referencesbyquery)) +
   geom_histogram() +
   theme_classic() +
   scale_x_continuous(breaks = seq(0, 80, by = 10)) +
   scale_y_continuous(breaks = seq(0, 50000, by = 5000)) +
   labs(title = "Number of reference genes that each query maps to", x = "# Reference Genes") 
- 
-countQueriesByReference <- alns0 %>% #number of queries that map to each reference (per sample)
+#ggsave(file.path(gdrive_path, "figures", "refsperquery.pdf")) 
+
+QueriesPerReference <- alns0 %>% #number of queries that map to each reference (per sample)
   map(~group_by(.x, reference)) %>%
   map(~summarize(.x, queriesbyreference=n_distinct(query))) %>%
   map(~ungroup(.x)) %>%
   map2(., names(alns0), ~mutate(.x, sampleID=.y)) %>%
   purrr:: reduce(full_join, by=c("reference", "queriesbyreference", "sampleID"))
-ggplot(data = countQueriesByReference, aes(queriesbyreference)) +
+ggplot(data = QueriesPerReference, aes(queriesbyreference)) +
   geom_histogram() +
   theme_classic() +
   scale_x_continuous(breaks = seq(0, 1500, by = 150)) +
   scale_y_continuous(breaks = seq(0, 150000, by = 15000)) +
   labs(title = "Number of queries(unique reads) that map to each reference (per sample)", x = "# queries (reads)") 
+#ggsave(file.path(gdrive_path, "figures", "queriesperref.pdf"))
 
-countStrainsBySample <- alns0 %>%  #get count of strains mapped in each sample
+StrainsPerSample <- alns0 %>%  #get count of strains mapped in each sample
   map_df(~summarise(.x, nSamples=n_distinct(.x$Strain))) %>%
   mutate(SampleID=names(alns))
-ggplot(data = countStrainsBySample, aes(nSamples)) +
+ggplot(data = StrainsPerSample, aes(nSamples)) +
   geom_histogram() +
   theme_classic() +
   scale_x_continuous(breaks = seq(0, 80, by = 5)) +
   scale_y_continuous(breaks = seq(0, 100, by = 10)) +
   labs(title = "Number of strains found in each sample", x = "# strains") 
+#ggsave(file.path(gdrive_path, "figures", "strainspersample.pdf"))
 
-countCladesBySample <- alns0 %>%  #get count of clades mapped in each sample
+CladesPerSample <- alns0 %>%  #get count of clades mapped in each sample
   map_df(~summarise(.x, nClades=n_distinct(Clade))) %>%
   mutate(SampleID=names(alns))
-ggplot(data = countCladesBySample, aes(nClades)) +
+ggplot(data = CladesPerSample, aes(nClades)) +
   geom_histogram() +
   theme_classic() +
   scale_y_continuous(breaks = seq(0, 100, by = 10)) +
   labs(title = "Number of clades found in each sample", x = "# clades")  
+#ggsave(file.path(gdrive_path, "figures", "cladespersample.pdf"))
  
-sapply(list(Reads_per_sample=countReadsPerSample$readspersample,
-            Hits_per_sample=countHitsbySample$V1,
-            Queries_per_annotation=countQueriesByAnnotation$queriesbyannotation,
-            References_per_query=countReferencesByQuery$referencesbyquery,
-            Queries_per_reference=countQueriesByReference$queriesbyreference,
-            Strains_per_sample=countStrainsBySample$nSamples, 
-            Clades_per_sample=countCladesBySample$nClades), 
-       summary)
+sumStats1 <- sapply(list(Reads_per_sample=ReadsPerSample$readspersample,
+                         Hits_per_sample=HitsPerSample$V1,
+                         Queries_per_annotation=QueriesPerAnnotation$queriesbyannotation,
+                         References_per_query=ReferencesPerQuery$referencesbyquery,
+                         Queries_per_reference=QueriesPerReference$queriesbyreference,
+                         Strains_per_sample=StrainsPerSample$nSamples, 
+                         Clades_per_sample=CladesPerSample$nClades), 
+                     summary) %>%
+  as.data.frame()
+sumStats1
+#write_csv(sumStats1, file.path(gdrive_path, "figures", "summaryStats1.csv"))
 ```
 
 ## Assess top alignmnet percent identities
@@ -168,20 +180,23 @@ ggplot(data = allHits, aes(pcntid)) +
   geom_histogram(binwidth = 1) +
   theme_classic() +
   labs(title = "Percent ID of all hits", x = "Percent ID") 
+#ggsave(file.path(gdrive_path, "figures","hitID_hist.pdf"))
+
 ggplot(data=allHits, aes(x=Annotation, y=pcntid))+
   geom_violin() +
   theme(axis.text.x = element_text(angle=45, hjust=1)) +
   scale_y_continuous(breaks = seq(0, 100, by = 2.5)) +
-  labs(y="Percent ID") +
-ggsave("/Users/hlberman/Desktop/test.pdf", height = 8, width = 11)
-ggplot(data=allHits, aes(x=sampleID, y=pcntid))+
+  labs(y="Percent ID")
+#ggsave(file.path(gdrive_path, "figures","hitID_violinByAnno.pdf"), height = 8, width = 11)
+
+ggplot(data=allHits, aes(x=sampleID, y=pcntid)) +
   geom_violin() +
   theme(axis.text.x = element_text(angle=45, hjust=1)) +
   scale_y_continuous(breaks = seq(0, 100, by = 2.5)) +
-  labs(y="Percent ID") +
-#+ggsave("/Users/hlberman/Desktop/test2.pdf", height = 8, width = 40)
+  labs(y="Percent ID")
+#ggsave(file.path(gdrive_path, "figures","hitID_violinBySample.pdf"), height = 8, width = 11)
 
-maxByQuery <- alns %>%  
+maxByQuery <- alns %>%  #max percent of ID of alignments per query
   map(~group_by(.x, query)) %>%
   map(~summarise(.x, maxbyquery=max(pcntid))) %>%
   map(~ungroup(.x)) %>%
@@ -191,8 +206,9 @@ ggplot(data = maxByQuery, aes(maxbyquery)) +
   geom_histogram(binwidth = 1) +
   theme_classic() +
   labs(title = "Max percent ID per read", x = "Percent ID")
+#ggsave(file.path(gdrive_path, "figures","maxIDperQuery_hist.pdf"))
 
-maxByReference <- alns %>%  
+maxByReference <- alns %>%  #max percent ID of alignments per reference (within each sample)
   map(~group_by(.x, reference)) %>%
   map(~summarise(.x, maxbyreference =max(pcntid))) %>%
   map(~ungroup(.x)) %>%
@@ -202,8 +218,9 @@ ggplot(data = maxByReference, aes(maxbyreference)) +
   geom_histogram(binwidth = 1) +
   theme_classic() +
   labs(title = "Max percent ID per reference (per sample)", x = "Percent ID")
+#ggsave(file.path(gdrive_path, "figures","maxIDperRef_hist.pdf"))
 
-maxByAnnotation <- alns0 %>%
+maxByAnnotation <- alns0 %>% #max percentID 
   map(~group_by(.x, Annotation)) %>%
   map(~summarise(.x, maxbyannotation =max(pcntid))) %>%
   map(~ungroup(.x)) %>%
@@ -213,22 +230,23 @@ ggplot(data = maxByAnnotation, aes(maxbyannotation)) +
   geom_histogram(binwidth = 1) +
   theme_classic() +
   labs(title = "Max percent ID per annotation (per sample)", x = "Percent ID")
+#ggsave(file.path(gdrive_path, "figures","maxIDperAnno_hist.pdf"))
 
-sumstats2 <- sapply(list(PercentID=allHits$pcntid,
+sumStats2 <- sapply(list(PercentID=allHits$pcntid,
             Max_by_query=maxByQuery$maxbyquery,
             Max_by_reference=maxByReference$maxbyreference,
             Max_by_annotation=maxByAnnotation$maxbyannotation),
             summary) %>%
   as.data.frame()
-write_csv(sumstats2, "/Users/hlberman/Desktop/sumstats2.csv")
+sumStats2
+#write_csv(sumStats2, file.path(gdrive_path, "figures", "summaryStats2_maxIDs.csv"))
 ```
+Variation in hit percent ID and maxID per reference demonstrate variation over G. vaginalis. Strong mode of maximum % ID match per annotation and per query within each sample suggest that threshold of 99% or 100% ID for classfying clades may allow for strong specificty without sacrificing sensitivity.
 
-# How does filtering affect clades? -- 99%
+# How does filtering affect clade assignments? -- filtering at 99%
 ```{r}
 alns99 <- alns0 %>%
   map(~filter(.x, pcntid>=99))
-alns100 <- alns0 %>%
-  map(~filter(.x, pcntid>=100))
 
 countCladesBySample99 <- alns99 %>%  #get count of clades mapped in each sample
   map_df(~summarise(.x, nClades=n_distinct(Clade))) %>%
@@ -239,6 +257,7 @@ ggplot(data = countCladesBySample99, aes(nClades)) +
   theme_classic() +
   scale_y_continuous(breaks = seq(0, 100, by = 10)) +
   labs(title = "Number of clades found in each sample (filter to %ID>=99)", x = "# clades")
+#ggsave(file.path(gdrive_path, "figures","cladesPerSample99.pdf"))
 
 sample99clades <- alns99 %>%
   map(~count(.x, Clade)) %>%
@@ -253,25 +272,30 @@ ggplot(data=sample99clades, aes(x=GWcoll, y=propClade, color = Clade)) +
   facet_wrap(~SubjectID) +
   labs(title = "Proportion clades found in each sample (filter to %ID>=99)", y="Proportion alignments per clade", x="Gestation Weeks")+
   theme(axis.text.y = element_text(size=7))
+#ggsave(file.path(gdrive_path, "figures","proportionCladesPerSample99.pdf"))
 ```
 
 # How does filtering affect clades? -- 100%
 ```{r}
+alns100 <- alns0 %>%
+  map(~filter(.x, pcntid==100))
+
 countCladesBySample100 <- alns100 %>%  #get count of clades mapped in each sample
   map_df(~summarise(.x, nClades=n_distinct(Clade))) %>%
   mutate(SampleID=names(alns)) %>%
   left_join(sgDF[,c("SampleID","SubjectID", "GWcoll")])
-ggplot(data = countCladesBySample99, aes(nClades)) +
+ggplot(data = countCladesBySample100, aes(nClades)) +
   geom_histogram() +
   theme_classic() +
   scale_y_continuous(breaks = seq(0, 100, by = 10)) +
   labs(title = "Number of clades found in each sample (filter to %ID=100)", x = "# clades")
+#ggsave(file.path(gdrive_path, "figures","cladesPerSample100.pdf"))
 
 sample100clades <- alns100 %>%
   map(~count(.x, Clade)) %>%
   map(~mutate(.x, propClade=(n/sum(n)),
               Clade=as.character(Clade))) %>%
-  map2(., names(alns99), ~mutate(.x, SampleID=.y)) %>%
+  map2(., names(alns100), ~mutate(.x, SampleID=.y)) %>%
   purrr::reduce(full_join, by=c("SampleID", "Clade", "propClade")) %>%
   left_join(sgDF[,c("SampleID","SubjectID", "GWcoll")])
 ggplot(data=sample100clades, aes(x=GWcoll, y=propClade, color = Clade)) +
@@ -280,7 +304,9 @@ ggplot(data=sample100clades, aes(x=GWcoll, y=propClade, color = Clade)) +
   facet_wrap(~SubjectID) +
   labs(title = "Proportion clades found in each sample (filter to %ID=100)", y="Proportion alignments per clade", x="Gestation Weeks")+
   theme(axis.text.y = element_text(size=7))
+#ggsave(file.path(gdrive_path, "figures","proportionCladesPerSample100.pdf"))
 ```
+Sensitivity in detecting clades may be lost in increasing the threshold to 100%ID.
 
 Assess duplicates --99%
 ```{r}
@@ -292,23 +318,89 @@ hitsPerSample99 <- alns99 %>%
   mutate(SampleID=names(alns99))
 
 ggplot(data = hitsPerSample99, aes(V1))+
-  geom_histogram() +
-  labs(title="hits per sample >99% id", x="hits") +
+  geom_histogram(binwidth = 300) +
+  labs(title="hits per sample >= 99% id", x="hits") +
   theme_classic()
 summary(hitsPerSample99$V1)
 
 duplicateReferences99 <- alns99 %>%  # dataframes with multiples only
   map(~group_by(.x, query)) %>%
-  map(~count(.x, reference)) %>%
-  map(ungroup) %>%
-  map(~filter(.x,n>1)) %>%
-  map(., names(alns99), ~mutate(.x, SampleID=))
-nDups99 <- map(duplicateReferences, nrow) %>%
-  unlist()
-nDups99 
+  map(~filter(.x, n()>1)) %>%
+  map(~ungroup(.x))
+
+diffClades99 <- duplicateReferences99 %>%
+  map(~select(.x, query, SampleID, Annotation, Clade)) %>%
+  purrr::reduce(full_join, by=c("query", "SampleID", "Annotation", "Clade")) %>%
+  group_by(query) %>%
+  filter(n_distinct(Clade)>1) %>%
+  ungroup()
+ambiguous99 <-table(diffClades99$Annotation, diffClades99$Clade)
+ambiguous99
+#write.csv(as.data.frame(unclass(ambiguous99)), file.path(gdrive_path, "ambiguousHits99.csv"))
+
+alns099 <- alns99 %>%
+  map(~select(.x, query, SampleID, SubjectID, GWcoll, RNAlater, PaperCohort, Annotation, Clade)) %>%
+  map(~unique.data.frame(.x)) %>%
+  purrr::reduce(full_join, by= c("query", "SampleID", "SubjectID", "GWcoll", "RNAlater", "PaperCohort", "Annotation", "Clade"))
+
+ggplot(data=alns099) +
+  geom_bar(aes(x=Annotation, color=as.character(Clade), fill=as.character(Clade))) +
+  facet_wrap(~SampleID) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle=90, size=2)) + 
+  labs(title = "Hits by Annotation (99% ID)", color="Clade", fill="Clade")
+#ggsave(file.path(gdrive_path, "figures", "annotationBarPlot99.pdf"), width=30, height=20)
+
+#let's zoom in on a few samples
+#4009035268
+`4009035268` <- alns099 %>%
+  filter(SampleID=="4009035268")
+ggplot(data=`4009035268`) +
+  geom_bar(aes(x=Annotation, color=as.character(Clade), fill=as.character(Clade))) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle=45, hjust=1, size = 6)) + 
+  labs(title = "Hits by Annotation Sample 4009035268 (99%+ ID)", color="Clade", fill="Clade")
+#ggsave(file.path(gdrive_path, "figures", "4009035268annotationBarPlot99.pdf"))
+#1061635208
+`1061635208` <- alns099 %>%
+  filter(SampleID=="1061635208")
+ggplot(data=`1061635208`) +
+  geom_bar(aes(x=Annotation, color=as.character(Clade), fill=as.character(Clade))) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle=45, hjust=1, size = 6)) + 
+  labs(title = "Hits by Annotation Sample 1061635208 (99%+ ID)", color="Clade", fill="Clade")
+#ggsave(file.path(gdrive_path, "figures", "1061635208annotationBarPlot99.pdf"))
+#4002101198
+`4002101198` <- alns099 %>%
+  filter(SampleID=="4002101198")
+ggplot(data=`4002101198`) +
+  geom_bar(aes(x=Annotation, color=as.character(Clade), fill=as.character(Clade))) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle=45, hjust=1, size = 6)) + 
+  labs(title = "Hits by Annotation Sample 4002101198 (99%+ ID)", color="Clade", fill="Clade")
+#ggsave(file.path(gdrive_path, "figures", "4002101198annotationBarPlot99.pdf"))
+#4002101298
+`4002101298` <- alns099 %>%
+  filter(SampleID=="4002101298")
+ggplot(data=`4002101298`) +
+  geom_bar(aes(x=Annotation, color=as.character(Clade), fill=as.character(Clade))) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle=45, hjust=1, size = 6)) + 
+  labs(title = "Hits by Annotation Sample 4002101298 (99%+ ID)", color="Clade", fill="Clade")
+#ggsave(file.path(gdrive_path, "figures", "4002101298annotationBarPlot99.pdf"))
+#4007535358
+`4007535358` <- alns099 %>%
+  filter(SampleID=="4007535358")
+ggplot(data=`4007535358`) +
+  geom_bar(aes(x=Annotation, color=as.character(Clade), fill=as.character(Clade))) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle=45, hjust=1, size = 6)) + 
+  labs(title = "Hits by Annotation Sample 4007535358 (99%+ ID)", color="Clade", fill="Clade")
+#ggsave(file.path(gdrive_path, "figures", "4007535358annotationBarPlot99.pdf"))
 ``` 
-no duplicates left after filterint at 99
-Assess duplicates --100%
+Note - many samples have few reads (<300) that map to G. vaginalis after filtering. Based on barplots of annotations found within each sample, it seems to be apparent that annotations with references that belong to different clades account for all of the alignments to some clades (ie clades not actually present but an artifact of ambiguous alingment.) 
+
+## Assess duplicates --100%
 ```{r}
 hitsPerSample100 <- alns100 %>%
   map(~nrow(.x)) %>%
@@ -318,160 +410,120 @@ hitsPerSample100 <- alns100 %>%
   mutate(SampleID=names(alns100))
 
 ggplot(data = hitsPerSample100, aes(V1))+
-  geom_histogram() +
+  geom_histogram(binwidth = 300) +
   labs(title="hits per sample = 100% id", x="hits") +
   theme_classic()
 summary(hitsPerSample100$V1)
+
+duplicateReferences100 <- alns100 %>%  # dataframes with multiples only
+  map(~group_by(.x, query)) %>%
+  map(~filter(.x,n()>1)) %>%
+  map(~ungroup(.x))
+
+diffClades100 <- duplicateReferences100 %>%
+  map(~select(.x, query, SampleID, Annotation, Clade)) %>%
+  purrr::reduce(full_join, by=c("query", "SampleID", "Annotation", "Clade")) %>%
+  group_by(query) %>%
+  filter(n_distinct(Clade)>1) %>%
+  ungroup()
+ambiguous100 <- table(diffClades100$Annotation, diffClades100$Clade)
+ambiguous100
+#write.csv(as.data.frame(unclass(ambiguous100)), file.path(gdrive_path, "ambiguousHits100.csv"))
+
+alns0100 <- alns100 %>%
+  map(~select(.x, query, SampleID, SubjectID, GWcoll, RNAlater, PaperCohort, Annotation, Clade)) %>%
+  map(~unique.data.frame(.x)) %>%
+  purrr::reduce(full_join, by= c("query", "SampleID", "SubjectID", "GWcoll", "RNAlater", "PaperCohort", "Annotation", "Clade"))
+
+ggplot(data=alns0100) +
+  geom_bar(aes(x=Annotation, color=as.character(Clade), fill=as.character(Clade))) +
+  facet_wrap(~SampleID) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle=90, size=2)) + 
+  labs(title = "Hits by Annotation (100% ID)", color="Clade", fill="Clade")
+#ggsave(file.path(gdrive_path, "figures", "annotationBarPlot100.pdf"), width=30, height=20)
+
+#let's zoom in on a few samples
+#4009035268
+`4009035268` <- alns0100 %>%
+  filter(SampleID=="4009035268")
+ggplot(data=`4009035268`) +
+  geom_bar(aes(x=Annotation, color=as.character(Clade), fill=as.character(Clade))) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle=45, hjust=1, size = 6)) + 
+  labs(title = "Hits by Annotation Sample 4009035268 (100% ID)", color="Clade", fill="Clade")
+#ggsave(file.path(gdrive_path, "figures", "4009035268annotationBarPlot100.pdf"))
+#1061635208
+`1061635208` <- alns0100 %>%
+  filter(SampleID=="1061635208")
+ggplot(data=`1061635208`) +
+  geom_bar(aes(x=Annotation, color=as.character(Clade), fill=as.character(Clade))) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle=45, hjust=1, size = 6)) + 
+  labs(title = "Hits by Annotation Sample 1061635208 (100% ID)", color="Clade", fill="Clade")
+#ggsave(file.path(gdrive_path, "figures", "1061635208annotationBarPlot100.pdf"))
+#4002101198
+`4002101198` <- alns0100 %>%
+  filter(SampleID=="4002101198")
+ggplot(data=`4002101198`) +
+  geom_bar(aes(x=Annotation, color=as.character(Clade), fill=as.character(Clade))) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle=45, hjust=1, size = 6)) + 
+  labs(title = "Hits by Annotation Sample 4002101198 (100% ID)", color="Clade", fill="Clade")
+#ggsave(file.path(gdrive_path, "figures", "4002101198annotationBarPlot100.pdf"))
+#4002101298
+`4002101298` <- alns0100 %>%
+  filter(SampleID=="4002101298")
+ggplot(data=`4002101298`) +
+  geom_bar(aes(x=Annotation, color=as.character(Clade), fill=as.character(Clade))) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle=45, hjust=1, size = 6)) + 
+  labs(title = "Hits by Annotation Sample 4002101298 (100% ID)", color="Clade", fill="Clade")
+#ggsave(file.path(gdrive_path, "figures", "4002101298annotationBarPlot100.pdf"))
+#4007535358
+`4007535358` <- alns0100 %>%
+  filter(SampleID=="4007535358")
+ggplot(data=`4007535358`) +
+  geom_bar(aes(x=Annotation, color=as.character(Clade), fill=as.character(Clade))) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle=45, hjust=1, size = 6)) + 
+  labs(title = "Hits by Annotation Sample 4007535358 (100% ID)", color="Clade", fill="Clade")
+#ggsave(file.path(gdrive_path, "figures", "4007535358annotationBarPlot100.pdf"))
 ``` 
 
-<!-- old -->
-<!-- ```{r}  -->
-<!-- nAlignments <- alns0 %>% #number of alignments per sample -->
-<!--   map(~select(.x, query)) %>% -->
-<!--   map(as_vector) %>% -->
-<!--   map(length) %>% -->
-<!--   unlist() -->
-<!-- summary(nAlignments) -->
+# Figure for comparison with 16S: 
+## 100% ID without annotations that map ambiguously (9 annotations removed)
+```{r}
+#subjects with G. vaginalis per 16S data
+subjects16S <- data.frame(SubjectID=c("40072", "10621", "40069", "10616", "19024", "40084", "10627", "10056", "10629", "40021", "40047", "40090", "40059", "40075", "40074", "40098", "10626", "40066", "40071", "20505", "40049", "40032", "40042", "10612", "10508", "10608", "10623"))
 
-<!-- nUniqueReads <- alns0 %>% #number of unique reads that mapped to the reference database -->
-<!--   map(~select(.x, query)) %>% -->
-<!--   map(as_vector) %>% -->
-<!--   map(unique) %>% -->
-<!--   map(length) %>% -->
-<!--   unlist() -->
-<!-- summary(nUniqueReads) -->
+compare16S <- alns0100 %>%
+  filter(PaperCohort==2017,
+         Annotation!="30S ribosomal protein S15", 
+         Annotation!="30S ribosomal protein S2",
+         Annotation!="50S ribosomal protein L31",
+         Annotation!="Glutamyl-tRNA(Gln) amidotransferase subunit C",
+         Annotation!="Phosphoglucomutase",
+         Annotation!="Pyruvate formate-lyase 1-activating enzyme",
+         Annotation!="Ribonucleoside-diphosphate reductase subunit beta nrdF2",
+         Annotation!="Transketolase",
+         Annotation!="Valine--tRNA ligase") %>%
+  group_by(SampleID) %>%
+  count(Clade) %>%
+  mutate(propClade=(n/sum(n)),
+              Clade=as.character(Clade)) %>%
+  left_join(sgDF[,c("SampleID","SubjectID", "GWcoll", "RNAlater")], by="SampleID") %>%
+  full_join(sgDF["PaperCohort"==2017, "SampleID"], by="SampleID") %>%
+  full_join(subjects16S, by="SubjectID")
 
-<!-- nMultiples <- dupDFs %>% #number of alignments that have multiples (ie the query sequence in this alignment mapped to another reference sequence) in each sample -->
-<!--   map(~select(.x, query)) %>% -->
-<!--   map(as_vector) %>% -->
-<!--   map(length) %>% -->
-<!--   unlist() -->
-
-<!-- alnCounts <- data.frame(alignments=nAlignments, -->
-<!--                         uniqueReadsMapped=nUniqueReads, -->
-<!--                         Multiples=nMultiples) %>% -->
-<!--   mutate(readsWithMultiples=alignments-uniqueReadsMapped, -->
-<!--          averageMultiples=Multiples/readsWithMultiples, -->
-<!--          proportionReadsMultiples=readsWithMultiples/uniqueReadsMapped, -->
-<!--          proportionAlnsMultiples=readsWithMultiples/alignments) -->
-<!-- table(alnCounts$averageMultiples) -->
-<!-- sapply(list(`Proportion Reads`=alnCounts$proportionReadsMultiples, `Porportion Alignments`=alnCounts$proportionAlnsMultiples), summary) -->
-<!-- hist(alnCounts$proportionReadsMultiples, -->
-<!--           main = "Proportion of query short reads mapping to multiple reference sequences", -->
-<!--           xlab ="Proportion of unique reads mapped") -->
-<!-- hist(alnCounts$proportionAlnsMultiples, -->
-<!--           main = "Proportion of alingments that are additional duplicates", -->
-<!--           xlab ="Proportion of alignments") -->
-<!-- ``` -->
-<!-- Reads with multiple alignments map to an average of 2 reads. -->
-<!-- An average of ~50% of reads are mapping to multiple sequences. -->
-<!-- About ~30% of alignments are "added" duplicates (i.e. about 1/3 of alignments would be removed if there were one alignment per read).  -->
-
-<!-- Find what reads are mapping to duplicates -->
-<!-- ```{r} -->
-<!-- dupDFs0 <- dupDFs %>% #unique multiples -- remove alignments that are reads mapping the same gene at different locations -->
-<!--   map(~select(.x, qname,  -->
-<!--                   rname, -->
-<!--                   Strain, -->
-<!--                   Group)) %>% -->
-<!--   map(~unique.data.frame(.x)) -->
-
-<!-- nUniqueMultiples <- dupDFs0 %>% -->
-<!--   map(nrow) %>% -->
-<!--   map(as_vector) %>% -->
-<!--   unlist() -->
-
-<!-- dupDFs1 <- dupDFs0 %>% #alignment duplicates that represent reads mapping to different reference sequences -->
-<!--   map(~group_by(.x, qname)) %>% -->
-<!--   map(~filter(.x, n()>1)) %>% -->
-<!--   map(ungroup) -->
-
-<!-- nDifferentRefGenes <- dupDFs1 %>% -->
-<!--   map(nrow) %>% -->
-<!--   map(as_vector) %>% -->
-<!--   unlist -->
-
-<!-- alnCounts <- alnCounts %>% -->
-<!--   mutate(multiplesDifferentGenes=nDifferentRefGenes, -->
-<!--          proportionMultiplesDiferentGenes=multiplesDifferentGenes/alignments) -->
-<!-- sapply(list(`All Alignments`=alnCounts$alignments,`Multiples that are Different Genes`=alnCounts$multiplesDifferentGenes, `Proportion of Alignments`=alnCounts$proportionMultiplesDiferentGenes), summary) -->
-<!-- ``` -->
-
-<!-- ```{r} -->
-<!-- #what genes are causing these duplicates?? -->
-
-<!-- #get entries with n>1 annotation -->
-<!-- duplicateReferences <- alns100 %>% -->
-<!--   map(~count(.x, Annotation)) %>% -->
-<!--   map(~filter(.x, n>1)) %>% -->
-<!--   map2(., names(alns100), ~mutate(.x, SampleID=.y)) %>% -->
-<!--   purrr::reduce(full_join, by=c("SampleID", "n", "Annotation")) -->
-
-<!-- ggplot(data=duplicateReferences, aes(Annotation))+ -->
-<!--   geom_histogram(stat = "count") + -->
-<!--   theme(axis.text.x = element_text(angle=45, hjust=1)) + -->
-<!--   ylab("Samples with multiple of this annotation") -->
-<!--   ggsave("/Users/hlberman/Desktop/annodups.pdf", width=11, height=8) -->
-<!-- ``` -->
-
-<!-- What genes are short reads mapping to ambiguously (not just duplicates of the same genes) -->
-<!-- ```{r} -->
-<!-- #Get only reads that are mapping to multiple genes -->
-<!-- readsByAlnCounts0 <- readsByAlnCounts %>% -->
-<!--   filter(n==1) %>% -->
-<!--   group_by(qname) %>% -->
-<!--   filter(n()>1) %>% -->
-<!--   ungroup(qname) %>% -->
-<!--   left_join(geneAnnos, by="rname") -->
-
-<!-- table(readsByAlnCounts0$rname) -->
-<!-- n_distinct(readsByAlnCounts0$rname) -->
-<!-- table(readsByAlnCounts0$Annotation) -->
-<!-- n_distinct(readsByAlnCounts0$Annotation) -->
-<!-- table(readsByAlnCounts0$Group) -->
-<!-- n_distinct(readsByAlnCounts0$Group) -->
-<!-- ``` -->
-
-<!-- Get cases where reads are mapping to clades ambiguoulsy -->
-<!-- ```{r} -->
-<!-- readsByAlnCounts1 <- readsByAlnCounts0 %>% -->
-<!--   mutate(dup=rep(1:2, nrow(.)/2)) %>% -->
-<!--   filter(dup==1) %>% -->
-<!--   select(-n,-dup) -->
-
-<!-- readsByAlnCounts2 <- readsByAlnCounts0 %>% -->
-<!--   mutate(dup=rep(1:2, nrow(.)/2)) %>% -->
-<!--   filter(dup==2) %>% -->
-<!--   select(-n,-dup)  -->
-
-<!-- readsByAlnCounts3 <- readsByAlnCounts1 %>% -->
-<!--   left_join(readsByAlnCounts2, by=c("qname", "Sample")) -->
-
-<!-- #what samples is this happening in? -->
-<!-- table(readsByAlnCounts3$Sample) -->
-<!-- print("Number of reads with ambiguous mapping") -->
-<!-- n_distinct(readsByAlnCounts3) -->
-<!-- print("Number of times KA00225_00524 vs KA00225_00525") -->
-<!-- readsByAlnCounts3 %>% -->
-<!--   filter(rname.x=="KA00225_00524"|rname.x=="KA00225_00525"& -->
-<!--            rname.x=="KA00225_00524"|rname.y=="KA00225_00525") %>% -->
-<!--   nrow() -->
-<!-- #number of times strains don't match -->
-<!-- print("Strains not matching") -->
-<!-- readsByAlnCounts3 %>% -->
-<!--   filter(Strain.x!=Strain.y) %>% -->
-<!--   nrow() -->
-<!-- readsByAlnCounts3 %>% -->
-<!--   filter(Strain.x!=Strain.y, -->
-<!--          Group.x==Group.y) -->
-<!-- #number of times clades do not match -->
-<!-- print("Clades not matching") -->
-<!-- readsByAlnCounts3 %>% -->
-<!--   filter(Group.x!=Group.y) %>% -->
-<!--   nrow() -->
-<!-- readsByAlnCounts3 %>% -->
-<!--   filter(Group.x!=Group.y) -->
-<!-- ``` -->
+ggplot(data=compare16S, aes(x=GWcoll, y=propClade, color=Clade, shape=RNAlater)) +
+  geom_point() +
+  facet_wrap(~SubjectID) +
+  scale_color_manual(values=c("indianred1", "indianred3", "steelblue1", "steelblue3", "darkorchid2", "yellowgreen" )) +
+  labs(title = "Clade assignments by shotgun sequencing", x= "GW collection", y="Proportion of Gardnerella", shape="RNA Later", color="Clade")
+#ggsave(filename = file.path(gdrive_path, "cladesByShotgun100_filtered.pdf"))    
+```
+Relative abundance of *G. vaginalis* clades out of all *G. vaginalis* present by shotgun sequencing often appears qualitatively similar to relative abundances by 16S amplicon sequenging. 3 Subjects found to have *G. vaginalis* by 16S amplicon sequencing are not found to have *G. vaginalis* by this method (filtered out because of high threshold of identity). This suggests that sensitivity of the method could be improved.
 
 # Session Info
 ```{r}

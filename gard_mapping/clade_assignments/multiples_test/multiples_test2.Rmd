@@ -1,0 +1,48 @@
+---
+title: "Untitled"
+author: "Hanna Berman"
+date: "4/1/2019"
+output: html_document
+---
+
+# Setup
+
+## File paths
+```{r}
+repo_dir <- "/Users/hlberman/Documents/GitHub/pregnancy_metagenome/gard_mapping/clade_assignments"
+test_table_path <- file.path(repo_dir, "multiples_test", "1000801248_test.txt")
+#ref_fastas_path <- file.path(repo_dir, "ref_genes", "refGenes.fasta")
+#ref_genes_df_path <- file.path(repo_dir, "ref_genes", "refGenesDF.csv")
+#ref_df_path <- "/Users/hlberman/Documents/GitHub/pregnancy_metagenome/GardnerellaMetadata.csv"
+out_path <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/gardMapping/clade_assignments/multiples_testing"
+```
+
+## Import
+```{r}
+test_table <- read_delim(test_table_path, delim="\t", col_names=c("query", "reference", "pcntid", "length", "mismatch", "gap_open", "qstart", "qend", "rstart", "rend", "evalue", "bitscore"))
+
+#ref_fastas <- readDNAStringSet(ref_fastas_path)
+#ref_genes_df <- read_csv(ref_genes_df_path)
+#ref_df <- read_csv(ref_df_path)
+```
+
+
+```{r}
+tt_100 <- test_table %>%
+  filter(pcntid==100)
+
+duplicateReferences100 <- tt_100 %>%  # dataframes with multiples only
+  count(query) %>%
+  filter(n>1)
+duplicateReferences100
+
+dupReads <- tt_100 %>%
+  filter(reference=="409-05_01100_2"|
+         reference=="409-05_01100")
+```
+
+# Session Info
+```{r}
+
+```
+
