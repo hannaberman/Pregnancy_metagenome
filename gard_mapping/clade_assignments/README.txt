@@ -12,3 +12,4 @@ Clade Assignments Read Me
 5) Perform second mapping with search `./brc_scripts/usearch20.sh` on mapq 20 filtered fastq reads
 	merge pairs and then concatenate singles from bowtie filtering. 
 6) assess with `./cladeAssignments.Rmd`
+7) compare these assignments to 16S amplicon variants in `./16S_variants.Rmd`
