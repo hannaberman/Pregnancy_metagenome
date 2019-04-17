@@ -17,16 +17,19 @@ library(BiocParallel)
 #set paths
 repo_dir <- "/Users/hlberman/Documents/GitHub/pregnancy_metagenome/"
 countsDF_path <- file.path(repo_dir, "filter_host", "fastq_counts.txt")
-sg_df_path <- file.path(repo_dir, "shotgunMetadata.tsv")
+countsDFbbmap_path <- file.path(repo_dir, "filter_host", "fastq_counts_bbmap.txt")
+sgDF_path <- file.path(repo_dir, "shotgunMetadata.tsv")
 krakenReads <- read_delim(file.path(repo_dir, "methods_comparisons", "assess_kraken", "krakenHumanReads.tsv"), delim="\t")
 
 #Load
-sg_df <- read_delim(sg_df_path, delim = "\t")
+sgDF <- read_delim(sgDF_path, delim = "\t")
 countsDF <- read_delim(countsDF_path, delim="\ ")
+countsDFbbmap <- read_delim(countsDFbbmap_path, delim="\ ")
 ```
 
 # Compare amount of human reads filtered
 ```{r}
+#bowtie by HLB counts
 countsDF0 <- countsDF %>%
   mutate(uploadCount1=uploadCount1/4,
          uploadCount2=uploadCount2/4,
@@ -35,26 +38,40 @@ countsDF0 <- countsDF %>%
          filteredCount2=filteredCount2/4,
          filteredCountS=filteredCountS/4,
          uploadTotal=uploadCount1+uploadCount2+uploadCountS,
-         filteredTotal=filteredCount1+filteredCount2+filteredCountS,
-         pctFiltered=filteredTotal/uploadTotal,
-         pctHuman2=(uploadTotal-filteredTotal)/uploadTotal,
-         SampleID=Sample)
+         filteredTotalBowtie=filteredCount1+filteredCount2+filteredCountS,
+         pctFilteredBowtie=filteredTotalBowtie/uploadTotal,
+         pctHumanBowtie=(uploadTotal-filteredTotalBowtie)/uploadTotal,
+         SampleID=Sample) 
 
+#bbmap by HLB counts
+countsDFbbmap0 <- countsDFbbmap %>%
+    mutate(uploadCount1=uploadCount1/4,
+         uploadCount2=uploadCount2/4,
+         uploadCountS=uploadCountS/4,
+         filteredCount1=filteredCount1/4,
+         filteredCount2=filteredCount2/4,
+         filteredCountS=filteredCountS/4,
+         uploadTotal=uploadCount1+uploadCount2+uploadCountS,
+         filteredTotalBbmap=filteredCount1+filteredCount2+filteredCountS,
+         pctFilteredBbmap=filteredTotalBbmap/uploadTotal,
+         pctHumanBbmap=(uploadTotal-filteredTotalBbmap)/uploadTotal,
+         SampleID=Sample) 
 
-sg_df0 <- sg_df %>%
-  left_join(., countsDF0[,c("SampleID", "pctHuman2")], by="SampleID") %>%
+sgDF0 <- sgDF %>%
+  select(SampleID, PctHuman) %>%
+  dplyr::rename(Upload=PctHuman) %>%
+  left_join(., countsDF0[,c("SampleID", "pctHumanBowtie")], by="SampleID") %>%
+  left_join(., countsDFbbmap0[,c("SampleID", "pctHumanBbmap")], by="SampleID") %>%
   left_join(., krakenReads[,c("SampleID", "krakenHuAbundance")], by ="SampleID") %>%
-  mutate(difference=abs(pctHuman2-PctHuman),
-         differenceK=abs(pctHuman2-krakenHuAbundance))
+  dplyr::rename(Kraken=krakenHuAbundance, BBmap=pctHumanBbmap, Bowtie=pctHumanBowtie) %>%
+  gather("Method", "PctHuman", 2:ncol(.))
 
-sapply(list(upload=sg_df0$PctHuman, hannaBowtie=sg_df0$pctHuman2, kracken=sg_df0$krakenHuAbundance, difference1=sg_df0$difference, differenceKracken=sg_df0$differenceK), summary)
-
-ggplot(sg_df0) +
-  geom_line(aes(x=as.character(SampleID), y=PctHuman, group=1), color = "black", show.legend = TRUE) +
-  geom_line(aes(x=as.character(SampleID), y=krakenHuAbundance,group=1), color="blue", show.legend = TRUE) +
-  geom_line(aes(x=as.character(SampleID), y=pctHuman2,group=1), color="red", show.legend = TRUE) +
+ggplot(sgDF0) +
+  geom_line(aes(x=as.character(SampleID), y=PctHuman, color=Method, group=Method), show.legend = TRUE) +
   theme(axis.text.x = element_blank())+
-  labs(title ="black:upload, red:Hanna Bowtie, blue:kraken", x="Sample", y="Proportion Human Reads") 
+  labs(x="Sample", y="Proportion Human Reads") +
+  scale_color_manual(values=c("black", "red", "blue", "darkgreen"))
+ggsave("/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/filter_host/filterHuman.pdf")
 ```
 
 # Session Info
