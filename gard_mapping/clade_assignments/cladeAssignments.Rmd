@@ -308,6 +308,42 @@ ggplot(data=sample100clades, aes(x=GWcoll, y=propClade, color = Clade)) +
 ```
 Sensitivity in detecting clades may be lost in increasing the threshold to 100%ID.
 
+## Take top hit above 99%
+```{r}
+alns99top <- alns0 %>%
+  map(~filter(.x, pcntid>=99)) %>%
+  map(~group_by(.x, query)) %>%
+  map(~filter(.x, pcntid==max(pcntid))) %>%
+  map(~ungroup(.x))
+
+countCladesBySample99top <- alns99top %>%  #get count of clades mapped in each sample
+  map_df(~summarise(.x, nClades=n_distinct(Clade))) %>%
+  mutate(SampleID=names(alns)) %>%
+  left_join(sgDF[,c("SampleID","SubjectID", "GWcoll")], by="SampleID")
+ggplot(data = countCladesBySample99top, aes(nClades)) +
+  geom_histogram() +
+  theme_classic() +
+  scale_y_continuous(breaks = seq(0, 100, by = 10)) +
+  labs(title = "Number of clades found in each sample (filter to% ID>=99% (top hits only))", x = "# clades")
+#ggsave(file.path(gdrive_path, "figures","cladesPerSample99top.pdf"))
+
+sample99topclades <- alns99top %>%
+  map(~count(.x, Clade)) %>%
+  map(~mutate(.x, propClade=(n/sum(n)),
+              Clade=as.character(Clade))) %>%
+  map2(., names(alns99top), ~mutate(.x, SampleID=.y)) %>%
+  purrr::reduce(full_join, by=c("SampleID", "Clade", "propClade")) %>%
+  left_join(sgDF[,c("SampleID","SubjectID", "GWcoll")])
+ggplot(data=sample99topclades, aes(x=GWcoll, y=propClade, color = Clade)) +
+  geom_point()+
+  geom_jitter()+
+  facet_wrap(~SubjectID) +
+  labs(title = "Proportion clades found in each sample (filter to %ID>=99% (top hits only))", y="Proportion alignments per clade", x="Gestation Weeks")+
+  theme(axis.text.y = element_text(size=7))
+#ggsave(file.path(gdrive_path, "figures","proportionCladesPerSample99top.pdf"))    
+```
+
+
 # Assess duplicates 
 ## at >=99% identity
 ```{r}
@@ -512,6 +548,128 @@ Clades 3 and 4 no longer appear in 4007535358.
 Clades 1 and 4 are appearing in annotations that have ambiguous alignment at 100% in sample 4002101298.
 Going forward: try classifying clades after removing annotations that cause ambiguous alignments. (ie, reads align with references from multiple clades).
 
+## at >=99% identity (top hit only)
+```{r}
+hitsPerSample99top <- alns99top %>%
+  map(~nrow(.x)) %>%
+  as_tibble() %>%
+  t() %>%
+  as_tibble() %>%
+  mutate(SampleID=names(alns99top))
+
+ggplot(data = hitsPerSample99top, aes(V1))+
+  geom_histogram(binwidth = 300) +
+  labs(title="hits per sample >= 99% id (top hit only)", x="hits") +
+  theme_classic()
+summary(hitsPerSample99top$V1)
+```
+Note - many samples have few reads (<300) that map to G. vaginalis after filtering. 
+```{r}
+duplicateReferences99top <- alns99top %>%  # dataframes with multiples only
+  map(~group_by(.x, query)) %>%
+  map(~filter(.x, n()>1)) %>%
+  map(~ungroup(.x))
+
+diffClades99top_100 <- duplicateReferences99top %>%
+  map(~filter(.x, pcntid==100)) %>%
+  map(~select(.x, query, SampleID, Annotation, Clade)) %>%
+  purrr::reduce(full_join, by=c("query", "SampleID", "Annotation", "Clade")) %>%
+  group_by(query) %>%
+  filter(n_distinct(Clade)>1) %>%
+  ungroup()
+ambiguous99top_100 <-table(diffClades99top_100$Annotation, diffClades99top_100$Clade)
+print("ambiguous annotations with 100% id")
+ambiguous99top_100
+#write.csv(as.data.frame(unclass(ambiguous99top_100)), file.path(gdrive_path, "ambiguousHits99top_100.csv"))
+
+diffClades99top_99 <- duplicateReferences99top %>%
+  map(~filter(.x, pcntid!=100)) %>%
+  map(~select(.x, query, SampleID, Annotation, Clade)) %>%
+  purrr::reduce(full_join, by=c("query", "SampleID", "Annotation", "Clade")) %>%
+  group_by(query) %>%
+  filter(n_distinct(Clade)>1) %>%
+  ungroup()
+ambiguous99top_99 <-table(diffClades99top_99$Annotation, diffClades99top_99$Clade)
+print("ambiguous annotations with ~99% id")
+ambiguous99top_99
+#write.csv(as.data.frame(unclass(ambiguous99top_99)), file.path(gdrive_path, "ambiguousHits99top_99.csv"))
+
+alns099_top <- alns99top %>%
+  map(~select(.x, query, pcntid, SampleID, SubjectID, GWcoll, RNAlater, PaperCohort, Annotation, Clade)) %>%
+  map(~unique.data.frame(.x)) %>%
+  purrr::reduce(full_join, by= c("query", "pcntid", "SampleID", "SubjectID", "GWcoll", "RNAlater", "PaperCohort", "Annotation", "Clade"))
+
+ggplot(data=alns099_top) +
+  geom_bar(aes(x=Annotation, color=as.character(Clade), fill=as.character(Clade))) +
+  facet_wrap(~SampleID) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle=90, size=2)) + 
+  labs(title = "Hits by Annotation (top hit above 99% ID)", color="Clade", fill="Clade")
+#ggsave(file.path(gdrive_path, "figures", "annotationBarPlot99top.pdf"), width=30, height=20)
+```
+Appear to be more reads that map to clades 3 and 4 than the other clades. Fewer annotations map ambiguously for the ~99% id hits, but the "ambiguity" is across more clades.
+```{r}
+#let's zoom in on a few samples
+#4009035268
+`4009035268` <- alns099_top %>%
+  filter(SampleID=="4009035268")
+ggplot(data=`4009035268`) +
+  geom_bar(aes(x=Annotation, color=as.character(Clade), fill=as.character(Clade))) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle=45, hjust=1, size = 6)) + 
+  labs(title = "Hits by Annotation Sample 4009035268 (top hid >=99% ID)", color="Clade", fill="Clade")
+#ggsave(file.path(gdrive_path, "figures", "4009035268annotationBarPlot99top.pdf"))
+```
+An example of a sample where clade 3 may be an artifact of alignment.
+```{r}
+#1061635208
+`1061635208` <- alns099_top %>%
+  filter(SampleID=="1061635208")
+ggplot(data=`1061635208`) +
+  geom_bar(aes(x=Annotation, color=as.character(Clade), fill=as.character(Clade))) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle=45, hjust=1, size = 6)) + 
+  labs(title = "Hits by Annotation Sample 1061635208 (top hid >=99% ID)", color="Clade", fill="Clade")
+#ggsave(file.path(gdrive_path, "figures", "1061635208annotationBarPlot99top.pdf"))
+```
+An example where clade 4 appears to be an artifact of alignment. 
+```{r}
+#4002101198
+`4002101198` <- alns099_top %>%
+  filter(SampleID=="4002101198")
+ggplot(data=`4002101198`) +
+  geom_bar(aes(x=Annotation, color=as.character(Clade), fill=as.character(Clade))) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle=45, hjust=1, size = 6)) + 
+  labs(title = "Hits by Annotation Sample 4002101198 (top hid >=99% ID)", color="Clade", fill="Clade")
+#ggsave(file.path(gdrive_path, "figures", "4002101198annotationBarPlot99top.pdf"))
+```
+An example where all clades appear to be present. Reads map to all annotations.
+```{r}
+#4002101298
+`4002101298` <- alns099_top %>%
+  filter(SampleID=="4002101298")
+ggplot(data=`4002101298`) +
+  geom_bar(aes(x=Annotation, color=as.character(Clade), fill=as.character(Clade))) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle=45, hjust=1, size = 6)) + 
+  labs(title = "Hits by Annotation Sample 4002101298 (top hid >=99% ID)", color="Clade", fill="Clade")
+#ggsave(file.path(gdrive_path, "figures", "4002101298annotationBarPlot99top.pdf"))
+```
+Clades 1 and 4 may be an artifact of alignment. Clades appear in annotations that have reads mapping to multiple clades at the same percent identity.
+```{r}
+#4007535358
+`4007535358` <- alns099_top %>%
+  filter(SampleID=="4007535358")
+ggplot(data=`4007535358`) +
+  geom_bar(aes(x=Annotation, color=as.character(Clade), fill=as.character(Clade))) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle=45, hjust=1, size = 6)) + 
+  labs(title = "Hits by Annotation Sample 4007535358 (top hid >=99% ID)", color="Clade", fill="Clade")
+#ggsave(file.path(gdrive_path, "figures", "4007535358annotationBarPlot99top.pdf"))
+``` 
+Example where clades 1 and 2 appear to be present. But clades 3 and 4 may be an artifact of alignment (appear at *very* low levels)
+
 # Comparison with 16S: 
 ## 100% ID without annotations that map ambiguously (9 annotations removed)
 ```{r}
@@ -542,7 +700,15 @@ ggplot(data=compare16S, aes(x=GWcoll, y=propClade, color=Clade, shape=RNAlater))
   facet_wrap(~SubjectID) +
   scale_color_manual(values=c("indianred1", "indianred3", "steelblue1", "steelblue3", "darkorchid2", "yellowgreen" )) +
   labs(title = "Clade assignments by shotgun sequencing:\nFiltering at 100%ID", x= "Gestation weeks at collection", y="Proportion of Gardnerella", shape="RNA Later", color="Clade")
-#ggsave(filename = file.path(gdrive_path, "cladesByShotgun100_filtered.pdf"))    
+#ggsave(filename = file.path(gdrive_path, "cladesByShotgun100_filtered.pdf"))
+
+ggplot(data=compare16S, aes(x=GWcoll, y=propClade, color=Clade, fill=Clade)) +
+  geom_bar(stat="identity") +
+  facet_wrap(~SubjectID) +
+  scale_color_manual(values=c("indianred1", "indianred3", "steelblue1", "steelblue3", "darkorchid2", "yellowgreen" )) +
+  scale_fill_manual(values=c("indianred1", "indianred3", "steelblue1", "steelblue3", "darkorchid2", "yellowgreen" )) +
+  labs(title = "Clade assignments by shotgun sequencing:\nFiltering at 100%ID", x= "Gestation weeks at collection", y="Proportion of Gardnerella", shape="RNA Later", color="Clade")
+#ggsave(filename = file.path(gdrive_path, "cladesByShotgun100_filtered_bar.pdf"))   
 ```
 Relative abundance of *G. vaginalis* clades out of all *G. vaginalis* present by shotgun sequencing often appears qualitatively similar to relative abundances by 16S amplicon sequenging. 3 Subjects found to have *G. vaginalis* by 16S amplicon sequencing are not found to have *G. vaginalis* by this method (filtered out because of high threshold of identity). This suggests that sensitivity of the method could be improved.
 
@@ -587,9 +753,54 @@ ggplot(data=compare16S99, aes(x=GWcoll, y=propClade, color=Clade, shape=RNAlater
   facet_wrap(~SubjectID) +
   scale_color_manual(values=c("indianred1", "indianred3", "steelblue1", "steelblue3", "darkorchid2", "yellowgreen" )) +
   labs(title = "Clade assignments by shotgun sequencing:\nFiltering at 99%ID", x= "Gestation weeks at collection", y="Proportion of Gardnerella", shape="RNA Later", color="Clade")
-#ggsave(filename = file.path(gdrive_path, "cladesByShotgun99_filtered.pdf"))    
+#ggsave(filename = file.path(gdrive_path, "cladesByShotgun99_filtered.pdf"))
+
+ggplot(data=compare16S99, aes(x=GWcoll, y=propClade, color=Clade, fill=Clade)) +
+  geom_bar(stat = "identity") +
+  facet_wrap(~SubjectID) +
+  scale_color_manual(values=c("indianred1", "indianred3", "steelblue1", "steelblue3", "darkorchid2", "yellowgreen" )) +
+  scale_fill_manual(values=c("indianred1", "indianred3", "steelblue1", "steelblue3", "darkorchid2", "yellowgreen" )) +
+  labs(title = "Clade assignments by shotgun sequencing:\nFiltering at 99%ID", x= "Gestation weeks at collection", y="Proportion of Gardnerella", shape="RNA Later", color="Clade")
+#ggsave(filename = file.path(gdrive_path, "cladesByShotgun99_filtered_bar.pdf"))
 ```
 Sensitivity is marginally increased in sample 10621. Low abundant clades present in 10056 and 20505 in the 100% ID classifications are not present with this method (could be from removing those annotations). Overall, no change in most abundant clades in each sample.  
+
+## Top hit >=99% ID without annotations that map ambiguously (6 annotations for 99<=hits<100; 9 annotations for hits=100%)
+```{r}
+compare16S99top <- alns099_top %>%
+  filter(PaperCohort ==2017,
+         Annotation !="30S ribosomal protein S15",
+         Annotation !="30S ribosomal protein S2",
+         Annotation !="50S ribosomal protein L31",
+         Annotation !="Glutamyl-tRNA(Gln) amidotransferase subunit C",
+         Annotation !="Phosphoglucomutase",
+         Annotation !="Transketolase",
+         !(pcntid ==100 & Annotation=="Pyruvate formate-lyase 1-activating enzyme" |  #filter out annotations that only have ambiguity at %ID==100
+         pcntid ==100 & Annotation=="Ribonucleoside-diphosphate reductase subunit beta nrdF2"|
+         pcntid ==100 & Annotation=="Valine--tRNA ligase")) %>%
+  group_by(SampleID) %>%
+  count(Clade) %>%
+  mutate(propClade=(n/sum(n)),
+              Clade=as.character(Clade)) %>%
+  left_join(sgDF[,c("SampleID","SubjectID", "GWcoll", "RNAlater")], by="SampleID") %>%
+  full_join(sgDF["PaperCohort"==2017, "SampleID"], by="SampleID") %>%
+  full_join(subjects16S, by="SubjectID")
+
+ggplot(data=compare16S99top, aes(x=GWcoll, y=propClade, color=Clade, shape=RNAlater)) +
+  geom_point() +
+  facet_wrap(~SubjectID) +
+  scale_color_manual(values=c("indianred1", "indianred3", "steelblue1", "steelblue3", "darkorchid2", "yellowgreen" )) +
+  labs(title = "Clade assignments by shotgun sequencing:\nFiltering top hits >=99%ID", x= "Gestation weeks at collection", y="Proportion of Gardnerella", shape="RNA Later", color="Clade")
+#ggsave(filename = file.path(gdrive_path, "cladesByShotgun99top_filtered.pdf"))
+
+ggplot(data=compare16S99top, aes(x=GWcoll, y=propClade, color=Clade, fill=Clade)) +
+  geom_bar(stat = "identity") +
+  facet_wrap(~SubjectID) +
+  scale_color_manual(values=c("indianred1", "indianred3", "steelblue1", "steelblue3", "darkorchid2", "yellowgreen" )) +
+  scale_fill_manual(values=c("indianred1", "indianred3", "steelblue1", "steelblue3", "darkorchid2", "yellowgreen" )) +
+  labs(title = "Clade assignments by shotgun sequencing:\nFiltering top hits >=99%ID", x= "Gestation weeks at collection", y="Proportion of Gardnerella", shape="RNA Later", fill="Clade")
+#ggsave(filename = file.path(gdrive_path, "cladesByShotgun99top_filtered_bar.pdf"))
+```
 
 # Session Info
 ```{r}
