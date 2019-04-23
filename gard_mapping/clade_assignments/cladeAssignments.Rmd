@@ -768,16 +768,16 @@ Sensitivity is marginally increased in sample 10621. Low abundant clades present
 ## Top hit >=99% ID without annotations that map ambiguously (6 annotations for 99<=hits<100; 9 annotations for hits=100%)
 ```{r}
 compare16S99top <- alns099_top %>%
-  filter(PaperCohort ==2017,
+  filter(PaperCohort == 2017,
          Annotation !="30S ribosomal protein S15",
          Annotation !="30S ribosomal protein S2",
          Annotation !="50S ribosomal protein L31",
          Annotation !="Glutamyl-tRNA(Gln) amidotransferase subunit C",
          Annotation !="Phosphoglucomutase",
          Annotation !="Transketolase",
-         !(pcntid ==100 & Annotation=="Pyruvate formate-lyase 1-activating enzyme" |  #filter out annotations that only have ambiguity at %ID==100
-         pcntid ==100 & Annotation=="Ribonucleoside-diphosphate reductase subunit beta nrdF2"|
-         pcntid ==100 & Annotation=="Valine--tRNA ligase")) %>%
+         Annotation !="Pyruvate formate-lyase 1-activating enzyme" ,
+         Annotation !="Ribonucleoside-diphosphate reductase subunit beta nrdF2",
+         Annotation !="Valine--tRNA ligase") %>%
   group_by(SampleID) %>%
   count(Clade) %>%
   mutate(propClade=(n/sum(n)),
