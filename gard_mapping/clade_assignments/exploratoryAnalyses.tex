@@ -1,0 +1,595 @@
+\documentclass[]{article}
+\usepackage{lmodern}
+\usepackage{amssymb,amsmath}
+\usepackage{ifxetex,ifluatex}
+\usepackage{fixltx2e} % provides \textsubscript
+\ifnum 0\ifxetex 1\fi\ifluatex 1\fi=0 % if pdftex
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+\else % if luatex or xelatex
+  \ifxetex
+    \usepackage{mathspec}
+  \else
+    \usepackage{fontspec}
+  \fi
+  \defaultfontfeatures{Ligatures=TeX,Scale=MatchLowercase}
+\fi
+% use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+% use microtype if available
+\IfFileExists{microtype.sty}{%
+\usepackage{microtype}
+\UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\usepackage[margin=1in]{geometry}
+\usepackage{hyperref}
+\hypersetup{unicode=true,
+            pdftitle={Gardnerella clades and relative abundance},
+            pdfauthor={Hanna Berman},
+            pdfborder={0 0 0},
+            breaklinks=true}
+\urlstyle{same}  % don't use monospace font for urls
+\usepackage{color}
+\usepackage{fancyvrb}
+\newcommand{\VerbBar}{|}
+\newcommand{\VERB}{\Verb[commandchars=\\\{\}]}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{commandchars=\\\{\}}
+% Add ',fontsize=\small' for more characters per line
+\usepackage{framed}
+\definecolor{shadecolor}{RGB}{248,248,248}
+\newenvironment{Shaded}{\begin{snugshade}}{\end{snugshade}}
+\newcommand{\KeywordTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{{#1}}}}
+\newcommand{\DataTypeTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{{#1}}}
+\newcommand{\DecValTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{{#1}}}
+\newcommand{\BaseNTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{{#1}}}
+\newcommand{\FloatTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{{#1}}}
+\newcommand{\ConstantTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{{#1}}}
+\newcommand{\CharTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{{#1}}}
+\newcommand{\SpecialCharTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{{#1}}}
+\newcommand{\StringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{{#1}}}
+\newcommand{\VerbatimStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{{#1}}}
+\newcommand{\SpecialStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{{#1}}}
+\newcommand{\ImportTok}[1]{{#1}}
+\newcommand{\CommentTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{{#1}}}}
+\newcommand{\DocumentationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{{#1}}}}}
+\newcommand{\AnnotationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{{#1}}}}}
+\newcommand{\CommentVarTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{{#1}}}}}
+\newcommand{\OtherTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{{#1}}}
+\newcommand{\FunctionTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{{#1}}}
+\newcommand{\VariableTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{{#1}}}
+\newcommand{\ControlFlowTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{{#1}}}}
+\newcommand{\OperatorTok}[1]{\textcolor[rgb]{0.81,0.36,0.00}{\textbf{{#1}}}}
+\newcommand{\BuiltInTok}[1]{{#1}}
+\newcommand{\ExtensionTok}[1]{{#1}}
+\newcommand{\PreprocessorTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{{#1}}}}
+\newcommand{\AttributeTok}[1]{\textcolor[rgb]{0.77,0.63,0.00}{{#1}}}
+\newcommand{\RegionMarkerTok}[1]{{#1}}
+\newcommand{\InformationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{{#1}}}}}
+\newcommand{\WarningTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{{#1}}}}}
+\newcommand{\AlertTok}[1]{\textcolor[rgb]{0.94,0.16,0.16}{{#1}}}
+\newcommand{\ErrorTok}[1]{\textcolor[rgb]{0.64,0.00,0.00}{\textbf{{#1}}}}
+\newcommand{\NormalTok}[1]{{#1}}
+\usepackage{graphicx,grffile}
+\makeatletter
+\def\maxwidth{\ifdim\Gin@nat@width>\linewidth\linewidth\else\Gin@nat@width\fi}
+\def\maxheight{\ifdim\Gin@nat@height>\textheight\textheight\else\Gin@nat@height\fi}
+\makeatother
+% Scale images if necessary, so that they will not overflow the page
+% margins by default, and it is still possible to overwrite the defaults
+% using explicit options in \includegraphics[width, height, ...]{}
+\setkeys{Gin}{width=\maxwidth,height=\maxheight,keepaspectratio}
+\IfFileExists{parskip.sty}{%
+\usepackage{parskip}
+}{% else
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt plus 2pt minus 1pt}
+}
+\setlength{\emergencystretch}{3em}  % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\setcounter{secnumdepth}{0}
+% Redefines (sub)paragraphs to behave more like sections
+\ifx\paragraph\undefined\else
+\let\oldparagraph\paragraph
+\renewcommand{\paragraph}[1]{\oldparagraph{#1}\mbox{}}
+\fi
+\ifx\subparagraph\undefined\else
+\let\oldsubparagraph\subparagraph
+\renewcommand{\subparagraph}[1]{\oldsubparagraph{#1}\mbox{}}
+\fi
+
+%%% Use protect on footnotes to avoid problems with footnotes in titles
+\let\rmarkdownfootnote\footnote%
+\def\footnote{\protect\rmarkdownfootnote}
+
+%%% Change title format to be more compact
+\usepackage{titling}
+
+% Create subtitle command for use in maketitle
+\providecommand{\subtitle}[1]{
+  \posttitle{
+    \begin{center}\large#1\end{center}
+    }
+}
+
+\setlength{\droptitle}{-2em}
+
+  \title{Gardnerella clades and relative abundance}
+    \pretitle{\vspace{\droptitle}\centering\huge}
+  \posttitle{\par}
+    \author{Hanna Berman}
+    \preauthor{\centering\large\emph}
+  \postauthor{\par}
+      \predate{\centering\large\emph}
+  \postdate{\par}
+    \date{4/25/2019}
+
+
+\begin{document}
+\maketitle
+
+\section{Setup}\label{setup}
+
+\subsection{Packages}\label{packages}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{library}\NormalTok{(tidyverse)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## -- Attaching packages ---------------------------------- tidyverse 1.2.1 --
+\end{verbatim}
+
+\begin{verbatim}
+## v ggplot2 3.1.1       v purrr   0.3.2  
+## v tibble  2.1.1       v dplyr   0.8.0.1
+## v tidyr   0.8.3       v stringr 1.4.0  
+## v readr   1.3.1       v forcats 0.4.0
+\end{verbatim}
+
+\begin{verbatim}
+## -- Conflicts ------------------------------------- tidyverse_conflicts() --
+## x dplyr::filter() masks stats::filter()
+## x dplyr::lag()    masks stats::lag()
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{library}\NormalTok{(ggExtra)}
+\KeywordTok{library}\NormalTok{(ggthemes)}
+\end{Highlighting}
+\end{Shaded}
+
+\subsection{File paths}\label{file-paths}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{gardRelativeAbundance <-}\StringTok{ }\KeywordTok{read_delim}\NormalTok{(}\StringTok{"/Users/hlberman/Documents/GitHub/pregnancy_metagenome/gard_mapping/clade_assignments/gardRelativeAbundance.tsv"}\NormalTok{, }\DataTypeTok{delim =} \StringTok{"}\CharTok{\textbackslash{}t}\StringTok{"}\NormalTok{) %>%}
+\StringTok{  }\KeywordTok{mutate}\NormalTok{(}\DataTypeTok{SampleID=}\KeywordTok{as.character}\NormalTok{(SampleID),}
+         \DataTypeTok{Clade=}\KeywordTok{as.character}\NormalTok{(Clade))}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## Parsed with column specification:
+## cols(
+##   SampleID = col_double(),
+##   Clade = col_double(),
+##   n = col_double(),
+##   propClade = col_double()
+## )
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{alignmentsFinal <-}\StringTok{ }\KeywordTok{read_delim}\NormalTok{(}\StringTok{"/Users/hlberman/Documents/GitHub/pregnancy_metagenome/gard_mapping/clade_assignments/aglingmentsFinal.tsv"}\NormalTok{, }\DataTypeTok{delim =} \StringTok{"}\CharTok{\textbackslash{}t}\StringTok{"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## Parsed with column specification:
+## cols(
+##   query = col_character(),
+##   pcntid = col_double(),
+##   SampleID = col_double(),
+##   SubjectID = col_double(),
+##   GWcoll = col_double(),
+##   RNAlater = col_character(),
+##   PaperCohort = col_double(),
+##   Annotation = col_character(),
+##   Clade = col_double()
+## )
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{sgDF <-}\StringTok{ }\KeywordTok{read_delim}\NormalTok{(}\StringTok{"/Users/hlberman/Documents/GitHub/pregnancy_metagenome/shotgunMetadata.tsv"}\NormalTok{, }\DataTypeTok{delim =} \StringTok{"}\CharTok{\textbackslash{}t}\StringTok{"}\NormalTok{)%>%}
+\StringTok{  }\KeywordTok{mutate}\NormalTok{(}\DataTypeTok{SampleID=}\KeywordTok{as.character}\NormalTok{(SampleID))}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## Parsed with column specification:
+## cols(
+##   .default = col_double(),
+##   SampleIndex = col_character(),
+##   SampleType = col_character(),
+##   TermPre = col_character(),
+##   Operator = col_character(),
+##   PctTrim = col_character(),
+##   RNAlater = col_character(),
+##   UAB = col_character()
+## )
+\end{verbatim}
+
+\begin{verbatim}
+## See spec(...) for full column specifications.
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{load}\NormalTok{(}\StringTok{"/Users/hlberman/Documents/GitHub/pregnancy_metagenome/methods_comparisons/PS_RData/metaphlan_PS.RData"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\section{\texorpdfstring{\emph{Gardnerella} clades and relative
+abundance of \emph{Gardnerella} in each
+sample}{Gardnerella clades and relative abundance of Gardnerella in each sample}}\label{gardnerella-clades-and-relative-abundance-of-gardnerella-in-each-sample}
+
+\subsection{Recalculate proportions of Gardnerella as proportions of the
+whole microbiome. (Rethink how this should be done\ldots{} reads/total
+reads?) Currently done by multiplying times proportion of all
+Gardnerella found by
+Metaphlan}\label{recalculate-proportions-of-gardnerella-as-proportions-of-the-whole-microbiome.-rethink-how-this-should-be-done-readstotal-reads-currently-done-by-multiplying-times-proportion-of-all-gardnerella-found-by-metaphlan}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{SampleIDlist <-}\StringTok{ }\KeywordTok{rep}\NormalTok{(}\KeywordTok{unique}\NormalTok{(sgDF$SampleID), }\DecValTok{6}\NormalTok{) %>%}
+\StringTok{  }\NormalTok{.[}\KeywordTok{order}\NormalTok{(.)]}
+
+\NormalTok{cladeFrame <-}\StringTok{ }\KeywordTok{tibble}\NormalTok{(}\DataTypeTok{SampleID=}\NormalTok{SampleIDlist,}
+                     \DataTypeTok{Clade=}\KeywordTok{rep}\NormalTok{(}\KeywordTok{c}\NormalTok{(}\StringTok{"1"}\NormalTok{,}\StringTok{"2"}\NormalTok{, }\StringTok{"3"}\NormalTok{, }\StringTok{"4"}\NormalTok{, }\StringTok{"5"}\NormalTok{, }\StringTok{"6"}\NormalTok{), }\DecValTok{107}\NormalTok{),}
+                     \DataTypeTok{n=}\DecValTok{0}\NormalTok{, }
+                     \DataTypeTok{propClade=}\DecValTok{0}\NormalTok{)}
+
+\NormalTok{gardRelativeAbundance0 <-}\StringTok{ }\NormalTok{gardRelativeAbundance %>%}
+\StringTok{ }\KeywordTok{full_join}\NormalTok{(cladeFrame) %>%}
+\StringTok{ }\KeywordTok{group_by}\NormalTok{(SampleID, Clade) %>%}
+\StringTok{ }\KeywordTok{filter}\NormalTok{(n==}\KeywordTok{max}\NormalTok{(n)) %>%}
+\StringTok{ }\KeywordTok{ungroup}\NormalTok{() %>%}\StringTok{  }
+\StringTok{ }\KeywordTok{left_join}\NormalTok{(}\KeywordTok{unique.data.frame}\NormalTok{(sgDF[,}\KeywordTok{c}\NormalTok{(}\StringTok{"SampleID"}\NormalTok{, }\StringTok{"SubjectID"}\NormalTok{, }\StringTok{"TermPre"}\NormalTok{, }\StringTok{"GWdell"}\NormalTok{, }\StringTok{"GWcoll"}\NormalTok{)])) %>%}
+\StringTok{ }\KeywordTok{mutate}\NormalTok{(}\DataTypeTok{SubjectID=}\KeywordTok{as.character}\NormalTok{(SubjectID))}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## Joining, by = c("SampleID", "Clade", "n", "propClade")
+\end{verbatim}
+
+\begin{verbatim}
+## Joining, by = "SampleID"
+\end{verbatim}
+
+Get Gardnerella relative abundances from metaphlan
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{metaphlanGard <-}\StringTok{ }\NormalTok{PS_metaphlan_all@otu_table %>%}
+\StringTok{  }\KeywordTok{t}\NormalTok{() %>%}\StringTok{ }
+\StringTok{  }\KeywordTok{as.data.frame}\NormalTok{() %>%}
+\StringTok{  }\KeywordTok{mutate}\NormalTok{(}\DataTypeTok{SampleID=}\KeywordTok{rownames}\NormalTok{(.)) %>%}
+\StringTok{  }\KeywordTok{select}\NormalTok{(Gardnerella_vaginalis, SampleID)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## Loading required package: phyloseq
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{gardRelativeAbundance1 <-}\StringTok{ }\NormalTok{gardRelativeAbundance0 %>%}
+\StringTok{  }\KeywordTok{left_join}\NormalTok{(metaphlanGard, }\DataTypeTok{by=}\StringTok{"SampleID"}\NormalTok{) %>%}
+\StringTok{  }\KeywordTok{mutate}\NormalTok{(}\DataTypeTok{propCladeCommunity=}\NormalTok{propClade*Gardnerella_vaginalis)}
+\end{Highlighting}
+\end{Shaded}
+
+\subsection{\texorpdfstring{Plots to View the relationship among clade
+of \emph{Gardnerella}, total proportion of \emph{Gardnerella} in the
+sample, and
+PTB}{Plots to View the relationship among clade of Gardnerella, total proportion of Gardnerella in the sample, and PTB}}\label{plots-to-view-the-relationship-among-clade-of-gardnerella-total-proportion-of-gardnerella-in-the-sample-and-ptb}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{ggplot}\NormalTok{(gardRelativeAbundance1, }\KeywordTok{aes}\NormalTok{(}\DataTypeTok{x=}\NormalTok{propCladeCommunity, }\DataTypeTok{y=}\NormalTok{Gardnerella_vaginalis, }\DataTypeTok{color=}\NormalTok{Clade)) +}
+\StringTok{  }\KeywordTok{geom_point}\NormalTok{() +}
+\StringTok{  }\KeywordTok{scale_color_manual}\NormalTok{(}\DataTypeTok{values=}\KeywordTok{c}\NormalTok{(}\StringTok{"#CC79A7"}\NormalTok{, }\StringTok{"#D55E00"}\NormalTok{, }\StringTok{"#56B4E9"}\NormalTok{, }\StringTok{"#0072B2"}\NormalTok{, }\StringTok{"#E69F00"}\NormalTok{, }\StringTok{"#009E73"}\NormalTok{)) +}
+\StringTok{  }\KeywordTok{labs}\NormalTok{(}\DataTypeTok{x=}\StringTok{"Proportion proportion Clade in community"}\NormalTok{, }\DataTypeTok{y=}\StringTok{"Total proportion of Gardnerella"}\NormalTok{, }\DataTypeTok{color=}\StringTok{"Clade"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{exploratoryAnalyses_files/figure-latex/unnamed-chunk-6-1.pdf}
+\n Not the best plot for visualizing the data, but it does show that
+when the total proportion of \emph{Gardnerella} is comprised of one
+clade and near 100\%, that clade is clade 1.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{ggplot}\NormalTok{(}\DataTypeTok{data=}\NormalTok{gardRelativeAbundance1, }\KeywordTok{aes}\NormalTok{(}\DataTypeTok{x=}\NormalTok{TermPre, }\DataTypeTok{y=}\NormalTok{propCladeCommunity, }\DataTypeTok{color=}\NormalTok{TermPre)) +}
+\StringTok{  }\KeywordTok{geom_jitter}\NormalTok{() +}
+\StringTok{  }\KeywordTok{geom_boxplot}\NormalTok{(}\DataTypeTok{alpha=}\DecValTok{0}\NormalTok{)+}
+\StringTok{  }\KeywordTok{scale_x_discrete}\NormalTok{(}\DataTypeTok{labels=}\KeywordTok{c}\NormalTok{(}\StringTok{"Preterm"}\NormalTok{, }\StringTok{"Term"}\NormalTok{)) +}
+\StringTok{  }\KeywordTok{facet_wrap}\NormalTok{(~Clade) +}
+\StringTok{  }\KeywordTok{labs}\NormalTok{(}\DataTypeTok{x=}\KeywordTok{element_blank}\NormalTok{(), }\DataTypeTok{y=}\StringTok{"Proportion of community"}\NormalTok{) +}
+\StringTok{  }\KeywordTok{theme}\NormalTok{(}\DataTypeTok{legend.position =} \StringTok{"none"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{exploratoryAnalyses_files/figure-latex/unnamed-chunk-7-1.pdf}
+\n Proportion of community vs preterm/term births faceted by clade. Does
+not suggest differences in proportion of each clade in each sample and
+term vs.~preterm births. Perhaps the time series information is
+important here\ldots{}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{ggplot}\NormalTok{(gardRelativeAbundance1[gardRelativeAbundance1$SubjectID==}\StringTok{"10031"}\NormalTok{,], }\KeywordTok{aes}\NormalTok{(}\DataTypeTok{x=}\NormalTok{GWcoll, }\DataTypeTok{y=}\NormalTok{propCladeCommunity, }\DataTypeTok{color=}\NormalTok{Clade, }\DataTypeTok{fill=}\NormalTok{Clade))+}
+\StringTok{  }\KeywordTok{geom_bar}\NormalTok{(}\DataTypeTok{stat =} \StringTok{"identity"}\NormalTok{)+}
+\StringTok{  }\KeywordTok{scale_color_manual}\NormalTok{(}\DataTypeTok{values=}\KeywordTok{c}\NormalTok{(}\StringTok{"#CC79A7"}\NormalTok{, }\StringTok{"#D55E00"}\NormalTok{, }\StringTok{"#56B4E9"}\NormalTok{, }\StringTok{"#0072B2"}\NormalTok{, }\StringTok{"#E69F00"}\NormalTok{, }\StringTok{"#009E73"}\NormalTok{)) +}
+\StringTok{  }\KeywordTok{scale_fill_manual}\NormalTok{(}\DataTypeTok{values=}\KeywordTok{c}\NormalTok{(}\StringTok{"#CC79A7"}\NormalTok{, }\StringTok{"#D55E00"}\NormalTok{, }\StringTok{"#56B4E9"}\NormalTok{, }\StringTok{"#0072B2"}\NormalTok{, }\StringTok{"#E69F00"}\NormalTok{, }\StringTok{"#009E73"}\NormalTok{)) +}
+\StringTok{  }\KeywordTok{labs}\NormalTok{(}\DataTypeTok{title =} \StringTok{"Subject 10031"}\NormalTok{, }\DataTypeTok{subtitle =} \StringTok{"Preterm"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{exploratoryAnalyses_files/figure-latex/unnamed-chunk-8-1.pdf}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{ggplot}\NormalTok{(gardRelativeAbundance1[gardRelativeAbundance1$SubjectID==}\StringTok{"10621"}\NormalTok{,], }\KeywordTok{aes}\NormalTok{(}\DataTypeTok{x=}\NormalTok{GWcoll, }\DataTypeTok{y=}\NormalTok{propCladeCommunity, }\DataTypeTok{color=}\NormalTok{Clade, }\DataTypeTok{fill=}\NormalTok{Clade))+}
+\StringTok{  }\KeywordTok{geom_bar}\NormalTok{(}\DataTypeTok{stat =} \StringTok{"identity"}\NormalTok{) +}
+\StringTok{  }\KeywordTok{scale_color_manual}\NormalTok{(}\DataTypeTok{values=}\KeywordTok{c}\NormalTok{(}\StringTok{"#CC79A7"}\NormalTok{, }\StringTok{"#D55E00"}\NormalTok{, }\StringTok{"#56B4E9"}\NormalTok{, }\StringTok{"#0072B2"}\NormalTok{, }\StringTok{"#E69F00"}\NormalTok{, }\StringTok{"#009E73"}\NormalTok{)) +}
+\StringTok{  }\KeywordTok{scale_fill_manual}\NormalTok{(}\DataTypeTok{values=}\KeywordTok{c}\NormalTok{(}\StringTok{"#CC79A7"}\NormalTok{, }\StringTok{"#D55E00"}\NormalTok{, }\StringTok{"#56B4E9"}\NormalTok{, }\StringTok{"#0072B2"}\NormalTok{, }\StringTok{"#E69F00"}\NormalTok{, }\StringTok{"#009E73"}\NormalTok{)) +}
+\StringTok{  }\KeywordTok{labs}\NormalTok{(}\DataTypeTok{title=}\StringTok{"Subject 10621"}\NormalTok{, }\DataTypeTok{subtitle =} \StringTok{"Term"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{exploratoryAnalyses_files/figure-latex/unnamed-chunk-8-2.pdf}
+\n Not going to draw any major conclusions from these two subjects
+(small n), but I just wanted to take a closer look since they have the
+highest proportion of \emph{Gardnerella} and specifically clade 1.
+
+\subsubsection{Bar plots}\label{bar-plots}
+
+Remove 0 values and replace with NA so they don't show up on the barplot
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{gardRelativeAbundance2 <-}\StringTok{ }\NormalTok{gardRelativeAbundance1 %>%}
+\StringTok{  }\KeywordTok{mutate}\NormalTok{(}\DataTypeTok{propCladeCommunity=}\KeywordTok{na_if}\NormalTok{(propCladeCommunity, }\DecValTok{0}\NormalTok{))}
+\end{Highlighting}
+\end{Shaded}
+
+Plot
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{ggplot}\NormalTok{(}\DataTypeTok{data=}\NormalTok{gardRelativeAbundance2, }\DataTypeTok{mapping=}\KeywordTok{aes}\NormalTok{(}\DataTypeTok{x=}\KeywordTok{reorder}\NormalTok{(SampleID, -propCladeCommunity, }\DataTypeTok{FUN=}\NormalTok{sum, }\DataTypeTok{na.rm=}\OtherTok{TRUE}\NormalTok{), }\DataTypeTok{y=}\NormalTok{propCladeCommunity, }\DataTypeTok{fill=}\NormalTok{Clade, }\DataTypeTok{color=}\NormalTok{Clade)) +}
+\StringTok{  }\KeywordTok{geom_bar}\NormalTok{(}\DataTypeTok{stat=}\StringTok{"identity"}\NormalTok{) +}
+\StringTok{  }\KeywordTok{labs}\NormalTok{(}\DataTypeTok{x=}\StringTok{"Sample"}\NormalTok{, }\DataTypeTok{y=}\StringTok{"Proportion of community"}\NormalTok{, }\DataTypeTok{color=}\StringTok{"Legend"}\NormalTok{, }\DataTypeTok{fill=}\StringTok{"Legend"}\NormalTok{) +}
+\StringTok{  }\KeywordTok{geom_point}\NormalTok{(}\KeywordTok{aes}\NormalTok{(}\DataTypeTok{y=}\NormalTok{-.}\DecValTok{03}\NormalTok{, }\DataTypeTok{color=}\NormalTok{TermPre, }\DataTypeTok{fill=}\NormalTok{TermPre), }\DataTypeTok{shape=}\StringTok{"square"}\NormalTok{, }\DataTypeTok{show.legend =} \OtherTok{FALSE}\NormalTok{) +}
+\StringTok{  }\KeywordTok{geom_point}\NormalTok{(}\KeywordTok{aes}\NormalTok{(}\DataTypeTok{y=}\NormalTok{-.}\DecValTok{04}\NormalTok{, }\DataTypeTok{color=}\NormalTok{TermPre, }\DataTypeTok{fill=}\NormalTok{TermPre), }\DataTypeTok{shape=}\StringTok{"square"}\NormalTok{, }\DataTypeTok{show.legend =} \OtherTok{FALSE}\NormalTok{) +}
+\StringTok{  }\KeywordTok{geom_point}\NormalTok{(}\KeywordTok{aes}\NormalTok{(}\DataTypeTok{y=}\NormalTok{-.}\DecValTok{05}\NormalTok{, }\DataTypeTok{color=}\NormalTok{TermPre, }\DataTypeTok{fill=}\NormalTok{TermPre), }\DataTypeTok{shape=}\StringTok{"square"}\NormalTok{, }\DataTypeTok{show.legend =} \OtherTok{FALSE}\NormalTok{) +}
+\StringTok{  }\KeywordTok{scale_color_manual}\NormalTok{(}\DataTypeTok{values=}\KeywordTok{c}\NormalTok{(}\StringTok{"#CC79A7"}\NormalTok{, }\StringTok{"#D55E00"}\NormalTok{, }\StringTok{"#56B4E9"}\NormalTok{, }\StringTok{"#0072B2"}\NormalTok{, }\StringTok{"#E69F00"}\NormalTok{, }\StringTok{"#009E73"}\NormalTok{, }\StringTok{"#000000"}\NormalTok{, }\StringTok{"#999999"}\NormalTok{), }\DataTypeTok{labels=}\KeywordTok{c}\NormalTok{(}\StringTok{"Clade 1"}\NormalTok{, }\StringTok{"Clade2"}\NormalTok{, }\StringTok{"Clade 3"}\NormalTok{, }\StringTok{"Clade 4"}\NormalTok{, }\StringTok{"Clade 5"}\NormalTok{, }\StringTok{"Clade 6"}\NormalTok{, }\StringTok{"Preterm"}\NormalTok{, }\StringTok{"Term"}\NormalTok{)) +}
+\StringTok{  }\KeywordTok{scale_fill_manual}\NormalTok{(}\DataTypeTok{values=}\KeywordTok{c}\NormalTok{(}\StringTok{"#CC79A7"}\NormalTok{, }\StringTok{"#D55E00"}\NormalTok{, }\StringTok{"#56B4E9"}\NormalTok{, }\StringTok{"#0072B2"}\NormalTok{, }\StringTok{"#E69F00"}\NormalTok{, }\StringTok{"#009E73"}\NormalTok{, }\StringTok{"#000000"}\NormalTok{, }\StringTok{"#999999"}\NormalTok{), }\DataTypeTok{labels=}\KeywordTok{c}\NormalTok{(}\StringTok{"Clade 1"}\NormalTok{, }\StringTok{"Clade2"}\NormalTok{, }\StringTok{"Clade 3"}\NormalTok{, }\StringTok{"Clade 4"}\NormalTok{, }\StringTok{"Clade 5"}\NormalTok{, }\StringTok{"Clade 6"}\NormalTok{, }\StringTok{"Preterm"}\NormalTok{, }\StringTok{"Term"}\NormalTok{)) +}
+\StringTok{  }\KeywordTok{theme_classic}\NormalTok{() +}
+\StringTok{  }\KeywordTok{theme}\NormalTok{(}\DataTypeTok{axis.text.x =} \KeywordTok{element_blank}\NormalTok{(),}
+        \DataTypeTok{axis.ticks.x =} \KeywordTok{element_blank}\NormalTok{(),}
+        \DataTypeTok{axis.line.x =} \KeywordTok{element_blank}\NormalTok{())}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## Warning: Removed 293 rows containing missing values (position_stack).
+\end{verbatim}
+
+\includegraphics{exploratoryAnalyses_files/figure-latex/unnamed-chunk-10-1.pdf}
+\n Looks like we should test for a relationship between clade 1/2
+presence and overall \emph{Gardnerella} abundance.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{ggplot}\NormalTok{(}\DataTypeTok{data=}\NormalTok{gardRelativeAbundance2, }\DataTypeTok{mapping=}\KeywordTok{aes}\NormalTok{(}\DataTypeTok{x=}\KeywordTok{reorder}\NormalTok{(}\KeywordTok{reorder}\NormalTok{(SampleID, -propCladeCommunity, }\DataTypeTok{FUN=}\NormalTok{sum, }\DataTypeTok{na.rm=}\OtherTok{TRUE}\NormalTok{), TermPre==}\StringTok{"T"}\NormalTok{, }\DataTypeTok{na.rm=}\OtherTok{TRUE}\NormalTok{), }\DataTypeTok{y=}\NormalTok{propCladeCommunity, }\DataTypeTok{fill=}\NormalTok{Clade, }\DataTypeTok{color=}\NormalTok{Clade)) +}
+\StringTok{  }\KeywordTok{geom_bar}\NormalTok{(}\DataTypeTok{stat=}\StringTok{"identity"}\NormalTok{) +}
+\StringTok{  }\KeywordTok{labs}\NormalTok{(}\DataTypeTok{x=}\StringTok{"Sample"}\NormalTok{, }\DataTypeTok{y=}\StringTok{"Proportion of community"}\NormalTok{, }\DataTypeTok{color=}\StringTok{"Legend"}\NormalTok{, }\DataTypeTok{fill=}\StringTok{"Legend"}\NormalTok{) +}
+\StringTok{  }\KeywordTok{geom_point}\NormalTok{(}\KeywordTok{aes}\NormalTok{(}\DataTypeTok{y=}\NormalTok{-.}\DecValTok{03}\NormalTok{, }\DataTypeTok{color=}\NormalTok{TermPre, }\DataTypeTok{fill=}\NormalTok{TermPre), }\DataTypeTok{shape=}\StringTok{"square"}\NormalTok{, }\DataTypeTok{show.legend =} \OtherTok{FALSE}\NormalTok{) +}
+\StringTok{  }\KeywordTok{geom_point}\NormalTok{(}\KeywordTok{aes}\NormalTok{(}\DataTypeTok{y=}\NormalTok{-.}\DecValTok{04}\NormalTok{, }\DataTypeTok{color=}\NormalTok{TermPre, }\DataTypeTok{fill=}\NormalTok{TermPre), }\DataTypeTok{shape=}\StringTok{"square"}\NormalTok{, }\DataTypeTok{show.legend =} \OtherTok{FALSE}\NormalTok{) +}
+\StringTok{  }\KeywordTok{geom_point}\NormalTok{(}\KeywordTok{aes}\NormalTok{(}\DataTypeTok{y=}\NormalTok{-.}\DecValTok{05}\NormalTok{, }\DataTypeTok{color=}\NormalTok{TermPre, }\DataTypeTok{fill=}\NormalTok{TermPre), }\DataTypeTok{shape=}\StringTok{"square"}\NormalTok{, }\DataTypeTok{show.legend =} \OtherTok{FALSE}\NormalTok{) +}
+\StringTok{  }\KeywordTok{scale_color_manual}\NormalTok{(}\DataTypeTok{values=}\KeywordTok{c}\NormalTok{(}\StringTok{"#CC79A7"}\NormalTok{, }\StringTok{"#D55E00"}\NormalTok{, }\StringTok{"#56B4E9"}\NormalTok{, }\StringTok{"#0072B2"}\NormalTok{, }\StringTok{"#E69F00"}\NormalTok{, }\StringTok{"#009E73"}\NormalTok{, }\StringTok{"#000000"}\NormalTok{, }\StringTok{"#999999"}\NormalTok{), }\DataTypeTok{labels=}\KeywordTok{c}\NormalTok{(}\StringTok{"Clade 1"}\NormalTok{, }\StringTok{"Clade2"}\NormalTok{, }\StringTok{"Clade 3"}\NormalTok{, }\StringTok{"Clade 4"}\NormalTok{, }\StringTok{"Clade 5"}\NormalTok{, }\StringTok{"Clade 6"}\NormalTok{, }\StringTok{"Preterm"}\NormalTok{, }\StringTok{"Term"}\NormalTok{)) +}
+\StringTok{  }\KeywordTok{scale_fill_manual}\NormalTok{(}\DataTypeTok{values=}\KeywordTok{c}\NormalTok{(}\StringTok{"#CC79A7"}\NormalTok{, }\StringTok{"#D55E00"}\NormalTok{, }\StringTok{"#56B4E9"}\NormalTok{, }\StringTok{"#0072B2"}\NormalTok{, }\StringTok{"#E69F00"}\NormalTok{, }\StringTok{"#009E73"}\NormalTok{, }\StringTok{"#000000"}\NormalTok{, }\StringTok{"#999999"}\NormalTok{), }\DataTypeTok{labels=}\KeywordTok{c}\NormalTok{(}\StringTok{"Clade 1"}\NormalTok{, }\StringTok{"Clade2"}\NormalTok{, }\StringTok{"Clade 3"}\NormalTok{, }\StringTok{"Clade 4"}\NormalTok{, }\StringTok{"Clade 5"}\NormalTok{, }\StringTok{"Clade 6"}\NormalTok{, }\StringTok{"Preterm"}\NormalTok{, }\StringTok{"Term"}\NormalTok{)) +}
+\StringTok{  }\KeywordTok{theme_classic}\NormalTok{() +}
+\StringTok{  }\KeywordTok{theme}\NormalTok{(}\DataTypeTok{axis.text.x =} \KeywordTok{element_blank}\NormalTok{(),}
+        \DataTypeTok{axis.ticks.x =} \KeywordTok{element_blank}\NormalTok{(),}
+        \DataTypeTok{axis.line.x =} \KeywordTok{element_blank}\NormalTok{())}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## Warning: Removed 293 rows containing missing values (position_stack).
+\end{verbatim}
+
+\includegraphics{exploratoryAnalyses_files/figure-latex/unnamed-chunk-11-1.pdf}
+A relationship with PTB might be more complicated. Consider working in
+methods that will include the time-series aspect of the data or subject
+average.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{ggplot}\NormalTok{(}\DataTypeTok{data=}\NormalTok{gardRelativeAbundance2, }\DataTypeTok{mapping=}\KeywordTok{aes}\NormalTok{(}\DataTypeTok{x=}\KeywordTok{reorder}\NormalTok{(SampleID, TermPre==}\StringTok{"T"}\NormalTok{), }\DataTypeTok{y=}\NormalTok{propCladeCommunity, }\DataTypeTok{fill=}\NormalTok{Clade, }\DataTypeTok{color=}\NormalTok{Clade)) +}
+\StringTok{  }\KeywordTok{geom_bar}\NormalTok{(}\DataTypeTok{stat=}\StringTok{"identity"}\NormalTok{) +}
+\StringTok{  }\KeywordTok{labs}\NormalTok{(}\DataTypeTok{x=}\StringTok{"Sample"}\NormalTok{, }\DataTypeTok{y=}\StringTok{"Proportion of community"}\NormalTok{, }\DataTypeTok{color=}\StringTok{"Legend"}\NormalTok{, }\DataTypeTok{fill=}\StringTok{"Legend"}\NormalTok{) +}
+\StringTok{  }\KeywordTok{geom_point}\NormalTok{(}\KeywordTok{aes}\NormalTok{(}\DataTypeTok{y=}\NormalTok{-.}\DecValTok{03}\NormalTok{, }\DataTypeTok{color=}\NormalTok{TermPre, }\DataTypeTok{fill=}\NormalTok{TermPre), }\DataTypeTok{shape=}\StringTok{"square"}\NormalTok{, }\DataTypeTok{show.legend =} \OtherTok{FALSE}\NormalTok{) +}
+\StringTok{  }\KeywordTok{geom_point}\NormalTok{(}\KeywordTok{aes}\NormalTok{(}\DataTypeTok{y=}\NormalTok{-.}\DecValTok{04}\NormalTok{, }\DataTypeTok{color=}\NormalTok{TermPre, }\DataTypeTok{fill=}\NormalTok{TermPre), }\DataTypeTok{shape=}\StringTok{"square"}\NormalTok{, }\DataTypeTok{show.legend =} \OtherTok{FALSE}\NormalTok{) +}
+\StringTok{  }\KeywordTok{geom_point}\NormalTok{(}\KeywordTok{aes}\NormalTok{(}\DataTypeTok{y=}\NormalTok{-.}\DecValTok{05}\NormalTok{, }\DataTypeTok{color=}\NormalTok{TermPre, }\DataTypeTok{fill=}\NormalTok{TermPre), }\DataTypeTok{shape=}\StringTok{"square"}\NormalTok{, }\DataTypeTok{show.legend =} \OtherTok{FALSE}\NormalTok{) +}
+\StringTok{  }\KeywordTok{scale_color_manual}\NormalTok{(}\DataTypeTok{values=}\KeywordTok{c}\NormalTok{(}\StringTok{"#CC79A7"}\NormalTok{, }\StringTok{"#D55E00"}\NormalTok{, }\StringTok{"#56B4E9"}\NormalTok{, }\StringTok{"#0072B2"}\NormalTok{, }\StringTok{"#E69F00"}\NormalTok{, }\StringTok{"#009E73"}\NormalTok{, }\StringTok{"#000000"}\NormalTok{, }\StringTok{"#999999"}\NormalTok{), }\DataTypeTok{labels=}\KeywordTok{c}\NormalTok{(}\StringTok{"Clade 1"}\NormalTok{, }\StringTok{"Clade2"}\NormalTok{, }\StringTok{"Clade 3"}\NormalTok{, }\StringTok{"Clade 4"}\NormalTok{, }\StringTok{"Clade 5"}\NormalTok{, }\StringTok{"Clade 6"}\NormalTok{, }\StringTok{"Preterm"}\NormalTok{, }\StringTok{"Term"}\NormalTok{)) +}
+\StringTok{  }\KeywordTok{scale_fill_manual}\NormalTok{(}\DataTypeTok{values=}\KeywordTok{c}\NormalTok{(}\StringTok{"#CC79A7"}\NormalTok{, }\StringTok{"#D55E00"}\NormalTok{, }\StringTok{"#56B4E9"}\NormalTok{, }\StringTok{"#0072B2"}\NormalTok{, }\StringTok{"#E69F00"}\NormalTok{, }\StringTok{"#009E73"}\NormalTok{, }\StringTok{"#000000"}\NormalTok{, }\StringTok{"#999999"}\NormalTok{), }\DataTypeTok{labels=}\KeywordTok{c}\NormalTok{(}\StringTok{"Clade 1"}\NormalTok{, }\StringTok{"Clade2"}\NormalTok{, }\StringTok{"Clade 3"}\NormalTok{, }\StringTok{"Clade 4"}\NormalTok{, }\StringTok{"Clade 5"}\NormalTok{, }\StringTok{"Clade 6"}\NormalTok{, }\StringTok{"Preterm"}\NormalTok{, }\StringTok{"Term"}\NormalTok{)) +}
+\StringTok{  }\KeywordTok{theme_classic}\NormalTok{() +}
+\StringTok{  }\KeywordTok{theme}\NormalTok{(}\DataTypeTok{axis.text.x =} \KeywordTok{element_blank}\NormalTok{(),}
+        \DataTypeTok{axis.ticks.x =} \KeywordTok{element_blank}\NormalTok{(),}
+        \DataTypeTok{axis.line.x =} \KeywordTok{element_blank}\NormalTok{()) +}
+\StringTok{  }\KeywordTok{geom_line}\NormalTok{(}\KeywordTok{aes}\NormalTok{(}\DataTypeTok{x=}\KeywordTok{reorder}\NormalTok{(}\KeywordTok{as.numeric}\NormalTok{(SubjectID), TermPre==}\StringTok{"T"}\NormalTok{, }\DataTypeTok{na.rm=}\OtherTok{TRUE}\NormalTok{), }\DataTypeTok{y=}\DecValTok{0}\NormalTok{))}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## Warning: Removed 293 rows containing missing values (position_stack).
+\end{verbatim}
+
+\includegraphics{exploratoryAnalyses_files/figure-latex/unnamed-chunk-12-1.pdf}
+Separate bars by subject.
+
+\section{Look at subject Averages}\label{look-at-subject-averages}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{cladeAverages <-}\StringTok{ }\NormalTok{gardRelativeAbundance1 %>%}
+\StringTok{  }\KeywordTok{data.frame}\NormalTok{(}\DataTypeTok{stringsAsFactors=}\OtherTok{FALSE}\NormalTok{) %>%}
+\StringTok{  }\KeywordTok{group_by}\NormalTok{(Clade, SubjectID) %>%}
+\StringTok{  }\KeywordTok{mutate}\NormalTok{(}\DataTypeTok{cladeAvg=}\KeywordTok{mean}\NormalTok{(propCladeCommunity)) %>%}
+\StringTok{  }\KeywordTok{ungroup}\NormalTok{() %>%}
+\StringTok{  }\KeywordTok{select}\NormalTok{(SubjectID, Clade, cladeAvg, TermPre, GWdell) %>%}
+\StringTok{  }\KeywordTok{unique.data.frame}\NormalTok{() }
+\end{Highlighting}
+\end{Shaded}
+
+Bar plot of average clade proportion per subject.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{cladeAverages %>%}
+\StringTok{    }\KeywordTok{mutate}\NormalTok{(}\DataTypeTok{cladeAvg=}\KeywordTok{na_if}\NormalTok{(cladeAvg, }\DecValTok{0}\NormalTok{)) %>%}
+\KeywordTok{ggplot}\NormalTok{(}\DataTypeTok{mapping=}\KeywordTok{aes}\NormalTok{(}\DataTypeTok{x=}\KeywordTok{reorder}\NormalTok{(}\KeywordTok{reorder}\NormalTok{(SubjectID, -cladeAvg, }\DataTypeTok{FUN=}\NormalTok{sum, }\DataTypeTok{na.rm=}\OtherTok{TRUE}\NormalTok{), TermPre==}\StringTok{"T"}\NormalTok{, }\DataTypeTok{na.rm=}\OtherTok{TRUE}\NormalTok{), }\DataTypeTok{y=}\NormalTok{cladeAvg, }\DataTypeTok{fill=}\NormalTok{Clade, }\DataTypeTok{color=}\NormalTok{Clade)) +}
+\StringTok{  }\KeywordTok{geom_bar}\NormalTok{(}\DataTypeTok{stat =} \StringTok{"identity"}\NormalTok{) +}
+\StringTok{  }\KeywordTok{labs}\NormalTok{(}\DataTypeTok{x=}\StringTok{"Subject"}\NormalTok{, }\DataTypeTok{y=}\StringTok{"Proportion"}\NormalTok{, }\DataTypeTok{color=}\StringTok{"Legend"}\NormalTok{, }\DataTypeTok{fill=}\StringTok{"Legend"}\NormalTok{) +}
+\StringTok{  }\KeywordTok{geom_point}\NormalTok{(}\KeywordTok{aes}\NormalTok{(}\DataTypeTok{y=}\NormalTok{-.}\DecValTok{03}\NormalTok{, }\DataTypeTok{color=}\NormalTok{TermPre, }\DataTypeTok{fill=}\NormalTok{TermPre), }\DataTypeTok{shape=}\StringTok{"square"}\NormalTok{, }\DataTypeTok{size=}\FloatTok{5.5}\NormalTok{, }\DataTypeTok{show.legend =} \OtherTok{FALSE}\NormalTok{) +}
+\StringTok{  }\KeywordTok{geom_point}\NormalTok{(}\KeywordTok{aes}\NormalTok{(}\DataTypeTok{y=}\NormalTok{-.}\DecValTok{04}\NormalTok{, }\DataTypeTok{color=}\NormalTok{TermPre, }\DataTypeTok{fill=}\NormalTok{TermPre), }\DataTypeTok{shape=}\StringTok{"square"}\NormalTok{, }\DataTypeTok{size=}\FloatTok{5.5}\NormalTok{, }\DataTypeTok{show.legend =} \OtherTok{FALSE}\NormalTok{) +}
+\StringTok{  }\KeywordTok{geom_point}\NormalTok{(}\KeywordTok{aes}\NormalTok{(}\DataTypeTok{y=}\NormalTok{-.}\DecValTok{05}\NormalTok{, }\DataTypeTok{color=}\NormalTok{TermPre, }\DataTypeTok{fill=}\NormalTok{TermPre), }\DataTypeTok{shape=}\StringTok{"square"}\NormalTok{, }\DataTypeTok{size=}\FloatTok{5.5}\NormalTok{, }\DataTypeTok{show.legend =} \OtherTok{FALSE}\NormalTok{) +}
+\StringTok{  }\KeywordTok{scale_color_manual}\NormalTok{(}\DataTypeTok{values=}\KeywordTok{c}\NormalTok{(}\StringTok{"#CC79A7"}\NormalTok{, }\StringTok{"#D55E00"}\NormalTok{, }\StringTok{"#56B4E9"}\NormalTok{, }\StringTok{"#0072B2"}\NormalTok{, }\StringTok{"#E69F00"}\NormalTok{, }\StringTok{"#009E73"}\NormalTok{, }\StringTok{"#000000"}\NormalTok{, }\StringTok{"#999999"}\NormalTok{), }\DataTypeTok{labels=}\KeywordTok{c}\NormalTok{(}\StringTok{"Clade 1"}\NormalTok{, }\StringTok{"Clade2"}\NormalTok{, }\StringTok{"Clade 3"}\NormalTok{, }\StringTok{"Clade 4"}\NormalTok{, }\StringTok{"Clade 5"}\NormalTok{, }\StringTok{"Clade 6"}\NormalTok{, }\StringTok{"Preterm"}\NormalTok{, }\StringTok{"Term"}\NormalTok{)) +}
+\StringTok{  }\KeywordTok{scale_fill_manual}\NormalTok{(}\DataTypeTok{values=}\KeywordTok{c}\NormalTok{(}\StringTok{"#CC79A7"}\NormalTok{, }\StringTok{"#D55E00"}\NormalTok{, }\StringTok{"#56B4E9"}\NormalTok{, }\StringTok{"#0072B2"}\NormalTok{, }\StringTok{"#E69F00"}\NormalTok{, }\StringTok{"#009E73"}\NormalTok{, }\StringTok{"#000000"}\NormalTok{, }\StringTok{"#999999"}\NormalTok{), }\DataTypeTok{labels=}\KeywordTok{c}\NormalTok{(}\StringTok{"Clade 1"}\NormalTok{, }\StringTok{"Clade2"}\NormalTok{, }\StringTok{"Clade 3"}\NormalTok{, }\StringTok{"Clade 4"}\NormalTok{, }\StringTok{"Clade 5"}\NormalTok{, }\StringTok{"Clade 6"}\NormalTok{, }\StringTok{"Preterm"}\NormalTok{, }\StringTok{"Term"}\NormalTok{)) +}
+\StringTok{  }\KeywordTok{theme_classic}\NormalTok{() +}
+\StringTok{  }\KeywordTok{theme}\NormalTok{(}\DataTypeTok{axis.text.x =} \KeywordTok{element_text}\NormalTok{(}\DataTypeTok{angle =} \DecValTok{90}\NormalTok{),}
+        \DataTypeTok{axis.ticks.x =} \KeywordTok{element_blank}\NormalTok{(),}
+        \DataTypeTok{axis.line.x =} \KeywordTok{element_blank}\NormalTok{())}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## Warning: Removed 73 rows containing missing values (position_stack).
+\end{verbatim}
+
+\includegraphics{exploratoryAnalyses_files/figure-latex/unnamed-chunk-14-1.pdf}
+
+Average proportion of each clade in the entire community
+vs.~preterm/term.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{ggplot}\NormalTok{(}\DataTypeTok{data=}\NormalTok{cladeAverages, }\KeywordTok{aes}\NormalTok{(}\DataTypeTok{x=}\NormalTok{TermPre, }\DataTypeTok{y=}\NormalTok{cladeAvg, }\DataTypeTok{color=}\NormalTok{TermPre)) +}
+\StringTok{  }\KeywordTok{geom_jitter}\NormalTok{() +}
+\StringTok{  }\KeywordTok{geom_boxplot}\NormalTok{(}\DataTypeTok{alpha=}\DecValTok{0}\NormalTok{)+}
+\StringTok{  }\KeywordTok{scale_x_discrete}\NormalTok{(}\DataTypeTok{labels=}\KeywordTok{c}\NormalTok{(}\StringTok{"Preterm"}\NormalTok{, }\StringTok{"Term"}\NormalTok{)) +}
+\StringTok{  }\KeywordTok{facet_wrap}\NormalTok{(~Clade) +}
+\StringTok{  }\KeywordTok{labs}\NormalTok{(}\DataTypeTok{x=}\KeywordTok{element_blank}\NormalTok{(), }\DataTypeTok{y=}\StringTok{"Proportion of community"}\NormalTok{) +}
+\StringTok{  }\KeywordTok{theme}\NormalTok{(}\DataTypeTok{legend.position =} \StringTok{"none"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{exploratoryAnalyses_files/figure-latex/unnamed-chunk-15-1.pdf}
+
+\section{\texorpdfstring{View dominant \emph{Gardnerella} clade over
+time}{View dominant Gardnerella clade over time}}\label{view-dominant-gardnerella-clade-over-time}
+
+Look at the dominant \emph{Gardnerella} clade in each sample (of those
+that have \emph{Gardnerella})
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{gardRelativeAbundance2 <-}\StringTok{ }\NormalTok{gardRelativeAbundance1 %>%}
+\StringTok{  }\KeywordTok{group_by}\NormalTok{(SampleID) %>%}
+\StringTok{  }\KeywordTok{filter}\NormalTok{(propClade==}\KeywordTok{max}\NormalTok{(propClade)) %>%}
+\StringTok{  }\KeywordTok{ungroup}\NormalTok{()}
+
+\KeywordTok{ggplot}\NormalTok{(gardRelativeAbundance2) +}
+\StringTok{  }\KeywordTok{geom_point}\NormalTok{(}\KeywordTok{aes}\NormalTok{(}\DataTypeTok{x=}\KeywordTok{floor}\NormalTok{(GWcoll), }\DataTypeTok{y=}\KeywordTok{reorder}\NormalTok{(SubjectID, GWdell), }\DataTypeTok{color=}\NormalTok{Clade)) +}
+\StringTok{  }\KeywordTok{geom_point}\NormalTok{(}\KeywordTok{aes}\NormalTok{(}\DataTypeTok{y=}\NormalTok{SubjectID, }\DataTypeTok{x=}\NormalTok{GWdell}\FloatTok{+.5}\NormalTok{), }\DataTypeTok{shape=}\DecValTok{4}\NormalTok{, }\DataTypeTok{color=}\StringTok{"black"}\NormalTok{)+}
+\StringTok{  }\KeywordTok{scale_color_manual}\NormalTok{(}\DataTypeTok{values=}\KeywordTok{c}\NormalTok{(}\StringTok{"#CC79A7"}\NormalTok{, }\StringTok{"#D55E00"}\NormalTok{, }\StringTok{"#56B4E9"}\NormalTok{, }\StringTok{"#0072B2"}\NormalTok{, }\StringTok{"#E69F00"}\NormalTok{, }\StringTok{"#009E73"}\NormalTok{, }\StringTok{"#000000"}\NormalTok{, }\StringTok{"#999999"}\NormalTok{)) +}
+\StringTok{  }\KeywordTok{geom_vline}\NormalTok{(}\DataTypeTok{xintercept =} \FloatTok{37.5}\NormalTok{) +}
+\StringTok{  }\KeywordTok{labs}\NormalTok{(}\DataTypeTok{x=}\StringTok{"Gestation weeks at collection"}\NormalTok{, }\DataTypeTok{y=}\StringTok{"Subject ID"}\NormalTok{, }\DataTypeTok{title=}\StringTok{"Most abundant Gardnerella clade"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{exploratoryAnalyses_files/figure-latex/unnamed-chunk-16-1.pdf}
+X marks gestation weeks at delivery.
+
+\section{Session Info}\label{session-info}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{sessionInfo}\NormalTok{()}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## R version 3.5.2 (2018-12-20)
+## Platform: x86_64-apple-darwin15.6.0 (64-bit)
+## Running under: macOS High Sierra 10.13.6
+## 
+## Matrix products: default
+## BLAS: /Library/Frameworks/R.framework/Versions/3.5/Resources/lib/libRblas.0.dylib
+## LAPACK: /Library/Frameworks/R.framework/Versions/3.5/Resources/lib/libRlapack.dylib
+## 
+## locale:
+## [1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+## 
+## attached base packages:
+## [1] stats     graphics  grDevices utils     datasets  methods   base     
+## 
+## other attached packages:
+##  [1] phyloseq_1.26.1 ggthemes_4.1.1  ggExtra_0.8     forcats_0.4.0  
+##  [5] stringr_1.4.0   dplyr_0.8.0.1   purrr_0.3.2     readr_1.3.1    
+##  [9] tidyr_0.8.3     tibble_2.1.1    ggplot2_3.1.1   tidyverse_1.2.1
+## 
+## loaded via a namespace (and not attached):
+##  [1] Biobase_2.42.0      httr_1.4.0          splines_3.5.2      
+##  [4] jsonlite_1.6        foreach_1.4.4       modelr_0.1.4       
+##  [7] shiny_1.3.1         assertthat_0.2.1    stats4_3.5.2       
+## [10] cellranger_1.1.0    yaml_2.2.0          pillar_1.3.1       
+## [13] backports_1.1.4     lattice_0.20-38     glue_1.3.1         
+## [16] digest_0.6.18       promises_1.0.1      XVector_0.22.0     
+## [19] rvest_0.3.3         colorspace_1.4-1    htmltools_0.3.6    
+## [22] httpuv_1.5.1        Matrix_1.2-17       plyr_1.8.4         
+## [25] pkgconfig_2.0.2     broom_0.5.2         haven_2.1.0        
+## [28] zlibbioc_1.28.0     xtable_1.8-3        scales_1.0.0       
+## [31] later_0.8.0         mgcv_1.8-28         generics_0.0.2     
+## [34] IRanges_2.16.0      withr_2.1.2         BiocGenerics_0.28.0
+## [37] lazyeval_0.2.2      cli_1.1.0           survival_2.44-1.1  
+## [40] magrittr_1.5        crayon_1.3.4        readxl_1.3.1       
+## [43] mime_0.6            evaluate_0.13       nlme_3.1-139       
+## [46] MASS_7.3-51.4       xml2_1.2.0          vegan_2.5-4        
+## [49] data.table_1.12.2   tools_3.5.2         hms_0.4.2          
+## [52] Rhdf5lib_1.4.3      S4Vectors_0.20.1    munsell_0.5.0      
+## [55] cluster_2.0.8       Biostrings_2.50.2   ade4_1.7-13        
+## [58] compiler_3.5.2      rlang_0.3.4         rhdf5_2.26.2       
+## [61] grid_3.5.2          iterators_1.0.10    biomformat_1.10.1  
+## [64] rstudioapi_0.10     igraph_1.2.4        miniUI_0.1.1.1     
+## [67] labeling_0.3        rmarkdown_1.12      multtest_2.38.0    
+## [70] gtable_0.3.0        codetools_0.2-16    reshape2_1.4.3     
+## [73] R6_2.4.0            lubridate_1.7.4     knitr_1.22         
+## [76] permute_0.9-5       ape_5.3             stringi_1.4.3      
+## [79] parallel_3.5.2      Rcpp_1.0.1          tidyselect_0.2.5   
+## [82] xfun_0.6
+\end{verbatim}
+
+
+\end{document}

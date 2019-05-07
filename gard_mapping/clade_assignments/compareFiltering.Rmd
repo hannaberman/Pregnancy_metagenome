@@ -74,7 +74,10 @@ n_df0 <- n_df %>%
 
 ggplot(data=n_df0, aes(y=n_df0$n, x=Threshold)) +
   geom_jitter() +
-  labs(y="reads") +
+  scale_x_discrete(labels=c("20", "42")) +
+  theme_classic() +
+  theme(panel.grid.major = element_line()) +
+  labs(y="Reads", x="Minimum mapq Score") +
   geom_boxplot(alpha=0) 
 ```
 
