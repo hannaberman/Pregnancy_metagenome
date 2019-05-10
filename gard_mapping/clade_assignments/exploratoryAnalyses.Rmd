@@ -9,8 +9,8 @@ output: html_document
 ## Packages
 ```{r}
 library(tidyverse)
-library(ggExtra)
-library(ggthemes)
+#library(ggExtra)
+#library(ggthemes)
 ```
 
 ## File paths
@@ -40,7 +40,7 @@ gardRelativeAbundance0 <- gardRelativeAbundance %>%
  group_by(SampleID, Clade) %>%
  filter(n==max(n)) %>%
  ungroup() %>%  
- left_join(unique.data.frame(sgDF[,c("SampleID", "SubjectID", "TermPre", "GWdell", "GWcoll")])) %>%
+ left_join(unique.data.frame(sgDF[,c("SampleID", "SubjectID", "TermPre", "GWdell", "Cohort", "GWcoll")])) %>%
  mutate(SubjectID=as.character(SubjectID))
 ```  
 
@@ -59,29 +59,62 @@ gardRelativeAbundance1 <- gardRelativeAbundance0 %>%
 
 ### Clade abundance
 
-Observe total proportion of *Gardnerella* in the entire community vs. proportion of each clade
+Observe total proportion of other *Gardnerella* clades in the community vs. proportion of each clade
 ```{r}
-ggplot(gardRelativeAbundance1, aes(x=propCladeCommunity, y=Gardnerella_vaginalis, color=Clade)) +
+ggplot(gardRelativeAbundance1, aes(x=propCladeCommunity, y=Gardnerella_vaginalis-propCladeCommunity, color=Clade)) +
   geom_point() +
   scale_color_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73")) +
-  labs(x="Proportion of clade in community", y="Total proportion of Gardnerella", color="Clade") + 
-  facet_wrap(~Clade)
+  labs(x="Proportion of Gardnerella clade in community", y="Proportion of other Gardnerella clades in the community", color="Clade") + 
+  facet_grid(Cohort~Clade)
 ```  
 <br />Not the best plot for visualizing the data, but it does show that when the total there is one clade of Garnerella in the community and the community is nearly 100% *Gardnerella*, that clade is clade 1. 
 
-Observe proportion of each clade in each sample vs. term/preterm delivery
+<br />Observe proportion of clades vs other clades
+```{r}
+# reformat dataframe for this
+cladexclade <- gardRelativeAbundance1 %>%
+  select(-propClade, -n) %>%
+  spread(Clade, propCladeCommunity) %>%
+  mutate(x1=`1`, 
+         x2=`2`, 
+         x3=`3`,
+         x4=`4`,
+         x5=`5`,
+         x6=`6`) %>%
+  gather("Clade1","propClade1", c(`1`,`2`,`3`,`4`,`5`,`6`)) %>%
+  gather("Clade2", "propClade2", c(x1, x2, x3, x4, x5, x6))%>%
+  mutate(Clade2=case_when(Clade2=="x1"~"1",
+                          Clade2=="x2"~"2",
+                          Clade2=="x3"~"3",
+                          Clade2=="x4"~"4",
+                          Clade2=="x5"~"5",
+                          Clade2=="x6"~"6")) %>%
+  filter(Clade1!=Clade2)
+#Stanford
+stanford <- cladexclade %>%
+  filter(Cohort=="Stanford")
+ggplot(stanford, aes(x=propClade1, y=propClade2))+
+  geom_point() +
+  facet_grid(Clade1~Clade2) + 
+  coord_fixed()
+```
+<br \>No clear patterns. 
+
+<br \>Observe proportion of each clade in each sample vs. term/preterm delivery
 ```{r}
 ggplot(data=gardRelativeAbundance1, aes(x=TermPre, y=propCladeCommunity, color=TermPre)) +
   geom_jitter() +
-  geom_boxplot(alpha=0)+
+  geom_boxplot(alpha=0) +
+  scale_y_log10() +
   scale_x_discrete(labels=c("Preterm", "Term")) +
   scale_color_manual(values=c("#56B4E9", "#D55E00")) +
-  facet_wrap(~Clade) +
-  labs(x=element_blank(), y="Proportion of community") +
+  facet_grid(Cohort~Clade) +
+  labs(x=element_blank(), y="Proportion clade in community") +
   theme(legend.position = "none")
 ```
 <br />Proportion of community vs preterm/term births faceted by clade. Does not suggest differences in proportion of each clade in each sample and term vs. preterm births. Perhaps the time series information is important here...
 
+<br \>look at two specific samples
 ```{r}
 ggplot(gardRelativeAbundance1[gardRelativeAbundance1$SubjectID=="10031",], aes(x=GWcoll, y=propCladeCommunity, color=Clade, fill=Clade))+
   geom_bar(stat = "identity")+
@@ -97,15 +130,51 @@ ggplot(gardRelativeAbundance1[gardRelativeAbundance1$SubjectID=="10621",], aes(x
 ```
 <br />Not going to draw any major conclusions from these two subjects (small n), but I just wanted to take a closer look since they have the highest proportion of *Gardnerella* and specifically clade 1. 
 
-### Clade presence
+<br />Gestational frequency vs PTB
+```{r}
+sgDF <- sgDF %>%
+  mutate(SubjectID=as.character(SubjectID))
 
+
+
+gardRelativeAbundance1 %>%
+  mutate(pres=case_when(propCladeCommunity>0~1,
+                        propCladeCommunity==0~0)) %>%
+  group_by(SubjectID, Clade) %>%
+  summarise(freq=mean(pres)) %>%
+  left_join(sgDF[,c("SubjectID", "Cohort", "TermPre")], by="SubjectID") %>% # add delivery time info 
+ggplot(., aes(x=TermPre, y=freq, color=TermPre))+
+  geom_jitter() +
+  geom_boxplot(alpha=0) +
+  scale_x_discrete(labels=c("Preterm", "Term")) +
+  scale_color_manual(values=c("#56B4E9", "#D55E00")) +
+  facet_grid(Cohort~Clade) +
+  theme(legend.position = "none")
+```
+
+<br /> Prevalence of each clade vs ptb (proportion samples in each group with/without clade)
+```{r}
+gardRelativeAbundance1 %>%
+  mutate(pres=case_when(propCladeCommunity>0~1,
+                        propCladeCommunity==0~0)) %>%
+  group_by(Cohort, TermPre, Clade) %>%
+  summarise(Prevalence=mean(pres)) %>%
+ggplot(., aes(x=TermPre, y=Prevalence, fill = TermPre)) +
+  geom_col() +
+  scale_x_discrete(labels=c("Preterm", "Term")) +
+  #scale_color_manual(values=c("#56B4E9", "#D55E00")) +
+  facet_grid(Cohort~Clade)
+```
+
+
+### Clade presence
 Clade presence and overall *Gardnerella* abundance
 ```{r}
 ggplot(gardRelativeAbundance1, aes(x=(propCladeCommunity == 0), y=Gardnerella_vaginalis, color=(propCladeCommunity>0))) +
   geom_jitter() +
   geom_boxplot(alpha=0) + 
   scale_color_manual(values=c("#56B4E9", "#D55E00"), labels=c("Present", "Absent")) +
-  facet_wrap(~Clade) +
+  facet_grid(Cohort~Clade) +
   labs(x="Clade presence", y="Total proportion of Gardnerella")+
   scale_x_discrete(labels=c("Present", "Absent")) +
   theme(legend.position = "none")
@@ -117,7 +186,7 @@ ggplot(gardRelativeAbundance1, aes(x=(propCladeCommunity == 0), y=Gardnerella_va
 ggplot(gardRelativeAbundance1, aes(x=(propCladeCommunity==0), fill=TermPre)) +
   geom_bar(position="dodge") +
   scale_fill_manual(values=c("#D55E00", "#56B4E9"), labels=c("Preterm", "Term")) +
-  facet_wrap(~Clade) +
+  facet_grid(Cohort~Clade) +
   labs(x="Clade presence", fill="Delivery") +
   scale_x_discrete(labels=c("Present", "Absent"))
 ```
@@ -156,6 +225,7 @@ ggplot(data=gardRelativeAbundance2, mapping=aes(x=reorder(reorder(SampleID, -pro
   geom_point(aes(y=-.05, color=TermPre, fill=TermPre), shape="square", show.legend = FALSE) +
   scale_color_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#000000", "#999999"), labels=c("Clade 1", "Clade2", "Clade 3", "Clade 4", "Clade 5", "Clade 6", "Preterm", "Term")) +
   scale_fill_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#000000", "#999999"), labels=c("Clade 1", "Clade2", "Clade 3", "Clade 4", "Clade 5", "Clade 6", "Preterm", "Term")) +
+  facet_wrap(~Cohort) +
   theme_classic() +
   theme(axis.text.x = element_blank(),
         axis.ticks.x = element_blank(),
@@ -188,7 +258,7 @@ cladeAverages <- gardRelativeAbundance1 %>%
   group_by(Clade, SubjectID) %>%
   mutate(cladeAvg=mean(propCladeCommunity)) %>%
   ungroup() %>%
-  select(SubjectID, Clade, cladeAvg, TermPre, GWdell) %>%
+  select(SubjectID, Clade, cladeAvg, TermPre, Cohort, GWdell) %>%
   unique.data.frame() 
 ```
 
@@ -216,6 +286,7 @@ ggplot(data=cladeAverages, aes(x=TermPre, y=cladeAvg, color=TermPre)) +
   geom_jitter() +
   geom_boxplot(alpha=0)+
   scale_x_discrete(labels=c("Preterm", "Term")) +
+  scale_y_log10() +
   scale_color_manual(values=c("#D55E00", "#56B4E9")) +
   facet_wrap(~Clade) +
   labs(x=element_blank(), y="Proportion of community") +
