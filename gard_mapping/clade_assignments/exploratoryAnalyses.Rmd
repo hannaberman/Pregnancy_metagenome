@@ -21,7 +21,30 @@ gardRelativeAbundance <- read_delim("/Users/hlberman/Documents/GitHub/pregnancy_
 alignmentsFinal <- read_delim("/Users/hlberman/Documents/GitHub/pregnancy_metagenome/gard_mapping/clade_assignments/aglingmentsFinal.tsv", delim = "\t")
 sgDF <- read_delim("/Users/hlberman/Documents/GitHub/pregnancy_metagenome/shotgunMetadata.tsv", delim = "\t")%>%
   mutate(SampleID=as.character(SampleID))
-load("/Users/hlberman/Documents/GitHub/pregnancy_metagenome/methods_comparisons/PS_RData/metaphlan_PS.RData")
+
+#metaphlan data
+#load("/Users/hlberman/Documents/GitHub/pregnancy_metagenome/methods_comparisons/PS_RData/metaphlan_PS.RData")
+mDF0 <- read_tsv("/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/humann2/out_tables/mergedMetaphlanAbundance.tsv") %>%
+  filter(str_detect(ID, "s__"), !str_detect(ID, "t__")) %>%
+  mutate(Species = str_extract(ID, "(?<=s__)\\w+$")) %>%
+  select(Species, everything(), -ID) %>%
+  as.data.frame()
+
+#make col and row names
+samps <- colnames(mDF0[2:ncol(mDF0)]) %>%
+  str_extract("[0-9]{10}")
+samps
+colnames(mDF0) <- c("Species", samps)
+rownames(mDF0) <- mDF0$Species
+
+#Final edits to table
+mDF <- mDF0 %>%
+  select(-Species) %>%
+  t() %>%
+  as.data.frame() %>%
+  mutate(SampleID=samps) %>%
+  select(SampleID, everything())
+mDF[1:6,1:5]
 ```
 
 # Per sample
@@ -65,7 +88,8 @@ ggplot(gardRelativeAbundance1, aes(x=propCladeCommunity, y=Gardnerella_vaginalis
   geom_point() +
   scale_color_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73")) +
   labs(x="Proportion of Gardnerella clade in community", y="Proportion of other Gardnerella clades in the community", color="Clade") + 
-  facet_grid(Cohort~Clade)
+  facet_grid(Cohort~Clade) +
+  theme(axis.text.x = element_text(angle=45))
 ```  
 <br />Not the best plot for visualizing the data, but it does show that when the total there is one clade of Garnerella in the community and the community is nearly 100% *Gardnerella*, that clade is clade 1. 
 
@@ -96,7 +120,19 @@ stanford <- cladexclade %>%
 ggplot(stanford, aes(x=propClade1, y=propClade2))+
   geom_point() +
   facet_grid(Clade1~Clade2) + 
-  coord_fixed()
+  coord_fixed() +
+  labs(title="Stanford", x="Proportion clade x", y="Proportion clade y") +
+  theme(axis.text.x = element_text(angle=45))
+
+#UAB
+stanford <- cladexclade %>%
+  filter(Cohort=="UAB")
+ggplot(stanford, aes(x=propClade1, y=propClade2))+
+  geom_point() +
+  facet_grid(Clade1~Clade2) + 
+  coord_fixed() +
+  labs(title="UAB", x="Proportion clade x", y="Proportion clade y") +
+  theme(axis.text.x = element_text(angle=45))
 ```
 <br \>No clear patterns. 
 
@@ -149,7 +185,8 @@ ggplot(., aes(x=TermPre, y=freq, color=TermPre))+
   scale_x_discrete(labels=c("Preterm", "Term")) +
   scale_color_manual(values=c("#56B4E9", "#D55E00")) +
   facet_grid(Cohort~Clade) +
-  theme(legend.position = "none")
+  theme(legend.position = "none") + 
+  labs(x="Preterm vs. Term")
 ```
 
 <br /> Prevalence of each clade vs ptb (proportion samples in each group with/without clade)
@@ -162,8 +199,9 @@ gardRelativeAbundance1 %>%
 ggplot(., aes(x=TermPre, y=Prevalence, fill = TermPre)) +
   geom_col() +
   scale_x_discrete(labels=c("Preterm", "Term")) +
-  #scale_color_manual(values=c("#56B4E9", "#D55E00")) +
-  facet_grid(Cohort~Clade)
+  scale_fill_manual(values=c("#56B4E9", "#D55E00")) +
+  facet_grid(Cohort~Clade) + 
+  labs(x="Preterm vs. Term")
 ```
 
 
@@ -288,7 +326,7 @@ ggplot(data=cladeAverages, aes(x=TermPre, y=cladeAvg, color=TermPre)) +
   scale_x_discrete(labels=c("Preterm", "Term")) +
   scale_y_log10() +
   scale_color_manual(values=c("#D55E00", "#56B4E9")) +
-  facet_wrap(~Clade) +
+  facet_grid(Cohort~Clade) +
   labs(x=element_blank(), y="Proportion of community") +
   theme(legend.position = "none")
 ```
@@ -298,7 +336,7 @@ ggplot(data=cladeAverages, aes(x=TermPre, y=cladeAvg, color=TermPre)) +
 ggplot(cladeAverages, aes(x=(cladeAvg==0), fill=TermPre)) +
   geom_bar(position="dodge") +
   scale_fill_manual(values=c("#D55E00", "#56B4E9"), labels=c("Preterm", "Term")) +
-  facet_wrap(~Clade) +
+  facet_grid(Cohort~Clade) +
   labs(x="Clade presence", fill="Delivery") +
   scale_x_discrete(labels=c("Present", "Absent"))
 ```
@@ -313,7 +351,8 @@ gardRelativeAbundance2 <- gardRelativeAbundance1 %>%
 
 ggplot(gardRelativeAbundance2) +
   geom_point(aes(x=floor(GWcoll), y=reorder(SubjectID, GWdell), color=Clade)) +
-  geom_point(aes(y=SubjectID, x=GWdell+.5), shape=4, color="black")+
+  geom_point(aes(y=SubjectID, x=GWdell+.5), shape=4, color="black") +
+  #geom_point(aes(x=0, y=SubjectID, color=Cohort)) +
   scale_color_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#000000", "#999999")) +
   geom_vline(xintercept = 37.5) +
   labs(x="Gestation weeks at collection", y="Subject ID", title="Most abundant Gardnerella clade")
@@ -321,6 +360,119 @@ ggplot(gardRelativeAbundance2) +
 <br />X marks gestation weeks at delivery. Vertical line is 37 weeks. 
 
 <br />I think we need to test for clade 1 and/or 2 presence (especially clade 1) and total proportion of *Gardnerella* in the sample and also PTB risk. Without doing any statistics  yet, it seems that presence of clade 1 predicts total proportion of *Gardnerella*. My initial hunch is that when you have this "BV-like" microbiome, abundance in *Gardnerella*, it is likely that these "pathogenic" strains are present, but you also may have these "non-pathogenic" strains in the community as well, and they may be more abundant than the "pathogenic" strains. The genomics information will be very interesting. Metatranscriptomic data would also be *very* interesting if it is true that these strains can reshape the community even if they are not the dominant strain of *Gardnerella* in the community!!
+
+# Add other taxa to analyses
+## Start with Lactos
+### Proportion Gard clade vs. proportion Lacto
+```{r}
+LGabundance <- gardRelativeAbundance1 %>%
+  left_join(mDF[,c("SampleID", "Lactobacillus_crispatus", "Lactobacillus_iners", "Lactobacillus_jensenii", "Lactobacillus_gasseri")], by="SampleID") %>%
+  gather("Lactobacillus", "LAbundance", c(Lactobacillus_crispatus, Lactobacillus_iners, Lactobacillus_jensenii, Lactobacillus_gasseri)) %>%
+  mutate(LAbundance=LAbundance/100, 
+         Lactobacillus=case_when(Lactobacillus=="Lactobacillus_crispatus"~"Lactobacillus crispatus", 
+                                 Lactobacillus=="Lactobacillus_gasseri"~"Lactobacillus gasseri", 
+                                 Lactobacillus=="Lactobacillus_iners"~"Lactobacillus iners", 
+                                 Lactobacillus=="Lactobacillus_jensenii"~"Lactobacillus jensenii"))
+head(LGabundance)
+
+LGabundance %>%
+  filter(Cohort=="Stanford") %>%
+ggplot(aes(x=propCladeCommunity, y=LAbundance, color=Lactobacillus)) +
+  geom_point() +
+  facet_grid(Lactobacillus~Clade) +
+  #coord_fixed() +
+  labs(title="Stanford", x="Proportion Gardnerella clade", y="Proportion Lactobacillus")  
+#ggsave("/Users/hlberman/Desktop/test1.pdf", height = 8, width=15)
+
+LGabundance %>%
+  filter(Cohort=="UAB") %>%
+ggplot(aes(x=propCladeCommunity, y=LAbundance, color=Lactobacillus)) +
+  geom_point() +
+  facet_grid(Lactobacillus~Clade) +
+  #coord_fixed() +
+  labs(title="UAB", x="Proportion Gardnerella clade", y="Proportion Lactobacillus")  
+#ggsave("/Users/hlberman/Desktop/test2.pdf", height = 8, width=15)
+```
+
+### Gard clade presence vs proportion Lacto
+```{r}
+LGabundance %>%
+  filter(Cohort=="Stanford") %>%
+ggplot(aes(x=(propCladeCommunity == 0), y=LAbundance, color=(propCladeCommunity==0))) +
+  geom_jitter() +
+  geom_boxplot(alpha=0) + 
+  scale_color_manual(values=c("#56B4E9", "#D55E00"), labels=c("Present", "Absent")) +
+  facet_grid(Lactobacillus~Clade) +
+  labs(title="Stanford", x="Clade presence", y="Total proportion of Lactobacillus")+
+  scale_x_discrete(labels=c("Present", "Absent")) +
+  theme(legend.position = "none")
+
+LGabundance %>%
+  filter(Cohort=="UAB") %>%
+ggplot(aes(x=(propCladeCommunity == 0), y=LAbundance, color=(propCladeCommunity==0))) +
+  geom_jitter() +
+  geom_boxplot(alpha=0) + 
+  scale_color_manual(values=c("#56B4E9", "#D55E00"), labels=c("Present", "Absent")) +
+  facet_grid(Lactobacillus~Clade) +
+  labs(title="UAB", x="Clade presence", y="Total proportion of Lactobacillus")+
+  scale_x_discrete(labels=c("Present", "Absent")) +
+  theme(legend.position = "none")
+```
+
+### Bar plot
+```{r}
+LGabundance0 <- LGabundance %>%
+  select(-n,-propClade) %>%
+  spread(Clade, propCladeCommunity) %>%
+  spread(Lactobacillus, LAbundance) %>%
+  gather("Taxon", "Abundance", `1`, `2`, `3`, `4`, `5`, `6`, `Lactobacillus crispatus`, `Lactobacillus gasseri`, `Lactobacillus iners`, `Lactobacillus jensenii`) %>%
+  filter(!is.na(Abundance)) 
+
+ggplot(LGabundance0, aes(x=reorder(reorder(SampleID, -Abundance, FUN=sum, na.rm=TRUE), TermPre=="T", na.rm=TRUE), , y=Abundance, fill=Taxon, color=Taxon)) +
+  geom_bar(stat="identity") +
+  labs(x="Sample", y="Proportion of community", color="Legend", fill="Legend") +
+  geom_point(aes(y=-.03, color=TermPre, fill=TermPre), shape="square", show.legend = FALSE) +
+  geom_point(aes(y=-.04, color=TermPre, fill=TermPre), shape="square", show.legend = FALSE) +
+  geom_point(aes(y=-.05, color=TermPre, fill=TermPre), shape="square", show.legend = FALSE) +
+  scale_color_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "darkgreen", "#F0E442", "darkblue", "darkred", "#000000", "#999999"), labels=c("Gardnerella clade 1", "Gardnerella clade2", "Gardnerella clade 3", "Gardnerella clade 4", "Gardnerella clade 5", "Gardnerella clade 6", "Lactobacillus crispatus", "Lactobacillus gasseri", "Lactobacillus iners", "Lactobacillus jensenii", "Preterm", "Term")) +
+  scale_fill_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "darkgreen", "#F0E442", "darkblue", "darkred", "#000000", "#999999"), labels=c("Gardnerella clade 1", "Gardnerella clade2", "Gardnerella clade 3", "Gardnerella clade 4", "Gardnerella clade 5", "Gardnerella clade 6", "Lactobacillus crispatus", "Lactobacillus gasseri", "Lactobacillus iners", "Lactobacillus jensenii", "Preterm", "Term")) +
+  theme_classic() +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.line.x = element_blank()) 
+
+#  geom_line(aes(x=reorder(as.numeric(SubjectID), TermPre=="T", na.rm=TRUE), y=0))
+```
+
+# Subject averages
+Caclulate average proportion of each clade per subject
+```{r}
+taxAverages <- LGabundance0 %>%
+  data.frame(stringsAsFactors=FALSE) %>%
+  group_by(Taxon, SubjectID) %>%
+  mutate(taxAvg=mean(Abundance)) %>%
+  ungroup() %>%
+  select(SubjectID, Taxon, taxAvg, TermPre, Cohort, GWdell) %>%
+  unique.data.frame() 
+```
+
+Bar plot of average clade proportion per subject.
+```{r}
+taxAverages %>%
+    mutate(taxAvg=na_if(taxAvg, 0)) %>%
+ggplot(mapping=aes(x=reorder(reorder(SubjectID, -taxAvg, FUN=sum, na.rm=TRUE), TermPre=="T", na.rm=TRUE), y=taxAvg, fill=Taxon, color=Taxon)) +
+  geom_bar(stat = "identity") +
+  labs(x="Subject", y="Proportion", color="Legend", fill="Legend") +
+  geom_point(aes(y=-.03, color=TermPre, fill=TermPre), shape="square", size=5.5, show.legend = FALSE) +
+  geom_point(aes(y=-.04, color=TermPre, fill=TermPre), shape="square", size=5.5, show.legend = FALSE) +
+  geom_point(aes(y=-.05, color=TermPre, fill=TermPre), shape="square", size=5.5, show.legend = FALSE) +
+  scale_color_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "darkgreen", "#F0E442", "darkblue", "darkred", "#000000", "#999999"), labels=c("Gardnerella clade 1", "Gardnerella clade2", "Gardnerella clade 3", "Gardnerella clade 4", "Gardnerella clade 5", "Gardnerella clade 6", "Lactobacillus crispatus", "Lactobacillus gasseri", "Lactobacillus iners", "Lactobacillus jensenii", "Preterm", "Term")) +
+  scale_fill_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "darkgreen", "#F0E442", "darkblue", "darkred", "#000000", "#999999"), labels=c("Gardnerella clade 1", "Gardnerella clade2", "Gardnerella clade 3", "Gardnerella clade 4", "Gardnerella clade 5", "Gardnerella clade 6", "Lactobacillus crispatus", "Lactobacillus gasseri", "Lactobacillus iners", "Lactobacillus jensenii", "Preterm", "Term")) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90),
+        axis.ticks.x = element_blank(),
+        axis.line.x = element_blank())
+```
 
 # Session Info
 ```{r}
