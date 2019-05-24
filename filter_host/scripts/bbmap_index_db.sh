@@ -5,7 +5,7 @@
 ref=/home/hlberman/VMMG/bbmap_human/GRCh38.fna
 path=/home/hlberman/VMMG/bbmap_human/GRCh38/
 
-#align with human reference db, save unmapped reads to gzipped fastq files
+#create index of human genome for alignment
 /home/hlberman/Applications/bbmap/bbmap.sh \
     ref=$ref \
     path=$path
