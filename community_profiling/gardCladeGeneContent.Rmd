@@ -2,7 +2,10 @@
 title: "Gardnerella Gene Content"
 author: "Hanna Berman"
 date: "5/7/2019"
-output: html_document
+output:
+  html_document:
+    toc: TRUE
+    toc_float: TRUE
 ---
 
 Use output from Humann2 to assess the gene families, pathway abundance, and pathway coverage, assigned to *Gardnerella vaginalis* across samples. 
@@ -213,12 +216,21 @@ ggplot(GFfoldChange, aes(x=uniref, y=FoldChange, label = unirefAnnotation)) +
   geom_point() +
   theme(axis.text.x = element_blank()) +
   ggrepel::geom_text_repel(data=labels) +
-  labs(y=element_blank()) +
+  labs(y="Fold change") +
   facet_wrap(~Cohort) +
   annotate("text", label = "Positive=greater in 1/2", x=200, y = 6000) 
 ```
-<br />
+<br />Positive is greater reads per million total reads in samples with clades 1 and 2, negative is greater reads per million total reads in samples with clades 3 and 4. Y axis represents fold change
+
+<br />List of greatest fold change uniref gene families (pathways not annotated for greatest fold change uniref genes)
+```{r}
+GFfoldChange %>%
+  filter(FoldChange>=2000|FoldChange<=-1000) %>%
+  print(n = nrow(.), width = getOption("tibble.width"), n_extra = NULL)
+```
+
 ## Gene Families with Pathway information
+Counts per million reads of uniref gene families that had pathway annotations, colored by pathway.
 ```{r, fig.height = 2, fig.width=6}
 GFfoldChangePath <- GFfoldChange %>%
   left_join(GFP0, by=c("uniref", "unirefAnnotation")) %>%
@@ -228,16 +240,19 @@ GFfoldChangePath <- GFfoldChange %>%
 ggplot(GFfoldChangePath, aes(x=uniref, y=FoldChange, color = paste(Pathway, pathwayAnnotation), label=unirefAnnotation)) +
    geom_text(size=2) +
    theme(axis.text.x = element_blank()) +
-   labs(y=element_blank(), color="Pathway") +
-   facet_wrap(~Cohort)
+   labs(y="Fold change", color="Pathway") +
+   facet_wrap(~Cohort)+
+   annotate("text", label = "Positive=greater in 1/2", x=5, y = 150, size = 2) 
 ```
+<br />Positive is greater reads per million total reads in samples with clades 1 and 2, negative is greater reads per million total reads in samples with clades 3 and 4
 
 <br />List of greatest fold change uniref gene families (pathways not annotated for greatest fold change uniref genes)
 ```{r}
-GFfoldChange %>%
-  filter(FoldChange>=2000|FoldChange<=-1000) %>%
+GFfoldChangePath %>%
+  filter(FoldChange>=50|FoldChange<=-500) %>%
   print(n = nrow(.), width = getOption("tibble.width"), n_extra = NULL)
 ```
+
 
 ### Gene familes only present
 ```{r}
@@ -265,13 +280,15 @@ ggplot(alternatePresence, aes(x=reorder(uniref, Abundance), y=Abundance))+
 # remove bulk of the figure with little variation
 alternatePresence %>%
   filter(Abundance>=80|Abundance<=-30) %>%
-ggplot(aes(x=reorder(uniref, Abundance), y=Abundance)) +
+ggplot(aes(x=reorder(uniref, Abundance), y=Abundance, label=unirefAnnotation)) +
   geom_col() + 
+  #geom_text(angle=45, hjust=0) +
   theme(axis.text.x = element_blank()) + 
   labs(x="Uniref90", y="Average reads per million") +
   facet_wrap(~Cohort) + 
-  annotate("text", label = "Positive=greater in 1/2", x=3, y = 400) 
+  annotate("text", label = "Positive=greater in 1/2", x=4, y = 400) 
 ```
+<br />None of these uniref genes are named. Need to perform a search on COG database or others. 
 
 <br />Save list of alternately present genes and show list of greatest differences
 ```{r}
@@ -298,7 +315,7 @@ map(pathways, ~filter(PA2, Pathway==.x) %>%
   theme(legend.position = "none") +
   facet_wrap(~Cohort))
 ```
-<br />Need to find cohort information of samples of unkown cohort. Some differences apparent between Stanford and UAB cohorts. of note is that no PTB samples have reads from the peptidoglycan biosynthesis III pathway in the Stanford cohort and only 3 Stanford term samples had reads from this pathway. 
+<br />Need to find cohort information of samples of unkown cohort. Some differences apparent between Stanford and UAB cohorts. of note is that no PTB samples have reads from the peptidoglycan biosynthesis III pathway in the Stanford cohort and only 3 Stanford term samples had reads from this pathway. "None" category indicates that *Gardnerella* was not found by clade analysis, but genes attributed to *Gardnerella* were found in 
 
 ## Pathway Coverage
 ```{r}
@@ -315,6 +332,35 @@ map(pathways[2:length(pathways)], ~filter(PC3, Pathway==.x) %>% # remove uninteg
   theme(legend.position = "none") +
   facet_wrap(~Cohort))
 ```
+<br />**Functions of these pathways from biocyc.org:**
+<br />PWY-5686 UMP biosynthsis: Pyrimidine nucleotide biosynthesis
+<br />PWY-6387 UDP-N-acetylmuramoyl-pentapeptide biosynthesis I: Cell wall biosynthesis
+<br />PWY-7219 adenosine ribonucleotides de novo biosynthesis: Purine nucleotide biosynthesis
+<br />PWY-6122 5-aminoimidazole ribonucleotide biosynthesis II: Purine nucleotide biosynthesis
+<br />PWY-6386 UDP-N-acetylmuramoyl-pentapeptide biosynthesis II: Cell wall biosynthesis
+<br />PWY-5100 pyruvate fermentation to acetate and lactate II: Fermentation to acetate/lactate/short-chain fatty acids
+<br />PEPTIDOGLYCAN-PWY peptidoglycan biosynthesis I: Cell wall biosynthesis
+<br />PWY-6385 peptidoglycan biosynthesis III: Cell wall biosynthesis
+<br />PWY-7221 guanosine ribonucleotides de novo biosynthesis: Purine nucleotide biosynthesis
+<br />COA-PWY-1 coenzyme A biosynthesis II: Coenzyme A is a cofactor in many reactions/pathways such as the TCA clycle.
+<br />PENTOSE-P-PWY pentose phosphate pathway: Alternative way of oxidizing glucose
+<br />NONOXIPENT-PWY pentose phosphate pathway (non-oxidative branch): Alternate way of oxidizing glucose
+<br />PWY-6277 superpathway of 5-amninoimidazole ribonucleotide biosynthesis: Purine nucleotide biosynthesis
+<br />PWY-6151 S-adenosyl-L-methionine cycle I: L-methionine biosynthesis
+<br />THRESYN-PWY superpathway of L-threonine biosynthesis: L-throenine biosynthesis
+
+# Gardnerella absent by clade analyses vs gardnerella absent by Metaphlan
+```{r}
+gardRelativeAbundance0 %>%
+  mutate(absentByMapping=case_when((`1`+`2`+`3`+`4`+`5`+`6`)==0~TRUE,
+                                   (`1`+`2`+`3`+`4`+`5`+`6`)!=0~FALSE),
+         absentByMetaphlan=case_when(Gardnerella_vaginalis==0~TRUE,
+                                     Gardnerella_vaginalis>0~FALSE)) %>%
+  filter(absentByMapping!=absentByMetaphlan) %>%
+  select(SubjectID, `1`, `2`, `3`, `4`, `5`, `6`, Gardnerella_vaginalis, absentByMapping, absentByMetaphlan)
+```
+
+<br />No samples in the UAB cohort have only clades 3/4 so these comparisons are difficult to make in this cohort. 
 
 # Session Info
 ```{r}
