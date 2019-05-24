@@ -2,15 +2,16 @@
 title: "Gardnerella clades, relative abundance, and preterm birth"
 author: "Hanna Berman"
 date: "4/25/2019"
-output: html_document
+output:
+  html_document:
+    toc: TRUE
+    toc_float: TRUE
 ---
 
 # Setup
 ## Packages
 ```{r}
 library(tidyverse)
-#library(ggExtra)
-#library(ggthemes)
 ```
 
 ## File paths
@@ -69,15 +70,15 @@ gardRelativeAbundance0 <- gardRelativeAbundance %>%
 
 Get Gardnerella relative abundances from metaphlan
 ```{r}
-metaphlanGard <- PS_metaphlan_all@otu_table %>%
-  t() %>% 
-  as.data.frame() %>%
-  mutate(SampleID=rownames(.)) %>%
-  select(Gardnerella_vaginalis, SampleID)
-
+# metaphlanGard <- PS_metaphlan_all@otu_table %>%
+#   t() %>% 
+#   as.data.frame() %>%
+#   mutate(SampleID=rownames(.)) %>%
+#   select(Gardnerella_vaginalis, SampleID)
+ 
 gardRelativeAbundance1 <- gardRelativeAbundance0 %>%
-  left_join(metaphlanGard, by="SampleID") %>%
-  mutate(propCladeCommunity=propClade*Gardnerella_vaginalis)
+   left_join(mDF[,c("SampleID", "Gardnerella_vaginalis")], by="SampleID") %>%
+   mutate(propCladeCommunity=propClade*Gardnerella_vaginalis)
 ```
 
 ### Clade abundance
@@ -206,7 +207,7 @@ ggplot(., aes(x=TermPre, y=Prevalence, fill = TermPre)) +
 
 
 ### Clade presence
-Clade presence and overall *Gardnerella* abundance
+Clade presence and overall *Gardnerella* relative abundance
 ```{r}
 ggplot(gardRelativeAbundance1, aes(x=(propCladeCommunity == 0), y=Gardnerella_vaginalis, color=(propCladeCommunity>0))) +
   geom_jitter() +
@@ -219,15 +220,6 @@ ggplot(gardRelativeAbundance1, aes(x=(propCladeCommunity == 0), y=Gardnerella_va
 ```
 <br /> Will need to test, but it seems that presence of clade 1 may predict relative abundance of *Gardnerella*. 
 
-<br /> Clade presence and PTB:
-```{r}
-ggplot(gardRelativeAbundance1, aes(x=(propCladeCommunity==0), fill=TermPre)) +
-  geom_bar(position="dodge") +
-  scale_fill_manual(values=c("#D55E00", "#56B4E9"), labels=c("Preterm", "Term")) +
-  facet_grid(Cohort~Clade) +
-  labs(x="Clade presence", fill="Delivery") +
-  scale_x_discrete(labels=c("Present", "Absent"))
-```
 <br />Should test for odds ratio of clade 1 presence and PTB risk. (The selection of samples may hinder our ability to do this. Should we focus more on clade presence and overall relative abundance of *Gardnerella*). 
 
 ### Bar plots
@@ -341,6 +333,8 @@ ggplot(cladeAverages, aes(x=(cladeAvg==0), fill=TermPre)) +
   scale_x_discrete(labels=c("Present", "Absent"))
 ```
 <br />Could clade 1 or 2 presence increase risk for PTB?
+<br />It appears that all subjects in the UAB cohort had *Gardnerella* clades 1, 2, and 4. 
+
 # Dominant *Gardnerella* clade over time
 Look at the dominant *Gardnerella* clade in each sample (of those that have *Gardnerella*)
 ```{r}
@@ -393,6 +387,7 @@ ggplot(aes(x=propCladeCommunity, y=LAbundance, color=Lactobacillus)) +
   labs(title="UAB", x="Proportion Gardnerella clade", y="Proportion Lactobacillus")  
 #ggsave("/Users/hlberman/Desktop/test2.pdf", height = 8, width=15)
 ```
+<br /> Mainly only see *L. iners* in UAB samples, as we have seen previously. Clear inverse relationship between most clades and *Lactobacillus* species, except clade 4 and *L. gasseri* in Stanford, and clades 1 and 3 and *L. iners* in UAB cohort.
 
 ### Gard clade presence vs proportion Lacto
 ```{r}
@@ -403,8 +398,9 @@ ggplot(aes(x=(propCladeCommunity == 0), y=LAbundance, color=(propCladeCommunity=
   geom_boxplot(alpha=0) + 
   scale_color_manual(values=c("#56B4E9", "#D55E00"), labels=c("Present", "Absent")) +
   facet_grid(Lactobacillus~Clade) +
-  labs(title="Stanford", x="Clade presence", y="Total proportion of Lactobacillus")+
+  labs(title="Stanford", x="Clade presence", y="Proportion of Lactobacillus")+
   scale_x_discrete(labels=c("Present", "Absent")) +
+  #scale_y_log10() +
   theme(legend.position = "none")
 
 LGabundance %>%
@@ -414,10 +410,12 @@ ggplot(aes(x=(propCladeCommunity == 0), y=LAbundance, color=(propCladeCommunity=
   geom_boxplot(alpha=0) + 
   scale_color_manual(values=c("#56B4E9", "#D55E00"), labels=c("Present", "Absent")) +
   facet_grid(Lactobacillus~Clade) +
-  labs(title="UAB", x="Clade presence", y="Total proportion of Lactobacillus")+
+  labs(title="UAB", x="Clade presence", y="Proportion of Lactobacillus")+
   scale_x_discrete(labels=c("Present", "Absent")) +
+  #scale_y_log10() +
   theme(legend.position = "none")
 ```
+<br />Difficult to make any conclusions in the UAB cohort, because most samples do not have species other than *L. iners*. In the Stanford cohort, *L. crispatus* relative abundance may be greater without any *Gardnerella* clade. May not be a difference between *L. iners* relative abundance with and without *Gardnerlla* clades. 
 
 ### Bar plot
 ```{r}
