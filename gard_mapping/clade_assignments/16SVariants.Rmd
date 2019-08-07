@@ -62,7 +62,7 @@ varSequences <- function(label, sequences){
 
 ## Relate Variant assignments to clades
 ```{r}
-vars <- as.list(varSequences("G", gardVarTable$OTU))
+vars <- as.list(varSequences("G", gardVarTable$OTU)) # get list of variants from 16S march of dimes
 
 strains <- names(rRNAs16S) %>%
   str_extract(., ".*(?=_[0-9]{5} 16S ribosomal RNA$)")
@@ -80,6 +80,8 @@ varClades <- vars %>%
   unique()
 varClades
 ```
+
+**NOTE: THESE LABELS DO NOT MATCH Callahan 2017 G1/G2 ARE FLIPPED**
 
 ## classify samples
 ```{r}
@@ -101,6 +103,13 @@ ggplot(data=gardVarTable0, aes(x=GWcoll, y=propGard, color=Var, shape=RNAlater))
   labs(title = "Clade assignments by 16S Amplicon Sequencing", x= "GW collection", y="Proportion of Gardnerella", shape="RNA Later", color="V4 variant")
 #ggsave(filename = file.path(figure_out, "cladesBy16S.pdf"))
 ```
+
+
+## Save table
+```{r}
+#write_delim(gardVarTable0, "./16SgardVariants.tsv", delim="\t")
+```
+
 
 # Session Info
 ```{r}

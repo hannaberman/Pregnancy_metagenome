@@ -212,7 +212,7 @@ maxByQuery <- alns %>%  #max percent of ID of alignments per query
 ggplot(data = maxByQuery, aes(maxbyquery)) +
   geom_histogram(binwidth = 1) +
   theme_classic() +
-  labs(title = "Max percent ID per read", x = "Percent ID")
+  labs(title = "Max percent ID per input query", x = "Percent Identity")
 #ggsave(file.path(gdrive_path, "figures","maxIDperQuery_hist.pdf"))
 
 maxByReference <- alns %>%  #max percent ID of alignments per reference (within each sample)
@@ -390,9 +390,11 @@ An example where all clades appear to be present. Reads map to all annotations.
 ggplot(data=`4002101298`) +
   geom_bar(aes(x=Annotation, color=as.character(Clade), fill=as.character(Clade))) +
   theme_classic() +
+  scale_fill_manual(values=c("salmon", "indianred", "lightblue", "blue3"), labels=c("C1", "C2", "C3", "C4")) +
+  scale_color_manual(values=c("salmon", "indianred", "lightblue", "blue3"), labels=c("C1", "C2", "C3", "C4")) +
   theme(axis.text.x = element_text(angle=45, hjust=1, size = 6)) + 
-  labs(title = "Hits by Annotation Sample 4002101298 (top hid >=99% ID)", color="Clade", fill="Clade")
-#ggsave(file.path(gdrive_path, "figures", "4002101298annotationBarPlot99top.pdf"))
+  labs(title = "Best alignments >=99% identity", x="Marker Gene", color="Clade", fill="Clade")
+ggsave(file.path(gdrive_path, "figures", "4002101298annotationBarPlot99top.pdf"), width=8, height=7)
 ```
 Clades 1 and 4 may be an artifact of alignment. Clades appear in annotations that have reads mapping to multiple clades at the same percent identity.
 ```{r}
