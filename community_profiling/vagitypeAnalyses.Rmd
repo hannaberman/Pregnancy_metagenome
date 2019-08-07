@@ -1,0 +1,98 @@
+---
+title: "Vagitype vs Functional Data"
+author: "Hanna Berman"
+date: "8/6/2019"
+output: html_document
+---
+
+The following code 
+
+## Set up
+Packages
+```{r}
+library(tidyverse)
+library(mixOmics)
+```
+
+"To assess whether the pathway measurements could discriminate vagitypes derived by 16S rRNA taxonomic analysis, sparse PLS-DA was applied using the function splsda() in the R package mixomics (mixomics.org). The method was constrained to select up to 15 taxa to contribute to the resulting loading vectors" - From Serrano et al 2019
+
+Vagitypes determined by Metaphlan
+
+```{r}
+data_path <- "/Users/hlberman/mnt/cluster/home/hlberman/VMMG/humann2/merged_tables"
+gFamDF <- file.path(data_path, "VM_genefamilies_cpm.tsv") %>%
+  read_tsv()
+pathAbDF <- file.path(data_path, "VM_pathabundance_cpm.tsv") %>%
+  read_tsv %>%
+  as.data.frame()
+pathCovDF <- file.path(data_path, "VM_pathcoverage_cpm.tsv") %>%
+  read_tsv()
+sgDF <- file.path("..", "shotgunMetadata.tsv")%>%
+  read_tsv()
+vtypescladesDF <- file.path("..", "vagitypesCladeCounts.tsv") %>%
+  read_tsv()
+
+#Join vagitypes to shotgun sample metadata
+sgDF0 <- sgDF %>%
+  left_join(vtypescladesDF, by="SampleID") %>%
+  mutate(SampleID=as.character(SampleID))
+```
+
+format pathway abundance table
+```{r}
+#Pathway abundances
+rownames(pathAbDF) <- pathAbDF[,1]
+pathAbDF0 <- pathAbDF[,c(2:ncol(pathAbDF))] %>%
+  t
+sampleOrder <- rownames(pathAbDF0) %>%
+  str_extract_all("[0-9]{10}") %>%
+  unlist
+row.names(pathAbDF0) <- sampleOrder
+
+
+#Vagitypes
+sgDF1 <- sgDF0[match(sampleOrder, sgDF0$SampleID),]
+table(sgDF1$SampleID == sampleOrder) #test
+vTypes <- sgDF1$Vagitype
+head(vTypes)
+```
+Questions still: Do I get rid of unmapped/unintegrated reads?
+
+Number of vagitypes
+```{r}
+unique(sgDF1$Vagitype)  # the vagitypes
+length(unique(sgDF1$Vagitype)) # number of vagitypes
+```
+13 vagitypes to compare
+
+RUN
+```{r}
+plsdaVagitypes <- splsda(pathAbDF0, vTypes)
+plotIndiv(plsdaVagitypes, 
+          ind.names = TRUE, 
+          ellipse = TRUE, 
+          legend = TRUE, 
+          title = "Pathway Abundances by Vagitype")
+```
+
+zoom in
+```{r}
+plotIndiv(plsdaVagitypes, 
+          ind.names = TRUE, 
+          ellipse = TRUE, 
+          legend = TRUE, 
+          xlim = c(-15,15),
+          ylim = c(-15,15),
+          title = "Pathway Abundances by Vagitype")
+```
+
+Choose only one sample
+```{r}
+
+```
+
+## Session Info
+```{r}
+sessionInfo()
+```
+

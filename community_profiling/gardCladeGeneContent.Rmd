@@ -362,6 +362,11 @@ gardRelativeAbundance0 %>%
 
 <br />No samples in the UAB cohort have only clades 3/4 so these comparisons are difficult to make in this cohort. 
 
+Abundance of each clade vs abundance of 
+```{r}
+
+```
+
 # Session Info
 ```{r}
 sessionInfo()

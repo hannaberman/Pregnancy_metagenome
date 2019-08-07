@@ -1,0 +1,103 @@
+---
+title: "Add Metadata to Panphlan Out"
+author: "Hanna Berman"
+date: "7/30/2019"
+output: html_document
+---
+
+## Libraries
+```{r}
+library(tidyverse)
+```
+
+## File Paths
+```{r}
+ptable_path <- file.path("..", "profile_outs", "gvaginalis72_strain_presence_absence.csv")
+refmd_path <- file.path("..", "metadata", "GardnerellaMetadata.csv")
+sgmd_path <- file.path("..", "metadata", "shotgunMetadata.tsv")
+vtypesclades_path <- file.path("..", "metadata", "vagitypesCladeCounts.tsv")
+```
+
+## Adding the metadata
+
+Format tables
+```{r}
+ptable <- read.table(ptable_path, sep="\t", header = TRUE, row.names = 1)
+
+ptable0 <- ptable %>%
+  t() %>%
+  as.data.frame()
+    
+panphlan_strains <- row.names(ptable0) %>%
+  str_extract(., "[^^X].*$")
+
+panphlan_strains
+
+ptable1 <- ptable0 %>%
+  mutate(Strain=panphlan_strains) %>%
+  select(Strain, everything())
+
+refmd <- read_csv(refmd_path) %>%
+  filter(In_Directory==TRUE)
+
+vtypesclades <- read_tsv(vtypesclades_path) %>%
+  mutate(SampleID=as.character(SampleID))
+
+sgmd <- read_tsv(sgmd_path) %>%
+  mutate(SampleID=as.character(SampleID)) %>%
+  left_join(vtypesclades, by="SampleID")
+```
+
+Edit reference strain names to match panphlan table
+```{r}
+refmd0 <- refmd %>%
+  mutate(Strain=str_replace_all(Strain, "-", "."),
+    Strain=paste0("REF_", Strain)) %>%
+  select(Strain, Clade)
+head(refmd0)
+```
+
+Join metadata rows
+```{r}
+ptable2 <- ptable1 %>%
+  left_join(refmd0, by="Strain") %>%
+  dplyr::rename(SampleID=Strain) %>%
+  left_join(sgmd[,c("SampleID", "nClade", "Vagitype", "gardType")], by="SampleID") %>%
+  select(Clade, nClade, Vagitype, everything(), -SampleID)
+row.names(ptable2) <- panphlan_strains
+ptable3 <- ptable2 %>%
+  t()
+
+clade <- ptable3["Clade",] 
+nclade <- ptable3["nClade",]
+vtype <- ptable3["Vagitype",]
+gtype <- ptable3["gardType",]
+
+ptable4 <- rbind(""=panphlan_strains,
+                 refClade=clade,
+                 gardType=gtype,
+                 nClade=nclade,
+                  vagitype=vtype,
+                  ptable)
+
+ptable5 <- cbind(rownames(ptable4),
+                          ptable4)
+```
+
+Save 
+```{r}
+write.table(ptable5, file.path("..", "profile_outs", "gvaginalis72_strain_presence_absence_md.txt"), sep="\t", row.names=FALSE, col.names=FALSE, quote=FALSE)
+```
+
+
+What ref strains are missing?
+```{r}
+refstrains <- ptable0 %>%
+  select(Strain) %>%
+  filter(str_detect(Strain, "REF")) %>%
+  .[,"Strain"]
+refstrains
+setdiff(refmd0[,"Strain"], refstrains)
+```
+
+
