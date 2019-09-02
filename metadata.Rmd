@@ -1,0 +1,151 @@
+---
+title: "Sample and Subject Metadata"
+author: "HLB"
+output:
+  html_document: default
+  html_notebook: default
+---
+
+The following script is to update metadata with detailed sample metadata and describe the sampling. 
+
+# Setup
+Packages
+```{r}
+library(tidyverse)
+set.seed(7334)
+```
+
+# Collection Figure
+```{r}
+sgDF <- read_tsv("./shotgunMetadata.tsv") %>%
+  mutate(SubjectID= as.character(SubjectID))
+PS15 <- read_delim("/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/metadata/sampledata_VaginalSwabs_Pregnancy_DiGiulio2015.tsv", delim="\t") %>%
+  dplyr::rename(GDcoll=GDColl) %>%
+  mutate(SubjectID= as.character(SubjectID),
+         Cohort="Stanford",
+         Method="Amplicon") %>%
+  select(SubjectID, GDcoll, Cohort, Method)
+PS17 <- read_delim("/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/metadata/MAP_MANUSCRIPT_IL02-IL09_ToBen_20170404_fixed.txt", delim="\t") %>%
+  mutate(SubjectID= as.character(SubjectID),
+         Cohort=case_when(UAB_Sample==0~"Stanford",
+                                 UAB_Sample==1~"UAB"),
+                Method="Amplicon") %>%
+  select(SubjectID, GDcoll, Cohort, Method)
+
+  
+AMP <- rbind(PS15, PS17) %>%
+  unique.data.frame()
+
+SHOT <- sgDF %>%
+  select(SubjectID, GDcoll, Cohort) %>%
+  mutate(Method="Shotgun") %>%
+  filter(SubjectID!=10604) %>%  
+  unique.data.frame() 
+
+ggplot() +
+  geom_point(data=AMP, aes(x=GDcoll, y=as.character(SubjectID), shape=Method, color=Cohort, size=Method), alpha=.5) +
+   geom_point(data=SHOT, aes(x=GDcoll, y=as.character(SubjectID), shape=Method, size=Method), color="black") +
+  xlim(0,280) +
+     labs(x = "Gestation Days",
+          y = "Subject") +
+     scale_color_manual(values=c("olivedrab", "steelblue", "black"))+
+     scale_shape_manual(values=c(19, 15)) +
+     scale_size_manual(values=c(1,2)) +
+     #theme_classic()+
+     theme(axis.ticks.y = element_blank(),
+     #axis.text.x = element_text(size = 10),
+     axis.text.y  = element_blank()
+     #axis.title.x = element_text(size=20),
+     #axis.title.y = element_text(size=20)
+     )
+     #scale_x_continuous(breaks = c(0,50,100,150,200, 250))
+#ggsave("/Users/hlberman/Desktop/collectionPlot.svg", height=8, width=8.5)
+```
+
+# Trimesters
+```{r}
+sgDF <- sgDF %>%
+  group_by(SubjectID) %>%
+  mutate(sampleOrder=rank(GDcoll),
+         sampleTrimester=case_when(GDcoll<=97~"First",
+                                   GDcoll>=98&GDcoll<=195~"Second",
+                                   GDcoll>=196~"Third")) %>%
+  ungroup()
+#save updated dataframe
+#write_tsv(sgDF, "./shotgunMetadata.tsv")
+```
+
+# Samples/subjects per cohort
+```{r}
+sgDF %>%
+  filter(Cohort=="UAB")%>%
+  nrow()
+
+sgDF %>%
+  filter(Cohort=="UAB") %>%
+  select(SubjectID) %>%
+  n_distinct()
+
+sgDF %>%
+  filter(Cohort=="Stanford")%>%
+  nrow()
+
+sgDF %>%
+  filter(Cohort=="Stanford") %>%
+  select(SubjectID) %>%
+  n_distinct()
+```
+
+# Subsetting
+## Look at potential ways to subset samples
+```{r}
+range(sgDF$GDcoll)
+summary(sgDF$GDcoll[sgDF$sampleOrder==1])
+summary(sgDF$GDcoll[sgDF$sampleOrder==2])
+summary(sgDF$GDcoll[sgDF$sampleOrder==3])
+
+
+sgDF %>%
+  ggplot(aes(x=sampleOrder, y=GDcoll, group=sampleOrder)) +
+  geom_boxplot() +
+  geom_point() +
+  facet_wrap(~Cohort) +
+  labs(x="Sample Order", y="Gestation Days at Collection")
+
+sgDF %>%
+  ggplot(aes(x=GDcoll, y=as.character(SubjectID), color=Cohort)) +
+  geom_point() +
+  geom_vline(xintercept = 97.5)+
+  geom_vline(xintercept = 195.5) +
+  labs(x="Gestation Days at Collection", y="Subject ID")
+```
+
+
+
+## Randomly select one sample per subject from each subject
+It seems that is the best way to maintain a small range of gestation days at collection of each range while excluding the least number of samples (will only exclude one sample)
+```{r}
+#Create dataframe of subsets
+sgDFsubset <- sgDF %>%
+  filter(sampleTrimester=="Second") %>%
+  group_by(SubjectID) %>%
+  sample_n(size=1) %>%
+  ungroup
+
+sampleSubset <- sgDFsubset$SampleID
+sampleSubset
+#save list of subset
+#write_lines(sampleSubset, "./sampleSubset.txt")
+
+#what subject is missing a sample
+setdiff(unique(sgDF$SubjectID), sgDFsubset$SubjectID)
+```
+## gestation days range of subset
+```{r}
+summary(sgDFsubset$GDcoll)
+```
+
+# Session Info
+```{r}
+sessionInfo()
+```

@@ -16,22 +16,20 @@ library(tidyverse)
 
 ## File paths
 ```{r}
-gardRelativeAbundance <- read_delim("/Users/hlberman/Documents/GitHub/pregnancy_metagenome/gard_mapping/clade_assignments/gardRelativeAbundance.tsv", delim = "\t") %>%
-  mutate(SampleID=as.character(SampleID),
-         Clade=case_when(Clade==1~"C1",
-                         Clade==2~"C2", 
-                         Clade==3~"C3", 
-                         Clade==4~"C4",
-                         Clade==5~"C5", 
-                         Clade==6~"C6"))
-alignmentsFinal <- read_delim("/Users/hlberman/Documents/GitHub/pregnancy_metagenome/gard_mapping/clade_assignments/aglingmentsFinal.tsv", delim = "\t")
-sgDF_path <- "/Users/hlberman/Documents/GitHub/pregnancy_metagenome/shotgunMetadata.tsv"
-sgDF <- read_delim(sgDF_path, delim = "\t")%>%
+gardRelativeAbundance <- file.path("gardRelativeAbundance.tsv") %>%
+  read_tsv() %>%
+  mutate(SampleID=as.character(SampleID))
+
+alignmentsFinal <- file.path("aglingmentsFinal.tsv") %>%
+  read_tsv()
+
+sgDF <- file.path("..", "..", "shotgunMetadata.tsv") %>%
+  read_tsv() %>%
   mutate(SampleID=as.character(SampleID))
 
 #metaphlan data
-#load("/Users/hlberman/Documents/GitHub/pregnancy_metagenome/methods_comparisons/PS_RData/metaphlan_PS.RData")
-mDF0 <- read_tsv("/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/humann2/out_tables/mergedMetaphlanAbundance.tsv") %>%
+mDF0 <- file.path("/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/humann2/out_tables/mergedMetaphlanAbundance.tsv") %>%
+  read_tsv() %>%
   filter(str_detect(ID, "s__"), !str_detect(ID, "t__")) %>%
   mutate(Species = str_extract(ID, "(?<=s__)\\w+$")) %>%
   select(Species, everything(), -ID) %>%
@@ -53,30 +51,6 @@ mDF <- mDF0 %>%
   mutate(SampleID=samps) %>% 
   select(SampleID, everything())
 mDF[1:6,1:5]
-```
-
-```{r}
-sgDF %>%
-  filter(!is.na(Cohort)) %>%
-  nrow()
-
-sgDF %>%
-  filter(Cohort=="UAB")%>%
-  nrow()
-
-sgDF %>%
-  filter(Cohort=="UAB") %>%
-  select(SubjectID) %>%
-  n_distinct()
-
-sgDF %>%
-  filter(Cohort=="Stanford")%>%
-  nrow()
-
-sgDF %>%
-  filter(Cohort=="Stanford") %>%
-  select(SubjectID) %>%
-  n_distinct()
 ```
 
 # Per sample
@@ -101,12 +75,6 @@ gardRelativeAbundance0 <- gardRelativeAbundance %>%
 
 ## Get Gardnerella relative abundances from metaphlan
 ```{r}
-# metaphlanGard <- PS_metaphlan_all@otu_table %>%
-#   t() %>% 
-#   as.data.frame() %>%
-#   mutate(SampleID=rownames(.)) %>%
-#   select(Gardnerella_vaginalis, SampleID)
- 
 gardRelativeAbundance1 <- gardRelativeAbundance0 %>%
    left_join(mDF[,c("SampleID", "Gardnerella_vaginalis")], by="SampleID") %>%
    mutate(propCladeCommunity=propClade*Gardnerella_vaginalis)
@@ -150,11 +118,31 @@ sgDF0 %>%
 
 #plot
 sgDF0 %>%
+  filter(Cohort=="Stanford"|Cohort=="UAB") %>%
    ggplot(aes(x=nClade)) +
     geom_histogram(stat="count", binwidth = 1) +
     scale_x_continuous(breaks = c(0,1,2,3,4,5,6)) +
-    theme_classic() +
-    facet_wrap(~Cohort)
+    facet_wrap(~Cohort)+
+    labs(x="Clades per sample")
+
+#average clades per sample per subject
+sgDF0 %>%
+  group_by(SubjectID) %>%
+  summarise(meanNClade=mean(nClade)) %>%
+  left_join(sgDF0[,c("SubjectID", "Cohort")], by="SubjectID")%>%
+  filter(Cohort!="unknown") %>%
+  ggplot(aes(x=round(meanNClade))) +
+    geom_histogram(stat="count") +
+    scale_x_continuous(breaks = c(0,1,2,3,4,5,6)) +
+    facet_wrap(~Cohort)+
+    labs(x="Average clades per sample (per subject)")
+
+#mann-whitney u test/wilcoxon rank sum
+mwTable <- sgDF0 %>%
+  group_by(SubjectID) %>%
+  summarise(meanNClade=mean(nClade)) %>%
+  left_join(sgDF0[,c("SubjectID", "Cohort")], by="SubjectID")
+wilcox.test(mwTable$meanNClade[mwTable$Cohort=="Stanford"], mwTable$meanNClade[mwTable$Cohort=="UAB"], alternative="two.sided", paired=FALSE)
 ```
 
 ### Clade abundance
@@ -383,6 +371,18 @@ GardAb <- gardRelativeAbundance1 %>%
 gardRelativeAbundance1 %>%
   select(-Gardnerella_vaginalis, -propClade, -n) %>%
   full_join(GardAb) %>%
+ggplot(aes(x=Clade, y=propCladeCommunity, color=Clade)) +
+  geom_boxplot(show.legend = FALSE) +
+  geom_jitter() + 
+  scale_color_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#000000"), labels=c("C1", "C2", "C3", "C4", "C5", "C6", bquote('Total'~italic(Gardnerella)))) +
+  scale_x_discrete(labels=c("C1", "C2", "C3", "C4", "C5", "C6", bquote('Total'~italic(Gardnerella)))) +
+  facet_grid(Cohort~.)+
+  labs(x="Clade", y="Proportion of community")
+
+gardRelativeAbundance1 %>%
+  select(-Gardnerella_vaginalis, -propClade, -n) %>%
+  full_join(GardAb) %>%
+  filter(Cohort=="Stanford"|Cohort=="UAB") %>%
 ggplot(aes(x=Clade, y=propCladeCommunity, color=Clade)) +
   geom_boxplot(show.legend = FALSE) +
   geom_jitter() + 
@@ -810,7 +810,7 @@ ratioFreqTable %>%
     theme(axis.text.x = element_text(angle=45))
 ```
 
-### Bar plot
+### Bar plot****
 ```{r}
 LGabundance0 <- LGabundance %>%
   select(-n,-propClade) %>%
@@ -836,6 +836,7 @@ ggplot(aes(x=reorder(reorder(SampleID, -Abundance, FUN=sum, na.rm=TRUE), TermPre
         axis.ticks.x = element_blank(),
         axis.line.x = element_blank()) 
 
+
 LGabundance0 %>%
   filter(Cohort=="UAB") %>%
 ggplot(aes(x=reorder(reorder(SampleID, -Abundance, FUN=sum, na.rm=TRUE), TermPre=="T", na.rm=TRUE), y=Abundance, fill=Taxon, color=Taxon)) +
@@ -851,6 +852,64 @@ ggplot(aes(x=reorder(reorder(SampleID, -Abundance, FUN=sum, na.rm=TRUE), TermPre
   theme(axis.text.x = element_blank(),
         axis.ticks.x = element_blank(),
         axis.line.x = element_blank()) 
+```
+
+LITWACK FIGURE
+```{r}
+vtypeDF <- read_tsv("/Users/hlberman/Documents/GitHub/pregnancy_metagenome/vagitypesCladeCounts.tsv") %>%
+  mutate(SampleID=as.character(SampleID))
+
+LGabundanceX <- LGabundance %>%
+  select(-n,-propClade) %>%
+  spread(Clade, propCladeCommunity) %>%
+  spread(Lactobacillus, LAbundance) %>%
+  left_join(mDF[,c("SampleID", "Atopobium_vaginae", "Prevotella_bivia")], by="SampleID") %>%
+  gather("Taxon", "Abundance", `C1`, `C2`, `C3`, `C4`, `C5`, `C6`, `Lactobacillus crispatus`, `Lactobacillus gasseri`, `Lactobacillus iners`, `Lactobacillus jensenii`, `Atopobium_vaginae`, `Prevotella_bivia`) %>%
+  left_join(vtypeDF[,c("SampleID", "Vagitype")], by="SampleID") %>%
+  filter(!is.na(Abundance)) %>%
+  mutate(vTypeOrder=case_when(Vagitype=="A. vaginae"~1,
+                              Vagitype=="G. vaginalis C1"~2,
+                              Vagitype=="G. vaginalis C2"~3,
+                              Vagitype=="G. vaginalis C3"~4,
+                              Vagitype=="G. vaginalis C4"~5,
+                              Vagitype=="G. vaginalis C5"~6,
+                              Vagitype=="G. vaginalis C6"~7,
+                              Vagitype=="L. crispatus"~8,
+                              Vagitype=="L. gasseri"~9,
+                              Vagitype=="L. iners"~10,
+                              Vagitype=="L. jensenii"~11,
+                              Vagitype=="P. bivia"~12,
+                              Vagitype=="No type"~13))
+
+LGabundanceX$Vagitype <- factor(LGabundanceX$Vagitype, levels=c("A. vaginae", "G. vaginalis C1", "G. vaginalis C2", "G. vaginalis C3", "G. vaginalis C4", "G. vaginalis C5", "G. vaginalis C6", "L. crispatus", "L. gasseri", "L. jensenii", "L. iners", "P. bivia", "No type"))
+
+LGabundanceX %>%
+  filter(Cohort=="Stanford") %>%
+ggplot(aes(x=reorder(reorder(SampleID, Abundance, FUN=sum, na.rm=TRUE), vTypeOrder, FUN=min), y=Abundance, fill=Taxon, color=Taxon, order=Vagitype)) +
+  geom_bar(stat="identity") +
+  labs(x="Sample", y="Proportion of community", color="Taxon", fill="Taxon") +
+  scale_color_manual(values=c("mediumpurple4", "#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73","darkgreen", "khaki1", "darkblue", "darkred", "darkseagreen4"), labels=c("A. vaginae", "G. vaginalis C1", "G. vaginalis C2", "G. vaginalis C3", "G. vaginalis C4", "G. vaginalis C5", "G. vaginalis C6", "L. crispatus", "L. gasseri", "L. iners", "L. jensenii", "P. bivia")) +
+  scale_fill_manual(values=c("mediumpurple4", "#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73","darkgreen", "khaki1", "darkblue", "darkred", "darkseagreen4"), labels=c("A. vaginae", "G. vaginalis C1", "G. vaginalis C2", "G. vaginalis C3", "G. vaginalis C4", "G. vaginalis C5", "G. vaginalis C6", "L. crispatus", "L. gasseri", "L. iners", "L. jensenii", "P. bivia")) +
+  facet_wrap(~Cohort) +
+  theme_grey() +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.line.x = element_blank()) 
+
+
+LGabundanceX %>%
+  filter(Cohort=="UAB") %>%
+ggplot(aes(x=reorder(reorder(SampleID, Abundance, FUN=sum, na.rm=TRUE), vTypeOrder, FUN=min), y=Abundance, fill=Taxon, color=Taxon, order=Vagitype)) +
+  geom_bar(stat="identity") +
+  labs(main="UAB", x="Sample", y="Proportion of community", color="Taxon", fill="Taxon") +
+   scale_color_manual(values=c("mediumpurple4", "#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73","darkgreen", "khaki1", "darkblue", "darkred", "darkseagreen4"), labels=c("A. vaginae", "G. vaginalis C1", "G. vaginalis C2", "G. vaginalis C3", "G. vaginalis C4", "G. vaginalis C5", "G. vaginalis C6", "L. crispatus", "L. gasseri", "L. iners", "L. jensenii", "P. bivia")) +
+  scale_fill_manual(values=c("mediumpurple4", "#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73","darkgreen", "khaki1", "darkblue", "darkred", "darkseagreen4"), labels=c("A. vaginae", "G. vaginalis C1", "G. vaginalis C2", "G. vaginalis C3", "G. vaginalis C4", "G. vaginalis C5", "G. vaginalis C6", "L. crispatus", "L. gasseri", "L. iners", "L. jensenii", "P. bivia")) +  
+  facet_wrap(~Cohort) +
+  theme_grey() +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.line.x = element_blank(),
+        legend.position = "bottom") 
 ```
 
 # Subject averages
@@ -991,6 +1050,7 @@ Set up dataframes for vagitype classification (max taxon. If maximum taxon is <3
 ```{r}
 gard4metaphlan <- gardRelativeAbundance1 %>%
   select(SampleID, Clade, propCladeCommunity) %>%
+  mutate(Clade=paste0("Gardnerella_vaginalis_", Clade)) %>%
   spread(Clade, propCladeCommunity)
 head(gard4metaphlan)
 
@@ -1016,12 +1076,12 @@ vtypeDF <- data.frame(SampleID=mDFG[,"SampleID"],
   mutate(Vagitype=case_when(maxAb<0.3~"No type",
                          maxAb>=0.3~as.character(Vagitype)),
          Vagitype=case_when(Vagitype=="Atopobium_vaginae"~"A. vaginae",
-                        Vagitype=="C1"~"G. vaginalis C1",
-                        Vagitype=="C2"~"G. vaginalis C2",
-                        Vagitype=="C3"~"G. vaginalis C3", 
-                        Vagitype=="C4"~"G. vaginalis C4",
-                        Vagitype=="C5"~"G. vaginalis C5", 
-                        Vagitype=="C6"~"G. vaginalis C6",
+                        Vagitype=="Gardnerella_vaginalis_C1"~"G. vaginalis C1",
+                        Vagitype=="Gardnerella_vaginalis_C2"~"G. vaginalis C2",
+                        Vagitype=="Gardnerella_vaginalis_C3"~"G. vaginalis C3", 
+                        Vagitype=="Gardnerella_vaginalis_C4"~"G. vaginalis C4",
+                        Vagitype=="Gardnerella_vaginalis_C5"~"G. vaginalis C5", 
+                        Vagitype=="Gardnerella_vaginalis_C6"~"G. vaginalis C6",
                         Vagitype=="Lactobacillus_crispatus"~"L. crispatus",
                         Vagitype=="Lactobacillus_gasseri"~"L. gasseri",
                         Vagitype=="Lactobacillus_iners"~"L. iners",
@@ -1087,7 +1147,15 @@ ggplot(data=sgDF2, aes(x=gardType)) +
 vTypesClades <- vtypeDF %>%
   left_join(cladeCounts, by="SampleID") %>%
   left_join(gardTypeDF, by="SampleID")
-write_tsv(vTypesClades, "/Users/hlberman/Documents/GitHub/pregnancy_metagenome/vagitypesCladeCounts.tsv")
+#write_tsv(vTypesClades, "/Users/hlberman/Documents/GitHub/pregnancy_metagenome/vagitypesCladeCounts.tsv")
+```
+
+# save Rdata of Metaphlan relative abundances
+```{r}
+gardAb <- gardRelativeAbundance1 %>%
+  select(SampleID, Clade, n, propClade, propCladeCommunity, Gardnerella_vaginalis) %>%
+  dplyr::rename(total_Gardnerella_vaginalis=Gardnerella_vaginalis)
+#save(mDF, mDFG, gardAb, file=file.path("metaphlanAbundances.Rdata"))
 ```
 
 # Session Info

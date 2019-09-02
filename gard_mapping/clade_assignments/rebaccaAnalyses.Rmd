@@ -1,0 +1,338 @@
+---
+title: "Taxon-Taxon Associations: Jaccard"
+author: "Hanna Berman"
+date: "8/9/2019"
+output: html_document
+---
+
+# Setup
+## Packages
+```{r}
+library(tidyverse)
+library(MCMCpack)
+library(parallel)
+library(glmnet)
+source(file.path("REBACCA_FUNCTIONS.R"))
+#library(GGally)
+#library(network)
+```
+
+## File paths
+```{r}
+#metadata
+sgDF <- file.path("..", "..", "shotgunMetadata.tsv") %>%
+  read_tsv() %>%
+  mutate(SampleID=as.character(SampleID))
+
+#metaphlan data
+load("metaphlanAbundances.Rdata")
+
+#subset
+sampleSubset <- read_lines(file.path("..", "..", "sampleSubset.txt"))
+
+
+```
+
+## Set up data frame
+```{r}
+DF <- sgDF %>%
+  dplyr::select(SampleID, SubjectID, Cohort, GDcoll) %>%
+  group_by(SubjectID) %>%
+  mutate(Cohort=replace_na(Cohort, "unknown"),
+         Subset=case_when(SampleID %in% sampleSubset~TRUE, 
+                          !(SampleID %in% sampleSubset)~FALSE)) %>%
+  left_join(mDF[,c("SampleID", "Gardnerella_vaginalis")], by="SampleID") %>%
+  left_join(mDFG,
+            by="SampleID") %>%
+  dplyr::rename(total_Gardnerella_vaginalis=Gardnerella_vaginalis) %>%
+  ungroup()
+```
+
+## Define taxa
+```{r}
+# Taxa groups:
+taxa <- c("Gardnerella_vaginalis_C1", "Gardnerella_vaginalis_C2", "Gardnerella_vaginalis_C3", "Gardnerella_vaginalis_C4", "Gardnerella_vaginalis_C5", "Gardnerella_vaginalis_C6", "Lactobacillus_crispatus", "Lactobacillus_gasseri", "Lactobacillus_jensenii", "Lactobacillus_iners")
+taxa0 <- c("total_Gardnerella_vaginalis", "Lactobacillus_crispatus", "Lactobacillus_gasseri", "Lactobacillus_jensenii", "Lactobacillus_iners")
+```
+
+ScorrTA = Stanford, total Gardnerella, all samples
+```{r}
+ScorrTA <- DF %>%
+  dplyr::filter(Cohort=="Stanford") %>%
+  dplyr::select(-SampleID, -SubjectID, -Cohort, -GDcoll, -sampleOrder, -sampleTrimester, -Gardnerella_vaginalis_C1, -Gardnerella_vaginalis_C2, -Gardnerella_vaginalis_C3, -Gardnerella_vaginalis_C4, -Gardnerella_vaginalis_C5, -Gardnerella_vaginalis_C6) %>%
+  as.matrix() %>%
+  t()
+
+ScorrTA.rslt <- rebacca(ScorrTA, nbootstrap=50, N.cores=1)
+
+# estimate correlation
+tau = stability_cutoff(ScorrTA.rslt$Stability, ScorrTA.rslt$q, B=50, FWER=0.05)
+ScorrTA.rslt.adj = sscore2adjmatrix(ScorrTA.rslt$Stability, tau)
+ScorrTA.rslt.est = rebacca_adjm2corr(ScorrTA, ScorrTA.rslt.adj)
+
+# label output table with taxon names
+colnames(ScorrTA.rslt.est$corr) <- rownames(ScorrTA)
+
+ScorrTA.rslt.est.corr0 <- ScorrTA.rslt.est$corr %>%
+  as.data.frame() %>%
+  mutate(TaxaID=rownames(ScorrTA)) %>%
+  dplyr::select(TaxaID, taxa0) %>%
+  filter(TaxaID=="total_Gardnerella_vaginalis"|
+         TaxaID=="Lactobacillus_crispatus"|
+         TaxaID=="Lactobacillus_gasseri"|
+         TaxaID=="Lactobacillus_jensenii"|
+         TaxaID=="Lactobacillus_iners")
+
+# estimated coefficients
+ScorrTA.rslt.est.corr0
+```
+
+ScorrCA = Stanford, Gardnerella clades, all samples
+```{r}
+ScorrCA <- DF %>%
+  dplyr::filter(Cohort=="Stanford") %>%
+  dplyr::select(-SampleID, -SubjectID, -Cohort, -GDcoll, -sampleOrder, -sampleTrimester, -total_Gardnerella_vaginalis) %>%
+  as.matrix() %>%
+  t()
+
+ScorrCA.rslt <- rebacca(ScorrCA, nbootstrap=50, N.cores=1)
+
+# estimate correlation
+tau = stability_cutoff(ScorrCA.rslt$Stability, ScorrCA.rslt$q, B=50, FWER=0.05)
+ScorrCA.rslt.adj = sscore2adjmatrix(ScorrCA.rslt$Stability, tau)
+ScorrCA.rslt.est = rebacca_adjm2corr(ScorrCA, ScorrCA.rslt.adj)
+
+# label output table with taxon names and select taxa of interest
+colnames(ScorrCA.rslt.est$corr) <- rownames(ScorrCA)
+
+ScorrCA.rslt.est.corr0 <- ScorrCA.rslt.est$corr %>%
+  as.data.frame() %>%
+  mutate(TaxaID=rownames(ScorrCA)) %>%
+  dplyr::select(TaxaID, taxa) %>%
+  filter(TaxaID=="Gardnerella_vaginalis_C1"|
+         TaxaID=="Gardnerella_vaginalis_C2"|
+         TaxaID=="Gardnerella_vaginalis_C3"|
+         TaxaID=="Gardnerella_vaginalis_C4"|
+         TaxaID=="Gardnerella_vaginalis_C5"|
+         TaxaID=="Gardnerella_vaginalis_C6"|
+         TaxaID=="Lactobacillus_crispatus"|
+         TaxaID=="Lactobacillus_gasseri"|
+         TaxaID=="Lactobacillus_jensenii"|
+         TaxaID=="Lactobacillus_iners")
+
+# estimated coefficients
+ScorrCA.rslt.est.corr0
+```
+
+UcorrTA = UAB, total Gardnerella, all samples
+```{r}
+UcorrTA <- DF %>%
+  dplyr::filter(Cohort=="UAB") %>%
+  dplyr::select(-SampleID, -SubjectID, -Cohort, -GDcoll, -sampleOrder, -sampleTrimester, -Gardnerella_vaginalis_C1, -Gardnerella_vaginalis_C2, -Gardnerella_vaginalis_C3, -Gardnerella_vaginalis_C4, -Gardnerella_vaginalis_C5, -Gardnerella_vaginalis_C6) %>%
+  as.matrix() %>%
+  t()
+
+UcorrTA.rslt <- rebacca(UcorrTA, nbootstrap=50, N.cores=1)
+
+# estimate correlation
+tau = stability_cutoff(UcorrTA.rslt$Stability, UcorrTA.rslt$q, B=50, FWER=0.05)
+UcorrTA.rslt.adj = sscore2adjmatrix(UcorrTA.rslt$Stability, tau)
+UcorrTA.rslt.est = rebacca_adjm2corr(UcorrTA, UcorrTA.rslt.adj)
+
+# label output table with taxon names and select taxa of interest
+colnames(UcorrTA.rslt.est$corr) <- rownames(UcorrTA)
+
+UcorrTA.rslt.est.corr0 <- UcorrTA.rslt.est$corr %>%
+  as.data.frame() %>%
+    mutate(TaxaID=rownames(UcorrTA)) %>%
+    dplyr::select(TaxaID, taxa0) %>%
+    filter(TaxaID=="total_Gardnerella_vaginalis"|
+           TaxaID=="Lactobacillus_crispatus"|
+           TaxaID=="Lactobacillus_gasseri"|
+           TaxaID=="Lactobacillus_jensenii"|
+           TaxaID=="Lactobacillus_iners")
+
+# estimated coefficients
+UcorrTA.rslt.est.corr0
+```
+
+UcorrCA = UAB, Gardnerella clades, all samples
+```{r}
+UcorrCA <- DF %>%
+  dplyr::filter(Cohort=="UAB") %>%
+  dplyr::select(-SampleID, -SubjectID, -Cohort, -GDcoll, -sampleOrder, -sampleTrimester, -total_Gardnerella_vaginalis) %>%
+  as.matrix() %>%
+  t()
+
+UcorrCA.rslt <- rebacca(UcorrCA, nbootstrap=50, N.cores=1)
+
+# estimate correlation
+tau = stability_cutoff(UcorrCA.rslt$Stability, UcorrCA.rslt$q, B=50, FWER=0.05)
+UcorrCA.rslt.adj = sscore2adjmatrix(UcorrCA.rslt$Stability, tau)
+UcorrCA.rslt.est = rebacca_adjm2corr(UcorrCA, UcorrCA.rslt.adj)
+
+# label output table with taxon names
+colnames(UcorrCA.rslt.est$corr) <- rownames(UcorrCA)
+
+UcorrCA.rslt.est.corr0 <- UcorrCA.rslt.est$corr %>%
+  as.data.frame() %>%
+  mutate(TaxaID=rownames(UcorrCA)) %>%
+  dplyr::select(TaxaID, taxa) %>%
+  filter(TaxaID=="Gardnerella_vaginalis_C1"|
+         TaxaID=="Gardnerella_vaginalis_C2"|
+         TaxaID=="Gardnerella_vaginalis_C3"|
+         TaxaID=="Gardnerella_vaginalis_C4"|
+         TaxaID=="Gardnerella_vaginalis_C5"|
+         TaxaID=="Gardnerella_vaginalis_C6"|
+         TaxaID=="Lactobacillus_crispatus"|
+         TaxaID=="Lactobacillus_gasseri"|
+         TaxaID=="Lactobacillus_jensenii"|
+         TaxaID=="Lactobacillus_iners")
+
+# estimated coefficients
+UcorrCA.rslt.est.corr0
+```
+
+ScorrTS = Stanford, total Gardnerella, subset samples
+```{r}
+ScorrTS <- DF %>%
+  dplyr::filter(Cohort=="Stanford" & Subset==TRUE) %>%
+  dplyr::select(-SampleID, -SubjectID, -Cohort, -GDcoll, -Gardnerella_vaginalis_C1, -Gardnerella_vaginalis_C2, -Gardnerella_vaginalis_C3, -Gardnerella_vaginalis_C4, -Gardnerella_vaginalis_C5, -Gardnerella_vaginalis_C6) %>%
+  as.matrix() %>%
+  t()
+
+ScorrTS.rslt <- rebacca(ScorrTS, nbootstrap=50, N.cores=1)
+
+# estimate correlation
+tau = stability_cutoff(ScorrTS.rslt$Stability, ScorrTS.rslt$q, B=50, FWER=0.05)
+ScorrTS.rslt.adj = sscore2adjmatrix(ScorrTS.rslt$Stability, tau)
+ScorrTS.rslt.est = rebacca_adjm2corr(ScorrTS, ScorrTS.rslt.adj)
+
+# label output table with taxon names
+colnames(ScorrTS.rslt.est$corr) <- rownames(ScorrTS)
+
+ScorrTS.rslt.est.corr0 <- ScorrTS.rslt.est$corr %>%
+  as.data.frame() %>%
+  mutate(TaxaID=rownames(ScorrTS)) %>%
+  dplyr::select(TaxaID, taxa0) %>%
+  filter(TaxaID=="total_Gardnerella_vaginalis"|
+         TaxaID=="Lactobacillus_crispatus"|
+         TaxaID=="Lactobacillus_gasseri"|
+         TaxaID=="Lactobacillus_jensenii"|
+         TaxaID=="Lactobacillus_iners")
+
+# estimated coefficients
+ScorrTS.rslt.est.corr0
+```
+
+ScorrCS = Stanford, Gardnerella clades, subset samples
+```{r}
+ScorrCS <- DF %>%
+  dplyr::filter(Cohort=="Stanford"&Subset==TRUE) %>%
+  dplyr::select(-SampleID, -SubjectID, -Cohort, -GDcoll, -total_Gardnerella_vaginalis) %>%
+  as.matrix() %>%
+  t()
+
+ScorrCS.rslt <- rebacca(ScorrCS, nbootstrap=50, N.cores=1)
+
+# estimate correlation
+tau = stability_cutoff(ScorrCS.rslt$Stability, ScorrCS.rslt$q, B=50, FWER=0.05)
+ScorrCS.rslt.adj = sscore2adjmatrix(ScorrCS.rslt$Stability, tau)
+ScorrCS.rslt.est = rebacca_adjm2corr(ScorrCS, ScorrCS.rslt.adj)
+
+# label output table with taxon names and select taxa of interest
+colnames(ScorrCS.rslt.est$corr) <- rownames(ScorrCS)
+
+ScorrCS.rslt.est.corr0 <- ScorrCS.rslt.est$corr %>%
+  as.data.frame() %>%
+  mutate(TaxaID=rownames(ScorrCS)) %>%
+  dplyr::select(TaxaID, taxa) %>%
+  filter(TaxaID=="Gardnerella_vaginalis_C1"|
+         TaxaID=="Gardnerella_vaginalis_C2"|
+         TaxaID=="Gardnerella_vaginalis_C3"|
+         TaxaID=="Gardnerella_vaginalis_C4"|
+         TaxaID=="Gardnerella_vaginalis_C5"|
+         TaxaID=="Gardnerella_vaginalis_C6"|
+         TaxaID=="Lactobacillus_crispatus"|
+         TaxaID=="Lactobacillus_gasseri"|
+         TaxaID=="Lactobacillus_jensenii"|
+         TaxaID=="Lactobacillus_iners")
+
+# estimated coefficients
+ScorrCS.rslt.est.corr0
+```
+
+UcorrTS = UAB, total Gardnerella, subset samples
+```{r}
+UcorrTS <- DF %>%
+  dplyr::filter(Cohort=="UAB"&Subset==TRUE) %>%
+  dplyr::select(-SampleID, -SubjectID, -Cohort, -GDcoll, -Gardnerella_vaginalis_C1, -Gardnerella_vaginalis_C2, -Gardnerella_vaginalis_C3, -Gardnerella_vaginalis_C4, -Gardnerella_vaginalis_C5, -Gardnerella_vaginalis_C6) %>%
+  as.matrix() %>%
+  t()
+
+UcorrTS.rslt <- rebacca(UcorrTS, nbootstrap=50, N.cores=1)
+
+# estimate correlation
+tau = stability_cutoff(UcorrTS.rslt$Stability, UcorrTS.rslt$q, B=50, FWER=0.05)
+UcorrTS.rslt.adj = sscore2adjmatrix(UcorrTS.rslt$Stability, tau)
+UcorrTS.rslt.est = rebacca_adjm2corr(UcorrTS, UcorrTS.rslt.adj)
+
+# label output table with taxon names and select taxa of interest
+colnames(UcorrTS.rslt.est$corr) <- rownames(UcorrTS)
+
+UcorrTS.rslt.est.corr0 <- UcorrTS.rslt.est$corr %>%
+  as.data.frame() %>%
+    mutate(TaxaID=rownames(UcorrTS)) %>%
+    dplyr::select(TaxaID, taxa0) %>%
+    filter(TaxaID=="total_Gardnerella_vaginalis"|
+           TaxaID=="Lactobacillus_crispatus"|
+           TaxaID=="Lactobacillus_gasseri"|
+           TaxaID=="Lactobacillus_jensenii"|
+           TaxaID=="Lactobacillus_iners")
+
+# estimated coefficients
+UcorrTS.rslt.est.corr0
+```
+
+UcorrCS = UAB, Gardnerella clades, subset samples
+```{r}
+UcorrCS <- DF %>%
+  dplyr::filter(Cohort=="UAB"&Subset==TRUE) %>%
+  dplyr::select(-SampleID, -SubjectID, -Cohort, -GDcoll, -total_Gardnerella_vaginalis) %>%
+  as.matrix() %>%
+  t()
+
+UcorrCS.rslt <- rebacca(UcorrCS, nbootstrap=50, N.cores=1)
+
+# estimate correlation
+tau = stability_cutoff(UcorrCS.rslt$Stability, UcorrCS.rslt$q, B=50, FWER=0.05)
+UcorrCS.rslt.adj = sscore2adjmatrix(UcorrCS.rslt$Stability, tau)
+UcorrCS.rslt.est = rebacca_adjm2corr(UcorrCS, UcorrCS.rslt.adj)
+
+# label output table with taxon names
+colnames(UcorrCS.rslt.est$corr) <- rownames(UcorrCS)
+
+UcorrCS.rslt.est.corr0 <- UcorrCS.rslt.est$corr %>%
+  as.data.frame() %>%
+  mutate(TaxaID=rownames(UcorrCS)) %>%
+  dplyr::select(TaxaID, taxa) %>%
+  filter(TaxaID=="Gardnerella_vaginalis_C1"|
+         TaxaID=="Gardnerella_vaginalis_C2"|
+         TaxaID=="Gardnerella_vaginalis_C3"|
+         TaxaID=="Gardnerella_vaginalis_C4"|
+         TaxaID=="Gardnerella_vaginalis_C5"|
+         TaxaID=="Gardnerella_vaginalis_C6"|
+         TaxaID=="Lactobacillus_crispatus"|
+         TaxaID=="Lactobacillus_gasseri"|
+         TaxaID=="Lactobacillus_jensenii"|
+         TaxaID=="Lactobacillus_iners")
+
+# estimated coefficients
+UcorrCS.rslt.est.corr0
+```
+
+Session Info
+```{r}
+sessionInfo()
+```
+

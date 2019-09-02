@@ -1,0 +1,179 @@
+---
+title: "Taxon-Taxon Associations: Co-occurrence"
+author: "Hanna Berman"
+date: "8/8/2019"
+output: html_document
+---
+
+Assess *Gardnerella* clade and *Lactobacillus spp.* co-occurrence using a hypergeometric null of the probability of *j* co-occurrences   $$P_{j}=\frac{\binom{N}{j}\times\binom{N-N_1}{N_2-j}}{\binom{N}{N-2}}$$   
+Where $N =$ the numner of sites surveyed, $N_1=$ the number of sites where taxon 1 occurrs, and $N_2=$ the number of sites where taxon 2 occurrs.  
+
+# Set up
+Packages
+```{r}
+library(tidyverse)
+library(vegan)
+library(cooccur)
+```
+
+File paths
+```{r}
+#metadata
+sgDF <- file.path("..", "..", "shotgunMetadata.tsv") %>%
+  read_tsv() %>%
+  mutate(SampleID=as.character(SampleID))
+
+#metaphlan data
+load("metaphlanAbundances.Rdata")
+```
+
+Organize data frame
+```{r}
+DF <- sgDF %>%
+  select(SampleID, SubjectID, Cohort, GDcoll) %>%
+  left_join(mDF[,c("SampleID", "Gardnerella_vaginalis")], by="SampleID") %>%
+  left_join(mDFG[,c("SampleID",
+                    "Gardnerella_vaginalis_C1", 
+                    "Gardnerella_vaginalis_C2", 
+                    "Gardnerella_vaginalis_C3", 
+                    "Gardnerella_vaginalis_C4",
+                    "Gardnerella_vaginalis_C5",
+                    "Gardnerella_vaginalis_C6",
+                    "Lactobacillus_crispatus", 
+                    "Lactobacillus_gasseri",
+                    "Lactobacillus_jensenii", 
+                    "Lactobacillus_iners")],
+            by="SampleID") %>%
+  dplyr::rename(total_Gardnerella_vaginalis=Gardnerella_vaginalis) %>%
+  mutate(Cohort=replace_na(Cohort, "unknown"))
+
+DFpa <- DF %>% #presence, absence DF
+  mutate_if(str_detect(colnames(.), "Gardnerella|Lactobacillus"), 
+            ~case_when(.x>0~1,
+                       .x==0~0))
+
+subsetSamples <- read_lines(file.path("..", "..", "sampleSubset.txt"))
+```
+
+Define the two groups of taxa pairs to assess: (six *Gardnerella vaginalis* clades and four *Lactobacillus* species, and total *Gardnerella vaginalis* and four *Lactobacilllus* species).  
+```{r}
+# Taxa groups:
+gardnerellaClades <- c("Gardnerella_vaginalis_C1", "Gardnerella_vaginalis_C2", "Gardnerella_vaginalis_C3", "Gardnerella_vaginalis_C4", "Gardnerella_vaginalis_C5", "Gardnerella_vaginalis_C6")
+cladesLactos <- c("Gardnerella_vaginalis_C1", "Gardnerella_vaginalis_C2", "Gardnerella_vaginalis_C3", "Gardnerella_vaginalis_C4", "Gardnerella_vaginalis_C5", "Gardnerella_vaginalis_C6", "Lactobacillus_crispatus", "Lactobacillus_gasseri", "Lactobacillus_jensenii", "Lactobacillus_iners")
+allGardLactos <- c("total_Gardnerella_vaginalis", "Lactobacillus_crispatus", "Lactobacillus_gasseri", "Lactobacillus_jensenii", "Lactobacillus_iners")
+```
+
+# Co-occurrence
+Probabilistic assessment of cooccurrence performed using the `cooccur` R package  
+Griffith D, Veech J, Marsh C. cooccur: Probabilistic Species Co-Occurrence Analysis in R. Journal of Statistical Software, Code Snippets. 2016;69(2):1–17.  
+Based on:  
+Veech JA. A probabilistic model for analysing species co-occurrence. Peres-Neto P, editor. Glob Ecol Biogeogr. 2013 Feb 22;22(2):252–60.
+
+Use a hypergeometric distribution to test if co-occurrence occurs more or less than expected.  
+
+$p$ value for testing whether the observed number of co-occurrences ($Q_{obs}$) is less than expected can be calculated as the sum of the probability of seeing the two taxa co-occurr less than ($P_{lt}$) and equal to ($P_{et}$) $Q_{obs}$.
+
+$p$ value for testing whether the observed number of co-occurrences ($Q_{obs}$) is greater than expected can be calculated as the sum of the probability of seeing the two taxa co-occurr greater than ($P_{gt}$) and equal to ($P_{et}$) $Q_{obs}$.
+
+Effect size is the difference between observed and expected co-occurrences, normalized to the number of sites.
+
+## Define functions
+Make a function to perform and plot analyses for convenience.  
+```{r}
+cooccurr_analyses <- function(cohort, samples, organisms){  
+  x <- DFpa %>%
+    filter(Cohort==cohort,
+          is.element(SampleID, samples)) %>%
+    select(organisms) %>%
+    select_if(~sum(.x)!=0) %>%
+    t() %>%
+    as.matrix() %>%
+    cooccur(., type="spp_site", spp_names=TRUE, prob="hyper", eff_standard=TRUE, thresh=FALSE)
+  
+  x0 <- x$results %>%
+    select(sp1_name, sp2_name, p_lt, p_gt) %>%
+    mutate(sp1_name=as.character(sp1_name),
+           sp2_name=as.character(sp2_name))
+  
+  x1 <- x %>%
+    effect.sizes() %>%
+    dplyr::rename(sp1_name=sp1,
+                  sp2_name=sp2) %>%
+    mutate(sp1_name=as.character(sp1_name),
+           sp2_name=as.character(sp2_name)) %>%
+    left_join(x0, by=c("sp1_name", "sp2_name")) %>%
+    mutate(pvalue=case_when(p_lt>0.05&p_gt>0.05~"",
+                            p_lt<=0.05&p_lt>0.01~"*",
+                            p_gt<=0.05&p_gt>0.01~"*",
+                            p_lt<=0.01&p_lt>0.005~"**",
+                            p_gt<=0.01&p_gt>0.005~"**",
+                            p_lt<=0.005&p_lt>0.001~"***",
+                            p_gt<=0.005&p_gt>0.001~"***",
+                            p_lt<=0.001&p_lt>0.0001~"****",
+                            p_gt<=0.001&p_gt>0.0001~"****",
+                            p_lt<=0.0001~"*****",
+                            p_gt<=0.0001~"*****"))
+
+  samples <- ifelse(length(samples)==length(subsetSamples), "Sample Subset", "All Samples")
+  title <- ifelse(length(organisms)==length(gardnerellaClades), "Co-occurrence of G. vaginalis clades and Lactobacillus spp.", "Co-occurrence of total G. vaginalis and Lactobacillus spp.")
+
+  plot <- ggplot(x1, aes(x=sp1_name, y=sp2_name, fill=effects, label=pvalue)) +
+    geom_tile() +
+    geom_text()+
+    scale_fill_gradient2(low = "red", mid = "white", high = "blue") +
+    theme(axis.text.x = element_text(angle = 45, hjust=1)) +
+    labs(title=title, subtitle = paste0(cohort, ": ", samples), x=NULL, y=NULL)
+  return(list(Cooccur_summary=summary(x), 
+              Cooccur_results=x$results, 
+              Heatmap=plot))
+}
+```
+
+ 
+In blue-red heat maps, color is the effect size (difference between observed and expected co-occurrences normalized by dividing by number of sites), asterisks reflect p values:  
+$p≤0.05: *$  
+$p≤0.01: **$  
+$p≤0.005: ***$  
+$p≤0.001: ****$  
+$p≤0.0001: *****$
+
+
+Note: With family-wise error rate of $\alpha = 0.05$, with 45 pair comparisons (six *Gardnerella vaginalis* clades and four *Lactobacillus* species), adjusted $\alpha$ = $0.00\bar{1}$, and with 10 pairs, (total *Gardnerella vaginalis* and four *Lactobacilllus* species) the adjusted $\alpha$ = 0.005. 
+
+Analyses were performed on all samples from each cohort, and then a subset of one sample per subject randomly selected from the second trimester. 
+Stanford: $N=62$ samples total from 20 subjects, subset $N=20$ samples.
+UAB: $N=45$ samples from 15 subjects, subset $N=14$ samples (subject 40047 did not have samples in the second trimester).
+
+## Stanford
+### All Samples
+```{r}
+cooccurr_analyses("Stanford", sgDF$SampleID, cladesLactos)
+cooccurr_analyses("Stanford", sgDF$SampleID, allGardLactos)
+```
+
+### Sample Subset
+```{r}
+cooccurr_analyses("Stanford", subsetSamples, cladesLactos)
+cooccurr_analyses("Stanford", subsetSamples, allGardLactos)
+```
+
+## UAB
+### All Samples
+```{r}
+cooccurr_analyses("UAB", sgDF$SampleID, cladesLactos)
+cooccurr_analyses("UAB", sgDF$SampleID, allGardLactos)
+```
+
+### Sample Subset
+```{r}
+cooccurr_analyses("UAB", subsetSamples, cladesLactos)
+cooccurr_analyses("UAB", subsetSamples, allGardLactos)
+```
+Note: no *L. crispatus* in any of the randomly selected subset samples in the UAB cohort.
+
+Overall, results support previous findings that Gv less associated with Lactobaillus spp., whereas Gv clades may cooccurr. C5 may co-occur with L. iners (small trend found in both cohorts.) Not significant, but consistently greatest effects in exclusion with C1, C2 and C5 and Lactos (except C5 and L. iners). However, this method has low power with few sample sites (Veech, 2013), which may affect the ability to interpret results.
+
+# Session Info
+```{r}
+sessionInfo() 
+```
