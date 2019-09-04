@@ -59,7 +59,7 @@ ScorrTA = Stanford, total Gardnerella, all samples
 ```{r}
 ScorrTA <- DF %>%
   dplyr::filter(Cohort=="Stanford") %>%
-  dplyr::select(-SampleID, -SubjectID, -Cohort, -GDcoll, -sampleOrder, -sampleTrimester, -Gardnerella_vaginalis_C1, -Gardnerella_vaginalis_C2, -Gardnerella_vaginalis_C3, -Gardnerella_vaginalis_C4, -Gardnerella_vaginalis_C5, -Gardnerella_vaginalis_C6) %>%
+  dplyr::select(-SampleID, -SubjectID, -Cohort, -GDcoll, -Gardnerella_vaginalis_C1, -Gardnerella_vaginalis_C2, -Gardnerella_vaginalis_C3, -Gardnerella_vaginalis_C4, -Gardnerella_vaginalis_C5, -Gardnerella_vaginalis_C6) %>%
   as.matrix() %>%
   t()
 

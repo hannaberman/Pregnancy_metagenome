@@ -12,7 +12,6 @@ Where $N =$ the numner of sites surveyed, $N_1=$ the number of sites where taxon
 Packages
 ```{r}
 library(tidyverse)
-library(vegan)
 library(cooccur)
 ```
 
@@ -42,15 +41,21 @@ DF <- sgDF %>%
                     "Lactobacillus_crispatus", 
                     "Lactobacillus_gasseri",
                     "Lactobacillus_jensenii", 
-                    "Lactobacillus_iners")],
+                    "Lactobacillus_iners", 
+                    "Atopobium_vaginae", 
+                    "Mycoplasma_hominis",
+                    "Prevotella_bivia",
+                    "Ureaplasma_parvum")],
             by="SampleID") %>%
-  dplyr::rename(total_Gardnerella_vaginalis=Gardnerella_vaginalis) %>%
-  mutate(Cohort=replace_na(Cohort, "unknown"))
+  mutate(SampleID=as.character(SampleID),
+         SubjectID=as.character(SubjectID),
+         GDcoll=as.character(GDcoll))
 
 DFpa <- DF %>% #presence, absence DF
-  mutate_if(str_detect(colnames(.), "Gardnerella|Lactobacillus"), 
+  mutate_if(is.numeric, 
             ~case_when(.x>0~1,
-                       .x==0~0))
+                       .x==0~0)) %>%
+  mutate(GDcoll=as.numeric(as.character(GDcoll)))
 
 subsetSamples <- read_lines(file.path("..", "..", "sampleSubset.txt"))
 ```
@@ -59,8 +64,10 @@ Define the two groups of taxa pairs to assess: (six *Gardnerella vaginalis* clad
 ```{r}
 # Taxa groups:
 gardnerellaClades <- c("Gardnerella_vaginalis_C1", "Gardnerella_vaginalis_C2", "Gardnerella_vaginalis_C3", "Gardnerella_vaginalis_C4", "Gardnerella_vaginalis_C5", "Gardnerella_vaginalis_C6")
-cladesLactos <- c("Gardnerella_vaginalis_C1", "Gardnerella_vaginalis_C2", "Gardnerella_vaginalis_C3", "Gardnerella_vaginalis_C4", "Gardnerella_vaginalis_C5", "Gardnerella_vaginalis_C6", "Lactobacillus_crispatus", "Lactobacillus_gasseri", "Lactobacillus_jensenii", "Lactobacillus_iners")
-allGardLactos <- c("total_Gardnerella_vaginalis", "Lactobacillus_crispatus", "Lactobacillus_gasseri", "Lactobacillus_jensenii", "Lactobacillus_iners")
+cladesLactos <- c("Gardnerella_vaginalis_C1", "Gardnerella_vaginalis_C2", "Gardnerella_vaginalis_C3", "Gardnerella_vaginalis_C4", "Gardnerella_vaginalis_C5", "Gardnerella_vaginalis_C6", "Lactobacillus_crispatus", "Lactobacillus_gasseri", "Lactobacillus_iners", "Lactobacillus_jensenii")
+allGardLactos <- c("Gardnerella_vaginalis", "Lactobacillus_crispatus", "Lactobacillus_gasseri", "Lactobacillus_jensenii", "Lactobacillus_iners")
+cladesSpecies <- c("Gardnerella_vaginalis_C1", "Gardnerella_vaginalis_C2", "Gardnerella_vaginalis_C3", "Gardnerella_vaginalis_C4", "Gardnerella_vaginalis_C5", "Gardnerella_vaginalis_C6", "Lactobacillus_crispatus", "Lactobacillus_gasseri", "Lactobacillus_iners", "Lactobacillus_jensenii", "Atopobium_vaginae", "Mycoplasma_hominis", "Prevotella_bivia", "Ureaplasma_parvum")
+allGardSpecies <- c("Gardnerella_vaginalis", "Lactobacillus_crispatus", "Lactobacillus_gasseri", "Lactobacillus_iners", "Lactobacillus_jensenii", "Atopobium_vaginae", "Mycoplasma_hominis", "Prevotella_bivia", "Ureaplasma_parvum")
 ```
 
 # Co-occurrence
@@ -91,7 +98,7 @@ cooccurr_analyses <- function(cohort, samples, organisms){
     cooccur(., type="spp_site", spp_names=TRUE, prob="hyper", eff_standard=TRUE, thresh=FALSE)
   
   x0 <- x$results %>%
-    select(sp1_name, sp2_name, p_lt, p_gt) %>%
+    select(sp1_name, sp2_name, obs_cooccur, exp_cooccur, p_lt, p_gt) %>%
     mutate(sp1_name=as.character(sp1_name),
            sp2_name=as.character(sp2_name))
   
@@ -101,27 +108,58 @@ cooccurr_analyses <- function(cohort, samples, organisms){
                   sp2_name=sp2) %>%
     mutate(sp1_name=as.character(sp1_name),
            sp2_name=as.character(sp2_name)) %>%
-    left_join(x0, by=c("sp1_name", "sp2_name")) %>%
-    mutate(pvalue=case_when(p_lt>0.05&p_gt>0.05~"",
-                            p_lt<=0.05&p_lt>0.01~"*",
-                            p_gt<=0.05&p_gt>0.01~"*",
-                            p_lt<=0.01&p_lt>0.005~"**",
-                            p_gt<=0.01&p_gt>0.005~"**",
-                            p_lt<=0.005&p_lt>0.001~"***",
-                            p_gt<=0.005&p_gt>0.001~"***",
-                            p_lt<=0.001&p_lt>0.0001~"****",
-                            p_gt<=0.001&p_gt>0.0001~"****",
-                            p_lt<=0.0001~"*****",
-                            p_gt<=0.0001~"*****"))
+    left_join(x0, by=c("sp1_name", "sp2_name"))
 
+  #make table to add missing sp1 and sp2's
+  x2 <- x1 %>% 
+    dplyr::rename(sp1_name=sp2_name,
+                  sp2_name=sp1_name) 
+  #make full table  
+  x3 <- x1 %>% 
+    full_join(x2, by=colnames(x1)) %>%
+    unique.data.frame()
+  
+  # removing redundant iformation:
+  x4 <- x3 %>%
+    select(sp1_name, sp2_name, effects) %>%
+    spread(sp2_name, effects) 
+  x5 <- x4 %>% # remove sp1 names column and get upper triangle
+    select(-sp1_name) %>%
+    as.matrix()
+  x5[upper.tri(x5)] <- NA
+  
+  #add sp1 names column back and other columns
+  x6 <- x5 %>% 
+    as.data.frame() %>%
+    mutate(sp1_name=x4$sp1_name) %>%
+    select(sp1_name, everything()) %>% #rearrange columns
+    gather("sp2_name", "effects", c(2:ncol(.))) %>%
+    left_join(x3[,c("sp1_name", "sp2_name", "p_lt", "p_gt")], by=c("sp1_name", "sp2_name")) %>%
+    mutate(p_lt=case_when(is.na(effects)==TRUE~1,
+                          is.na(effects)==FALSE~p_lt),
+           p_gt=case_when(is.na(effects)==TRUE~1,
+                          is.na(effects)==FALSE~p_gt),
+      pvalue=case_when(p_lt>0.01&p_gt>0.01~"",
+                            p_lt<=0.01&p_lt>0.001~"*",
+                            p_gt<=0.01&p_gt>0.001~"*",
+                            p_lt<=0.001&p_lt>0.0005~"**",
+                            p_gt<=0.001&p_gt>0.0005~"**",
+                            p_lt<=0.0005&p_lt>0.0001~"***",
+                            p_gt<=0.0005&p_gt>0.0001~"***",
+                            p_lt<=0.0001~"****",
+                            p_gt<=0.0001~"****"))
+  
   samples <- ifelse(length(samples)==length(subsetSamples), "Sample Subset", "All Samples")
-  title <- ifelse(length(organisms)==length(gardnerellaClades), "Co-occurrence of G. vaginalis clades and Lactobacillus spp.", "Co-occurrence of total G. vaginalis and Lactobacillus spp.")
+  title <- ifelse(length(organisms)==length(cladesSpecies), "Co-occurrence of G. vaginalis clades and key species", "Co-occurrence of total G. vaginalis and key species")
+  x6$sp1_name <- factor(x6$sp1_name, levels=organisms[order(organisms)]) #order x axis
+  x6$sp2_name <-  factor(x6$sp2_name, levels=organisms[rev(order(organisms))]) #order y axis (reverse of x axis)
 
-  plot <- ggplot(x1, aes(x=sp1_name, y=sp2_name, fill=effects, label=pvalue)) +
+    plot <- ggplot(x6, aes(x=sp1_name, y=sp2_name, fill=effects, label=pvalue)) +
     geom_tile() +
     geom_text()+
-    scale_fill_gradient2(low = "red", mid = "white", high = "blue") +
-    theme(axis.text.x = element_text(angle = 45, hjust=1)) +
+    scale_fill_gradient2(low = "red", mid = "white", high = "blue", midpoint = 0) +
+    scale_x_discrete(position="top") +
+    theme(axis.text.x = element_text(angle = 45, hjust=0)) +
     labs(title=title, subtitle = paste0(cohort, ": ", samples), x=NULL, y=NULL)
   return(list(Cooccur_summary=summary(x), 
               Cooccur_results=x$results, 
@@ -131,14 +169,12 @@ cooccurr_analyses <- function(cohort, samples, organisms){
 
  
 In blue-red heat maps, color is the effect size (difference between observed and expected co-occurrences normalized by dividing by number of sites), asterisks reflect p values:  
-$p≤0.05: *$  
-$p≤0.01: **$  
-$p≤0.005: ***$  
-$p≤0.001: ****$  
-$p≤0.0001: *****$
+$p≤0.01: *$  
+$p≤0.001: **$  
+$p≤0.0005: ***$  
+$p≤0.0001: ****$
 
-
-Note: With family-wise error rate of $\alpha = 0.05$, with 45 pair comparisons (six *Gardnerella vaginalis* clades and four *Lactobacillus* species), adjusted $\alpha$ = $0.00\bar{1}$, and with 10 pairs, (total *Gardnerella vaginalis* and four *Lactobacilllus* species) the adjusted $\alpha$ = 0.005. 
+Note: With family-wise error rate of $\alpha = 0.05$, with 91 pair comparisons (six *Gardnerella vaginalis* clades and eight "key" vaginal microbiome species), adjusted $\alpha$ = $0.0005$, and with 36 pairs, (total *Gardnerella vaginalis* and eight "key" vaginal microbiome species) the adjusted $\alpha$ = 0.001. 
 
 Analyses were performed on all samples from each cohort, and then a subset of one sample per subject randomly selected from the second trimester. 
 Stanford: $N=62$ samples total from 20 subjects, subset $N=20$ samples.
@@ -146,32 +182,102 @@ UAB: $N=45$ samples from 15 subjects, subset $N=14$ samples (subject 40047 did n
 
 ## Stanford
 ### All Samples
-```{r}
-cooccurr_analyses("Stanford", sgDF$SampleID, cladesLactos)
-cooccurr_analyses("Stanford", sgDF$SampleID, allGardLactos)
+```{r, warning=FALSE}
+cooccurr_analyses("Stanford", sgDF$SampleID, cladesSpecies)
+cooccurr_analyses("Stanford", sgDF$SampleID, allGardSpecies)
 ```
 
 ### Sample Subset
-```{r}
-cooccurr_analyses("Stanford", subsetSamples, cladesLactos)
-cooccurr_analyses("Stanford", subsetSamples, allGardLactos)
+```{r, warning=FALSE}
+cooccurr_analyses("Stanford", subsetSamples, cladesSpecies)
+cooccurr_analyses("Stanford", subsetSamples, allGardSpecies)
 ```
 
 ## UAB
 ### All Samples
-```{r}
-cooccurr_analyses("UAB", sgDF$SampleID, cladesLactos)
-cooccurr_analyses("UAB", sgDF$SampleID, allGardLactos)
+```{r, warning=FALSE}
+cooccurr_analyses("UAB", sgDF$SampleID, cladesSpecies)
+cooccurr_analyses("UAB", sgDF$SampleID, allGardSpecies)
 ```
 
 ### Sample Subset
-```{r}
-cooccurr_analyses("UAB", subsetSamples, cladesLactos)
-cooccurr_analyses("UAB", subsetSamples, allGardLactos)
+```{r, warning=FALSE}
+cooccurr_analyses("UAB", subsetSamples, cladesSpecies)
+cooccurr_analyses("UAB", subsetSamples, allGardSpecies)
 ```
-Note: no *L. crispatus* in any of the randomly selected subset samples in the UAB cohort.
+Note: no *L. crispatus* in any of the randomly selected subset samples in the UAB cohort. All of these samples have C1 and total Gard
 
-Overall, results support previous findings that Gv less associated with Lactobaillus spp., whereas Gv clades may cooccurr. C5 may co-occur with L. iners (small trend found in both cohorts.) Not significant, but consistently greatest effects in exclusion with C1, C2 and C5 and Lactos (except C5 and L. iners). However, this method has low power with few sample sites (Veech, 2013), which may affect the ability to interpret results.
+Overall, results support previous findings that Gv less associated with Lactobaillus spp., whereas Gv clades and other BV-associated taxa may cooccurr. C1 appears co-occur more strongly with *Atopobium vaginae* in Stanford cohort compared to other Clades.
+C5 may co-occur with L. iners (small trend found in both cohorts.) Not significant, but consistently greatest effects in exclusion with C1, C2 and C5 and Lactos (except C5 and L. iners). However, this method has low power with few sample sites (Veech, 2013), which may affect the ability to interpret results.
+
+# Presence-Absence in Samples
+## Presence-Absence in all samples
+```{r, fig.height=4, fig.width=6}
+DFpa %>%
+  dplyr::rename(C1=Gardnerella_vaginalis_C1,
+                C2=Gardnerella_vaginalis_C2,
+                C3=Gardnerella_vaginalis_C3,
+                C4=Gardnerella_vaginalis_C4,
+                C5=Gardnerella_vaginalis_C5,
+                C6=Gardnerella_vaginalis_C6,
+                G_vaginalis=Gardnerella_vaginalis,
+                A_vaginae=Atopobium_vaginae,
+                L_crispatus=Lactobacillus_crispatus,
+                L_gasseri=Lactobacillus_gasseri,
+                L_iners=Lactobacillus_iners,
+                L_jensenii=Lactobacillus_jensenii,
+                P_bivia=Prevotella_bivia,
+                U_parvum=Ureaplasma_parvum,
+                M_hominis=Mycoplasma_hominis) %>%
+  gather("Organism", "PresAbs", 5:ncol(.)) %>%
+  mutate(PresAbs=case_when(PresAbs==0~"Abs",
+                           PresAbs==1~"Pres")) %>%
+  ggplot(aes(x=PresAbs)) +
+    geom_bar() +
+    facet_grid(Cohort~Organism)
+```
+
+## Presence-Absence in subset samples
+```{r, fig.height=4, fig.width=6}
+DFpa %>%
+  filter(is.element(SampleID, subsetSamples)) %>%
+  dplyr::rename(C1=Gardnerella_vaginalis_C1,
+                C2=Gardnerella_vaginalis_C2,
+                C3=Gardnerella_vaginalis_C3,
+                C4=Gardnerella_vaginalis_C4,
+                C5=Gardnerella_vaginalis_C5,
+                C6=Gardnerella_vaginalis_C6,
+                total_Gard=Gardnerella_vaginalis,
+                A_vaginae=Atopobium_vaginae,
+                L_crispatus=Lactobacillus_crispatus,
+                L_gasseri=Lactobacillus_gasseri,
+                L_iners=Lactobacillus_iners,
+                L_jensenii=Lactobacillus_jensenii,
+                P_bivia=Prevotella_bivia,
+                U_parvum=Ureaplasma_parvum,
+                M_hominis=Mycoplasma_hominis) %>%
+  gather("Organism", "PresAbs", 5:ncol(.)) %>%
+  mutate(PresAbs=case_when(PresAbs==0~"Abs",
+                           PresAbs==1~"Pres")) %>%
+  ggplot(aes(x=PresAbs)) +
+    geom_bar() +
+    facet_grid(Cohort~Organism)
+```
+
+Looking at other taxa to possibly include
+```{r}
+testDists <- mDFG %>%
+  select(SampleID, contains("Ureaplasma"), contains("Trich")) %>%
+  mutate_if(is.numeric, ~case_when(.x==0~"Absent",
+                                   .x>0~"Present")) %>%
+  left_join(sgDF[,c("SampleID", "Cohort")], by="SampleID") %>%
+  gather("Organism", "PresAbs", c("Ureaplasma_parvum", "Ureaplasma_unclassified", "Ureaplasma_urealyticum", "Trichomonas_vaginalis"))
+colnames(testDists)
+
+ggplot(data=testDists, aes(x=PresAbs)) +
+  geom_bar() +
+  facet_grid(Cohort~Organism)
+```
 
 # Session Info
 ```{r}
