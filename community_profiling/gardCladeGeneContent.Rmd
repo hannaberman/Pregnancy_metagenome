@@ -364,8 +364,70 @@ gardRelativeAbundance0 %>%
 
 Abundance of each clade vs abundance of 
 ```{r}
+sampleLabels <- colnames(PA0) %>%
+  str_extract(., "[0-9]{10}") %>%
+  .[!is.na(.)]
+sampleLabels
+length(sampleLabels)
+
+gardPathwayByClade <- PA0 %>%
+  select(-`# Pathway`) %>%
+  t() %>%
+  as.data.frame() %>%
+  mutate(SampleID=sampleLabels) %>%
+  gather("Pathway", "pathAbundance", c(1:(ncol(.)-1))) %>%
+  left_join(gardRelativeAbundance0[,c("SampleID", "SubjectID", "Cohort", "TermPre", "GWcoll", "1", "2", "3", "4", "5", "6")], by="SampleID") %>%
+  mutate(`Total G. vaginalis`=`1`+`2`+`3`+`4`+`5`+`6`) %>%
+  gather("Clade", "cladeAbundance", c(`1`, `2`, `3`, `4`, `5`, `6`, `Total G. vaginalis`)) %>%
+  select(SampleID, SubjectID, Cohort, TermPre, GWcoll, Clade, cladeAbundance, everything()) %>%
+  mutate(Clade=case_when(Clade=="1"~"G. vaginalis C1", 
+                         Clade=="2"~"G. vaginalis C2",
+                         Clade=="3"~"G. vaginalis C3",
+                         Clade=="4"~"G. vaginalis C4",
+                         Clade=="5"~"G. vaginalis C5",
+                         Clade=="6"~"G. vaginalis C6", 
+                         Clade=="Total G. vaginalis"~ "Total G. vaginalis"))
+
+View(gardPathwayByClade)
+```
+
+Plot
+```{r, fig.height=10, fig.width=10}
+ggplot(gardPathwayByClade, aes(x=cladeAbundance, y=pathAbundance, color=Clade)) +
+  geom_point() +
+  scale_y_log10() +
+  facet_grid(Cohort~Pathway)
+
 
 ```
+
+
+```{r}
+sampleLabels <- colnames(PA0) %>%
+  str_extract(., "[0-9]{10}") %>%
+  .[!is.na(.)]
+sampleLabels
+length(sampleLabels)
+
+gardPathwayByClade <- PA0 %>%
+  select(-`# Pathway`) %>%
+  t() %>%
+  as.data.frame() %>%
+  mutate(SampleID=sampleLabels) %>%
+  gather("Pathway", "pathAbundance", c(1:(ncol(.)-1))) %>%
+  left_join(gardRelativeAbundance0[,c("SampleID", "SubjectID", "Cohort", "TermPre", "GWcoll", "1", "2", "3", "4", "5", "6")], by="SampleID") %>%
+  mutate(`Total G. vaginalis`=`1`+`2`+`3`+`4`+`5`+`6`) %>%
+  gather("Clade", "cladeAbundance", c(`1`, `2`, `3`, `4`, `5`, `6`, `Total G. vaginalis`)) %>%
+  select(SampleID, SubjectID, Cohort, TermPre, GWcoll, Clade, cladeAbundance, everything()) %>%
+  mutate(Clade=case_when(Clade=="1"~"G. vaginalis C1", 
+                         Clade=="2"~"G. vaginalis C2",
+                         Clade=="3"~"G. vaginalis C3",
+                         Clade=="4"~"G. vaginalis C4",
+                         Clade=="5"~"G. vaginalis C5",
+                         Clade=="6"~"G. vaginalis C6", 
+                         Clade=="Total G. vaginalis"~ "Total G. vaginalis"))
+```
+
 
 # Session Info
 ```{r}

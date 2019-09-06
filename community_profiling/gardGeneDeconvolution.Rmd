@@ -1,0 +1,152 @@
+---
+title: "Gardnerella Clades Gene Content"
+author: "Hanna Berman"
+date: "8/9/2019"
+output: html_document
+---
+
+# Setup
+## Packages
+```{r}
+library(tidyverse)
+```
+
+## File paths
+```{r}
+#metadata
+sgDF <- file.path("..", "shotgunMetadata.tsv") %>%
+  read_tsv() %>%
+  mutate(SampleID=as.character(SampleID))
+
+#metaphlan2 data
+load(file.path("/Users/hlberman/Documents/GitHub/pregnancy_metagenome/gard_mapping/clade_assignments/metaphlanAbundances.Rdata"))
+
+#subset
+sampleSubset <- read_lines(file.path("..", "sampleSubset.txt"))
+```
+
+## Humann2 Output tables
+```{r}
+#humann2 outs
+dataDir <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/humann2/out_tables"
+GF_path <- file.path(dataDir, "VM_genefamilies_names_cpm.tsv")
+# GFP_path <- file.path(dataDir, "VM_genefamilies_paths.tsv")
+# GOnames_path <- file.path(dataDir, "map_go_name.txt")
+# GFGO_path <- file.path(dataDir, "map_go_uniref90.txt")
+# PWnames_path <- file.path(dataDir, "map_metacyc-pwy_name.txt") 
+# PC_path <- file.path(dataDir, "VM_pathcoverage.tsv")
+# PA_path <- file.path(dataDir, "VM_pathabundance.tsv")
+
+# read in data frames
+GF <- read_delim(GF_path, delim = "\t") %>% # Gene family abundances
+  separate(`# Gene Family`, into=c("geneFamily", "org"), sep="\\|", fill="right") %>%
+  separate(org, into=c("Genus", "Species"), sep="\\.") %>%
+  mutate(Genus=str_extract(Genus,"[^g__].*$"),
+         Species=str_extract(Species, "[^s__].*"))
+head(GF)
+
+#Species that metaphlan says have no Gard
+noGard <- mDF %>%
+  filter(Gardnerella_vaginalis==0) %>%
+  select(SampleID) %>%
+  .[[1]]
+
+gardSamples <- mDF %>%
+  filter(Gardnerella_vaginalis!=0) %>%
+  select(SampleID) %>%
+  .[[1]]
+
+mDFG0 <- mDFG %>%
+  filter(!is.element(SampleID, noGard)) %>%
+  mutate(SubjectID=substr(SampleID, 1, 5)) %>%
+  select(SampleID, SubjectID, contains("Gardnerella")) #%>%
+  #mutate(gardSum=Gardnerella_vaginalis_C1+Gardnerella_vaginalis_C2+Gardnerella_vaginalis_C3+Gardnerella_vaginalis_C4+Gardnerella_vaginalis_C5+Gardnerella_vaginalis_C6) %>%
+  #mutate_at(vars(Gardnerella_vaginalis_C1,Gardnerella_vaginalis_C2,Gardnerella_vaginalis_C3,Gardnerella_vaginalis_C4,Gardnerella_vaginalis_C5,Gardnerella_vaginalis_C6), ~.x/gardSum)
+head(mDFG0)
+
+class(mDFG0$Gardnerella_vaginalis_C6)
+
+mDFG0 %>%
+  select(contains("Gardnerella")) %>%
+  rowSums()
+
+# Obtain Gardnerella-only genes
+gvGF <- GF %>%
+  dplyr::rename_all(~str_extract(.x, "geneFamily|Genus|Species|[0-9]{10}")) %>%
+  filter(Genus=="Gardnerella") %>%
+  select(-Genus, -Species, -one_of(noGard))
+head(gvGF)
+
+# GFP <- read_delim(GFP_path, delim = "\t") # pathways for each gene family
+# PWnames <- read_delim(PWnames_path, delim = "\t", col_names = c("Pathway", "pathwayAnnotation"))
+# PC <- read_delim(PC_path, delim = "\t") # pathway coverage 
+# PA <- read_delim(PA_path, delim = "\t") # pathway abundnance
+# GOnames <- read_delim(GOnames_path, delim = "\t", col_names = c("GO", "Function")) # names and annotations of GO categories
+# GFGO <- read_lines(GFGO_path) %>% # read in the file as a list
+#   str_split("\t")
+```
+
+# Test case with alpha-L-Fucosidase
+Uniref gene E3D7F6
+```{r}
+gvGF0 <- gvGF %>%
+  filter(str_detect(geneFamily, "E3D7F6")) %>%
+  rbind(colnames(gvGF)) %>%
+  t() %>%
+  as.data.frame() %>%
+  filter(V2!="geneFamily") %>%
+  dplyr::rename(E3D7F6=V1, 
+                SampleID=V2) %>%
+  mutate(E3D7F6=as.numeric(as.character(E3D7F6)),
+         SampleID=as.character(SampleID)) %>%
+  select(SampleID, E3D7F6)
+head(gvGF0)
+
+totalGvreads <- gvGF %>%
+  transmute_if(is.numeric, sum) %>%
+  unique() %>%
+  rbind(colnames(.)) %>%
+  t() %>% 
+  as.tibble() %>%
+  dplyr::rename(samTot=V1,
+                SampleID=V2) %>%
+  mutate(samTot=as.numeric(as.character(samTot)))
+head(totalGvreads)
+
+secYDF <- gvGF %>%
+  filter(str_detect(geneFamily, "SecY")) %>%
+  rbind(colnames(gvGF)) %>%
+  t() %>%
+  as.data.frame() %>%
+  filter(V2!="geneFamily") %>%
+  dplyr::rename(secY=V1, 
+                SampleID=V2) %>%
+  mutate(secY=as.numeric(as.character(secY)),
+         SampleID=as.character(SampleID)) %>%
+  select(SampleID, secY)
+head(secYDF)
+
+regDF <- mDFG0 %>%
+  left_join(gvGF0, by="SampleID") %>%
+  left_join(secYDF, by="SampleID") %>%
+  left_join(totalGvreads, by="SampleID") %>%
+  mutate(Ginv=samTot/secY,
+         Greads=E3D7F6/Ginv)
+head(regDF)
+
+glm(data=regDF, E3D7F6~SubjectID+Gardnerella_vaginalis_C1+Gardnerella_vaginalis_C2+Gardnerella_vaginalis_C3+Gardnerella_vaginalis_C4+Gardnerella_vaginalis_C5+Gardnerella_vaginalis_C6) %>%
+  summary()
+
+glm(data=regDF, Greads~SubjectID+Gardnerella_vaginalis_C1+Gardnerella_vaginalis_C2+Gardnerella_vaginalis_C3+Gardnerella_vaginalis_C4+Gardnerella_vaginalis_C5+Gardnerella_vaginalis_C6) %>%
+  summary()
+
+#glm(data=regDF, E3D7F6~SubjectID+Gardnerella_vaginalis_C1*Ginv+Gardnerella_vaginalis_C2*Ginv+Gardnerella_vaginalis_C3*Ginv+Gardnerella_vaginalis_C4*Ginv+Gardnerella_vaginalis_C5*Ginv+Gardnerella_vaginalis_C6*Ginv) %>%
+#z  summary()
+```
+
+
+# Session Info
+```{r}
+sessionInfo()
+```
+
