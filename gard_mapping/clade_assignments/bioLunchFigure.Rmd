@@ -21,72 +21,19 @@ refDF <- read_csv(refDF_path)
 sgDF_path <- file.path(repo_dir, "shotgunMetadata.tsv")
 sgDF <- read_delim(file = file.path(sgDF_path), delim = "\t")
 
-sgGardDF_path <- "./gardRelativeAbundance.tsv"
-sgGardDF <- read_tsv(sgGardDF_path)
+sgGardDF <- "./gardRelativeAbundance.tsv" %>%
+  read_tsv
 
-S16gardDF_path <- "./16SgardVariants.tsv"
-S16gardDF <- read_tsv(S16gardDF_path)
+S16gardDF_path <- "./16SgardVariants.tsv" %>%
+S16gardDF <- read_tsv
 
-figure_out <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/gardMapping/clade_assignments"
+#figure_out <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/gardMapping/clade_assignments"
 ```
 
 ```{r}
 refDF %>%
   select(Strain, sixteenS_variant) %>%
   View()
-```
-
-As colorstrip
-```{r}
-varMatrix <- tibble(StrainID=refDF$Strain,
-                    symbol=1,
-                    size=3,
-                    color=case_when(refDF$sixteenS_variant=="G2"~"#FF0000",
-                                    refDF$sixteenS_variant=="G1"~"#0000FF",
-                                    refDF$sixteenS_variant=="G3"~"#666666",
-                                    refDF$sixteenS_variant=="G4"~"#9400d3",
-                                    refDF$sixteenS_variant=="G5"~"#009e73"), 
-                    fill=1,
-                    position=1,
-                    v4var=refDF$sixteenS_variant)
-
-write("DATASET_SYMBOL\nSEPARATOR COMMA\nDATASET_LABEL,v4BiolunchTips\nCOLOR,#ffffff\nLEGEND_TITLE,V4 Variant\n\nDATA", 
-     file.path(figure_out, "v4tipShapes.txt"))
-write_delim(varMatrix, 
-           file.path(figure_out, "v4tipShapes.txt"),
-           delim=",", col_names=FALSE, append=TRUE)
-
-varMatrix0 <- tibble(StrainID=refDF$Strain,
-                    color=case_when(refDF$sixteenS_variant=="G2"~"#FF0000",
-                                    refDF$sixteenS_variant=="G1"~"#0000FF",
-                                    refDF$sixteenS_variant=="G3"~"#666666",
-                                    refDF$sixteenS_variant=="G4"~"#9400d3",
-                                    refDF$sixteenS_variant=="G5"~"#009e73"), 
-                    v4var=refDF$sixteenS_variant)
-
-write("DATASET_COLORSTRIP\nSEPARATOR COMMA\nDATASET_LABEL,v4BiolunchStrip\nCOLOR,#ffffff\nLEGEND_TITLE,V4 Variant\nLEGEND_SHAPES,1,1,1,1,1\nLEGEND_COLORS,#FF0000,#0000FF,#666666,#9400d3,#009e73\nLEGEND_LABELS,G2,G1,G3,G4,G5\n\nDATA", 
-     file.path(figure_out, "v4colorStrip.txt"))
-write_delim(varMatrix0, 
-           file.path(figure_out, "v4colorStrip.txt"),
-           delim=",", col_names=FALSE, append=TRUE)
-
-varMatrix1 <- tibble(StrainID=refDF$Strain,
-                    symbol=4,
-                    size=3,
-                    color=case_when(refDF$sixteenS_variant=="G2"~"#FF0000",
-                                    refDF$sixteenS_variant=="G1"~"#0000FF",
-                                    refDF$sixteenS_variant=="G3"~"#666666",
-                                    refDF$sixteenS_variant=="G4"~"#9400d3",
-                                    refDF$sixteenS_variant=="G5"~"#009e73"), 
-                    fill=1,
-                    position=1,
-                    v4var=refDF$sixteenS_variant)
-
-write("DATASET_SYMBOL\nSEPARATOR COMMA\nDATASET_LABEL,v4BiolunchTipsTri\nCOLOR,#ffffff\nLEGEND_TITLE,V4 Variant\nLEGEND_SHAPES,5,5,5,5,5\nLEGEND_COLORS,#FF0000,#0000FF,#666666,#9400d3,#009e73\nLEGEND_LABELS,G2,G1,G3,G4,G5\n\nDATA", 
-     file.path(figure_out, "v4tipShapesTri.txt"))
-write_delim(varMatrix1, 
-           file.path(figure_out, "v4tipShapesTri.txt"),
-           delim=",", col_names=FALSE, append=TRUE)
 ```
 
 ## Unify dataframe
@@ -130,21 +77,6 @@ S16gardDF %>%
   select(SampleID, SubjectID, GWcoll, RNAlater, var16S, propGard16S, cladeSG, propGardSG) -> gardVarDF0
 ```
 
-## Plot
-```{r}
-gardVarDF0 %>%
-  filter(RNAlater=="No") %>%
-#  mutate(GWcoll=case_when(SubjectID=="10508"&GWcoll==32~34,
-#                          SubjectID=="10508"&GWcoll==31~GWcoll,
-#                          SubjectID!="10508"~GWcoll)) %>% # the two timepoints in this subject are too close together, split for visuals
-ggplot() +
-  geom_point(aes(x=GWcoll, y=propGard16S, color=var16S), shape=1, size=3) +
-  geom_point(aes(x=GWcoll, y=propGardSG, color=cladeSG), shape=16, size=1.5) +
-  scale_color_manual(values=c("salmon", "indianred", "lightblue", "blue3", "darkorchid2", "yellowgreen", "red", "blue1", "grey48", "darkorchid2", "yellowgreen"), labels=c("Clade 1 (shotgun)", "Clade 2 (shotgun)", "Clade 3 (shotgun)", "Clade 4 (shotgun)", "Clade 5 (shotgun)", "Clade 6 (shotgun)", "G2: Clades 1/2 (V4 amplicon)", "G1: Clades 3/4 (V4 amplicon)", "G3: indeterminant (V4 amplicon)", "G4: Clade 5 (V4 amplicon)", "G5: Clade 6 (V4 amplicon)")) + # note: change labels to match Callahan 2017
-  facet_wrap(~SubjectID) +
-  labs(x="Gestation weeks at collection", y="Proportion of Gardnerella", color="Variant")
-```  
-
 ```{r}
 gardVarDF %>%
   filter(RNAlater=="No",
@@ -171,46 +103,7 @@ ggplot(aes(x=GWcoll, y=propGard, color=Var, shape=Method, size=Method)) +
   facet_wrap(~SubjectID, nrow=2) +
   labs(x="Gestation weeks at collection", y="Proportion of Gardnerella", shape="Method", color="Variant") +
   guides(color=guide_legend(override.aes=list(shape=15, size=3)))
-ggsave(file.path(figure_out, "biolunchV4SGv1.png"), width=8, height=6)
-```
-
-```{r}
-gardVarDF %>%
-  filter(RNAlater=="No", 
-         SubjectID=="10056"| 
-         SubjectID=="10508"|
-         SubjectID=="10608"|
-         SubjectID=="10621"|
-         SubjectID=="10626") %>%
-ggplot(aes(x=GWcoll, y=propGard, color=Var, shape=Method, size=Method)) +
-  geom_point() +
-  scale_size_manual(values=c(2, 2)) +
-  scale_color_manual(values=c("salmon", "indianred", "red", "blue1", "grey48", "darkorchid2", "yellowgreen"), labels=c("Clade 1 (shotgun)", "Clade 2 (shotgun)", "G2: Clades 1/2 (V4 amplicon)", "G1: Clades 3/4 (V4 amplicon)", "G3: indeterminant (V4 amplicon)", "G4: Clade 5 (V4 amplicon)")) + # note: change labels to match Callahan 2017
-  scale_shape_manual(values = c(1, 16)) +
-  scale_x_continuous(breaks = c(15,20,25,30,35)) +
-  facet_grid(SubjectID~Method) +
-  labs(x="Gestation weeks at collection", y="Proportion of Gardnerella", shape="Method", color="Variant") +
-  guides(color=guide_legend(override.aes=list(shape=15, size=3)))
-#ggsave(file.path(figure_out, "biolunchV4SGv2a.png"), width=7, height=7)
-```
-
-```{r}
-gardVarDF %>%
-  filter(RNAlater=="No",
-         SubjectID=="10627"|
-         SubjectID=="10629"|
-         SubjectID=="19024"|
-         SubjectID=="20505"|
-         SubjectID=="40021") %>%
-ggplot(aes(x=GWcoll, y=propGard, color=Var, shape=Method, size=Method)) +
-  geom_point() +
-  scale_size_manual(values=c(2, 2)) +
-  scale_color_manual(values=c("salmon", "indianred", "lightblue", "blue3", "darkorchid2", "yellowgreen", "red", "blue1", "grey48", "darkorchid2", "yellowgreen"), labels=c("Clade 1 (shotgun)", "Clade 2 (shotgun)", "Clade 3 (shotgun)", "Clade 4 (shotgun)", "Clade 5 (shotgun)", "Clade 6 (shotgun)", "G2: Clades 1/2 (V4 amplicon)", "G1: Clades 3/4 (V4 amplicon)", "G3: indeterminant (V4 amplicon)", "G4: Clade 5 (V4 amplicon)", "G5: Clade 6 (V4 amplicon)")) + # note: change labels to match Callahan 2017
-  scale_shape_manual(values = c(1, 16)) +
-  facet_grid(SubjectID~Method) +
-  labs(x="Gestation weeks at collection", y="Proportion of Gardnerella", shape="Method", color="Variant") +
-  guides(color=guide_legend(override.aes=list(shape=15, size=3)))
-#ggsave(file.path(figure_out, "biolunchV4SGv2b.png"), width=7, height=7)
+#ggsave(file.path(figure_out, "biolunchV4SGv1.png"), width=8, height=6)
 ```
 
 ## Session Info

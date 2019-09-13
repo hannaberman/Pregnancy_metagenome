@@ -8,8 +8,8 @@ output: html_document
 ## Packages
 ```{r setup, include=FALSE}
 library(tidyverse)
-library(Biostrings)
-library(BiocParallel)
+#library(Biostrings)
+#library(BiocParallel)
 ```
 
 ## File paths 
@@ -30,7 +30,7 @@ countsDFbbmap <- read_delim(countsDFbbmap_path, delim="\ ")
 # Compare amount of human reads filtered
 ```{r}
 #bowtie by HLB counts
-countsDF0 <- countsDF %>%
+countsDhbBowtieF0 <- countsDF %>%
   mutate(uploadCount1=uploadCount1/4,
          uploadCount2=uploadCount2/4,
          uploadCountS=uploadCountS/4,
@@ -60,18 +60,33 @@ countsDFbbmap0 <- countsDFbbmap %>%
 sgDF0 <- sgDF %>%
   select(SampleID, PctHuman) %>%
   dplyr::rename(Upload=PctHuman) %>%
-  left_join(., countsDF0[,c("SampleID", "pctHumanBowtie")], by="SampleID") %>%
+  left_join(., countsDhbBowtieF0[,c("SampleID", "pctHumanBowtie")], by="SampleID") %>%
   left_join(., countsDFbbmap0[,c("SampleID", "pctHumanBbmap")], by="SampleID") %>%
   left_join(., krakenReads[,c("SampleID", "krakenHuAbundance")], by ="SampleID") %>%
   dplyr::rename(Kraken=krakenHuAbundance, BBmap=pctHumanBbmap, Bowtie=pctHumanBowtie) %>%
   gather("Method", "PctHuman", 2:ncol(.))
-
+  
 ggplot(sgDF0) +
   geom_line(aes(x=as.character(SampleID), y=PctHuman, color=Method, group=Method), show.legend = TRUE) +
   theme(axis.text.x = element_blank())+
   labs(x="Sample", y="Proportion Human Reads") +
   scale_color_manual(values=c("black", "red", "blue", "darkgreen"))
-ggsave("/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/filter_host/filterHuman.pdf")
+#ggsave("/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/filter_host/filterHuman.pdf")
+```
+
+Add information to shotgun data frame
+```{r}
+sgDF1 <- countsDFbbmap0 %>%
+  mutate(bbmapFiltered_pe=filteredCount1+filteredCount2,
+         bbmapFiltered_s=filteredCountS,
+         upload_pe=uploadCount1 + uploadCount2,
+         upload_s=uploadCountS) %>%
+  select(SampleID, bbmapFiltered_pe, bbmapFiltered_s, upload_pe, upload_s) %>%
+  left_join(sgDF, by="SampleID") %>%
+  mutate(finalPctHuman=(TotalReads-bbmapFiltered_pe-bbmapFiltered_s)/TotalReads) %>%
+  select(SampleIndex, SampleType, SubjectID, SampleID, GDcoll, GWdell, TermPre, Operator, TotalReads, TotalPairs, Sickle100_pe, Sickle_pe, Sickle_sngl, PctTrim, Human_pe, Human_sngl, PctHuman, upload_pe, upload_s, bbmapFiltered_pe, bbmapFiltered_s, finalPctHuman, GWcoll, GWcoll1, SampleID_a, RNAlater, GWcoll_16S, GDcoll_16S, Cohort, PaperCohort, sampleOrder, sampleTrimester)
+
+write_tsv(sgDF1, file.path(repo_dir, "shotgunMetadata.tsv"))
 ```
 
 # Session Info

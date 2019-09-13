@@ -1,0 +1,392 @@
+---
+title: "Shotgun Vs. 16S Gardnerella variants"
+author: "Hanna Berman"
+date: "9/10/2019"
+output: html_document
+---
+# Set up
+## packages
+```{r}
+library(tidyverse)
+library(phyloseq)
+library(Biostrings)
+```
+
+## Paths
+```{r}
+repo_dir <- "/Users/hlberman/Documents/GitHub/pregnancy_metagenome/"
+
+#shotgun metadata
+sgDF <- file.path(repo_dir, "shotgunMetadata.tsv") %>%
+  read_delim(delim = "\t") %>%
+  mutate(SampleID=as.character(SampleID),
+         SampleID_a=as.character(SampleID_a))
+
+#ASVs from Callahan et al., 2017
+S16_path <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/16S_data/RepRefine_Scripts/input/processed.rda"
+load(S16_path)
+
+#Gardnerella 16S fasta sequences from reference WGS strains
+rRNAs16S <- readDNAStringSet(file.path(repo_dir, "gard_mapping", "clade_assignments", "16SrRNAs.fasta"))
+
+#gardnerella metadata
+refDF <- file.path(repo_dir, "GardnerellaMetadata.csv") %>%
+  read_csv
+
+#Gardnerella abundance from shotgun results
+sgGardDF <- "./gardRelativeAbundance.tsv" %>%
+  read_tsv() %>%
+  mutate(SampleID=as.character(SampleID))
+
+#figure_out <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/gardMapping/clade_assignments/figures"
+```
+
+Set up metaphlan table
+```{r}
+#metaphlan data
+mDF0 <- file.path("/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/humann2/out_tables/mergedMetaphlanAbundance.tsv") %>%
+  read_tsv() %>%
+  filter(str_detect(ID, "s__"), !str_detect(ID, "t__")) %>%
+  mutate(Species = str_extract(ID, "(?<=s__)\\w+$")) %>%
+  select(Species, everything(), -ID) %>%
+  as.data.frame()
+
+#make col and row names
+samps <- colnames(mDF0[2:ncol(mDF0)]) %>%
+  str_extract("[0-9]{10}")
+samps
+colnames(mDF0) <- c("Species", samps)
+rownames(mDF0) <- mDF0$Species
+
+#Final edits to table
+mDF <- mDF0 %>%
+  select(-Species) %>%
+  t() %>%
+  as_tibble() %>%
+  mutate_all(funs(./100)) %>%
+  mutate(SampleID=samps) %>% 
+  select(SampleID, everything())
+mDF[1:6,1:5]
+```
+
+
+# Get variants
+```{r}
+studyIDs <- sgDF$SampleID_a
+
+PS17 <- phyloseq(otu_table(st, taxa_are_rows=FALSE), sample_data(df), tax_table(tax))
+  #transform_sample_counts(function(x) {x/sum(x)}) #make read counts into relative abundances
+
+has.shotgun <- PS17@sam_data$SampleID %in% studyIDs
+PS16S_170 <- PS17 %>%
+  subset_samples(has.shotgun) #keep only samples of interest in OTU table
+
+# sgDF0 <- sgDF %>%
+#  filter(PaperCohort==2017) %>%
+#  mutate(SampleID=as.character(SampleID),
+#         SampleID_a=as.character(SampleID_a))
+
+gardVarTable <- PS16S_170 %>%
+  psmelt() %>% 
+  dplyr::rename(SampleID_a = SampleID) %>%
+  filter(Genus=="Gardnerella", 
+         Abundance>0) %>%
+  left_join(., sgDF[,c("SampleID_a", "SampleID", "RNAlater")], by="SampleID_a")
+```
+Note: there are 9 variants among the entire sample set for 2017, but only 5 within these 81 samples
+
+## Function to get the variants among all sequences
+```{r}
+varSequences <- function(label, sequences){
+  sequenceVariants <- unique(sequences)
+  names(sequenceVariants) <- paste(label, c(1:length(sequenceVariants)), sep =  "_")
+  print(sequenceVariants)
+}
+```
+
+## Relate Variant assignments to clades
+```{r}
+vars <- as.list(varSequences("G", gardVarTable$OTU)) # get list of variants from 16S march of dimes
+
+strains <- names(rRNAs16S) %>%
+  str_extract(., ".*(?=_[0-9]{5} 16S ribosomal RNA$)")
+varClades <- vars %>%
+  map(.,~vcountPattern(.x, rRNAs16S)) %>%
+  data.frame(Strain=strains) %>%
+  mutate(Var=case_when(G_1==1~"G1",
+                       G_2==1~"G2",
+                       G_3==1~"G3",
+                       G_4==1~"G4",
+                       G_5==1~"G5")) %>%
+  left_join(refDF[,c("Strain", "Clade")], by="Strain") %>%
+  select(Var, Clade) %>%
+  mutate(Clade=as.character(Clade)) %>%
+  unique()
+varClades
+```
+
+**NOTE: THESE LABELS DO NOT MATCH Callahan 2017 G1/G2 ARE FLIPPED**
+
+## classify samples
+```{r}
+S16gardDF <- gardVarTable %>%
+  mutate(Var=case_when(OTU==vars$G_1~"G2: Clades 1/2", #change G1/G2 to match Callahan 2017 
+                        OTU==vars$G_2~"G1: Clades 3/4",
+                        OTU==vars$G_3~"G3: indetereminant",
+                        OTU==vars$G_4~"G4: Clade 5",
+                        OTU==vars$G_5~"G5: Clade 6")) %>%
+  group_by(SampleID) %>%
+  mutate(propGard=Abundance/sum(Abundance)) %>%
+  ungroup() %>%
+  select(OTU, SampleID, SubjectID, Abundance, propGard, GWcoll, RNAlater, Var) 
+S16gardDF$Var <- factor(S16gardDF$Var, levels = c("G2: Clades 1/2", "G1: Clades 3/4", "G3: indetereminant", "G4: Clade 5", "G5: Clade 6")) #Keep order G2, G1, G3, G4, G5
+
+ggplot(data=S16gardDF, aes(x=GWcoll, y=propGard, color=Var, shape=RNAlater)) +
+  geom_point() +
+  facet_wrap(~SubjectID) +
+  scale_color_manual(values=c("indianred2", "steelblue2", "black", "darkorchid2", "yellowgreen")) + # labels=c("G2: Clades 1/2", "G1: Clades 3/4", "G3: indetereminant", "G4: Clade 5", "G5: Clade 6")) +
+  labs(title = "Clade assignments by 16S Amplicon Sequencing", x= "GW collection", y="Proportion of Gardnerella", shape="RNA Later", color="V4 variant")
+#ggsave(filename = file.path(figure_out, "cladesBy16S.pdf"))
+```
+
+
+## Save table
+```{r}
+#write_delim(S16gardDF, "./16SgardVariants.tsv", delim="\t")
+```
+
+# Comparison to shotgun methods:
+
+## Unify dataframe
+```{r}
+S16gardDF0 <- S16gardDF %>%
+  select(SampleID, Var, propGard) %>%
+  mutate(Method="V4 region 16S amplicon")
+
+sgGardDF0 <- sgGardDF %>%
+  select(-n) %>%
+  dplyr::rename(Var=Clade,
+                propGard=propClade) %>%
+  mutate(Var=case_when(Var=="C1"~"Clade 1",
+                       Var=="C2"~"Clade 2",
+                       Var=="C3"~"Clade 3",
+                       Var=="C4"~"Clade 4",
+                       Var=="C5"~"Clade 5",
+                       Var=="C6"~"Clade 6"),
+         Method="Shotgun")
+
+gardVarDF <- S16gardDF0 %>%
+  full_join(sgGardDF0, by=c("SampleID", "Var", "propGard", "Method")) %>%
+  left_join(sgDF[,c("SampleID", "SubjectID", "GWcoll", "RNAlater", "PaperCohort")], by="SampleID")
+
+gardVarDF$Var <- factor(gardVarDF$Var, levels=c("Clade 1", "Clade 2", "Clade 3", "Clade 4", "Clade 5", "Clade 6", "G2: Clades 1/2", "G1: Clades 3/4", "G3: indetereminant", "G4: Clade 5", "G5: Clade 6"))
+```
+
+## Plot 
+Subset of two samples  
+```{r}
+gardVarDF %>%
+  filter(RNAlater=="No",
+         SubjectID=="10621"|SubjectID=="19024")%>%
+ggplot(aes(x=GWcoll, y=propGard, color=Var, shape=Method, size=Method)) +
+  geom_point() +
+  scale_size_manual(values=c(1.5, 3)) +
+  scale_color_manual(values=c("salmon", "indianred", "lightblue", "blue3", "red", "blue1", "grey48"), labels=c("Clade C1 (shotgun)", "Clade C2 (shotgun)", "Clade C3 (shotgun)", "Clade C4 (shotgun)", "G2: Clades 1/2 (V4 amplicon)", "G1: Clades 3/4 (V4 amplicon)", "G3: indeterminant (V4 amplicon)")) +
+  scale_shape_manual(values = c(16, 1)) +
+  facet_wrap(~SubjectID) +
+  labs(x="Gestation weeks at collection", y="Proportion of Gardnerella", shape="Method", color="Variant") +
+  guides(color=guide_legend(override.aes=list(shape=15, size=3)))
+#ggsave(file.path(figure_out, "biolunchV4SG2samp.png"), width=8, height=6)
+```
+  
+All samples 
+```{r}
+gardVarDF %>%
+  filter(RNAlater=="No",
+         PaperCohort==2017)%>%
+ggplot(aes(x=GWcoll, y=propGard, shape=Method, size=Method, color=Var)) +
+  geom_point() +
+  scale_size_manual(values=c(1.5, 3)) +
+  scale_color_manual(values=c("salmon", "indianred", "lightblue", "blue3", "darkorchid2", "yellowgreen", "red", "blue1", "grey48", "darkorchid2", "yellowgreen"), labels=c("Clade C1 (shotgun)", "Clade C2 (shotgun)", "Clade C3 (shotgun)", "Clade C4 (shotgun)", "Clade C5 (shotgun)", "Clade C6 (shotgun)", "G2: Clades 1/2 (V4 amplicon)", "G1: Clades 3/4 (V4 amplicon)", "G3: indeterminant (V4 amplicon)", "G4: Clade 5 (V4 amplicon)", "G5: Clade 6 (V4 amplicon)")) + # note: change labels to match Callahan 2017
+  scale_shape_manual(values = c(16, 1)) +
+  facet_wrap(~SubjectID, nrow=2) +
+  labs(x="Gestation weeks at collection", y="Proportion of Gardnerella", shape="Method", color="Variant") +
+  guides(color=guide_legend(override.aes=list(shape=15, size=3)))
+#ggsave(file.path(figure_out, "biolunchV4SGv1.png"), width=8, height=6)
+```
+
+
+```{r}
+sapply(list(ReadDepth=sgDF$TotalReads, inputReads=sgDF$upload_pe, bbmapFiltered=sgDF$bbmapFiltered_pe), summary)
+meanDepth <- mean(sgDF$TotalReads)
+meanDepth
+meanInput <- mean(sgDF$upload_pe)
+meanInput
+
+sgDF0 <- sgDF %>%
+  select(TotalReads, upload_pe, bbmapFiltered_pe) %>%
+  gather("Reads", "Count", c(1:3))
+sgDF0$Reads <- factor(sgDF0$Reads, levels=c("TotalReads", "upload_pe", "bbmapFiltered_pe"))
+
+ggplot(data=sgDF0, aes(y=Count, x=Reads)) +
+  geom_boxplot() +
+  geom_jitter()
+```
+
+### Samples where we lose all Gardnerella
+In subject 10608: No Gardnerella was detected. Shotgun sequencing can demonstrate less sensitivity than amplicon sequencing.  
+In subject 10626: Some Gardnerella was detected (by metaphlan), but we do not see any after filtering the reads with our criteria.   
+**Sample 10608**
+```{r}
+#gardnerella found by metaphlan in subject 10608
+gardVarDF %>%
+  filter(SubjectID==10608,
+         RNAlater=="No") %>%
+  select(SampleID, Var, propGard, Method)
+
+samples10608 <- gardVarDF %>%
+  filter(SubjectID==10608,
+         RNAlater=="No") %>%
+  .$SampleID %>%
+  unique
+samples10608
+
+#percent Gardnerella in these samples
+mDF %>%
+  select(SampleID, Gardnerella_vaginalis) %>%
+  filter(is.element(SampleID, samples10608))
+
+#read depth of these samples
+sgDF %>%
+  filter(is.element(SampleID, samples10608)) %>%
+  select(SampleID, TotalReads, upload_pe, bbmapFiltered_pe, PctHuman, finalPctHuman)
+
+ggplot(data=sgDF) +
+  geom_density(aes(x=TotalReads)) +
+  geom_vline(xintercept = sgDF$TotalReads[sgDF$SampleID==samples10608[1]], color="red") +
+  geom_vline(xintercept = sgDF$TotalReads[sgDF$SampleID==samples10608[2]], color="blue")
+
+ggplot(data=sgDF) +
+  geom_density(aes(x=upload_pe)) +
+  geom_vline(xintercept = sgDF$upload_pe[sgDF$SampleID==samples10608[1]], color="red") +
+  geom_vline(xintercept = sgDF$upload_pe[sgDF$SampleID==samples10608[2]], color="blue")
+
+ggplot(data=sgDF) +
+  geom_density(aes(x=bbmapFiltered_pe)) +
+  geom_vline(xintercept = sgDF$bbmapFiltered_pe[sgDF$SampleID==samples10608[1]], color="red") +
+  geom_vline(xintercept = sgDF$bbmapFiltered_pe[sgDF$SampleID==samples10608[2]], color="blue")
+```
+
+**Sample 10626**
+```{r}
+#gardnerella found by metaphlan in subject 10626
+gardVarDF %>%
+  filter(SubjectID==10626,
+         RNAlater=="No") %>%
+  select(SampleID, Var, propGard, Method)
+
+samples10626 <- gardVarDF %>%
+  filter(SubjectID==10626,
+         RNAlater=="No") %>%
+  .$SampleID %>%
+  unique
+samples10626
+
+#percent Gardnerella in these samples
+mDF %>%
+  select(SampleID, Gardnerella_vaginalis) %>%
+  filter(is.element(SampleID, samples10626))
+
+#read depth of these samples
+sgDF %>%
+  filter(is.element(SampleID, samples10626)) %>%
+  select(SampleID, TotalReads, upload_pe, bbmapFiltered_pe, PctHuman, finalPctHuman)
+
+ggplot(data=sgDF) +
+  geom_density(aes(x=TotalReads)) +
+  geom_vline(xintercept = sgDF$TotalReads[sgDF$SampleID==samples10626[1]], color="red") +
+  geom_vline(xintercept = sgDF$TotalReads[sgDF$SampleID==samples10626[2]], color="blue") +
+  geom_vline(xintercept = sgDF$TotalReads[sgDF$SampleID==samples10626[3]], color="orange")
+
+ggplot(data=sgDF) +
+  geom_density(aes(x=upload_pe)) +
+  geom_vline(xintercept = sgDF$upload_pe[sgDF$SampleID==samples10626[1]], color="red") +
+  geom_vline(xintercept = sgDF$upload_pe[sgDF$SampleID==samples10626[2]], color="blue") +
+  geom_vline(xintercept = sgDF$upload_pe[sgDF$SampleID==samples10626[3]], color="orange")
+
+ggplot(data=sgDF) +
+  geom_density(aes(x=bbmapFiltered_pe)) +
+  geom_vline(xintercept = sgDF$bbmapFiltered_pe[sgDF$SampleID==samples10626[1]], color="red") +
+  geom_vline(xintercept = sgDF$bbmapFiltered_pe[sgDF$SampleID==samples10626[2]], color="blue") +
+  geom_vline(xintercept = sgDF$bbmapFiltered_pe[sgDF$SampleID==samples10626[3]], color="orange")
+```
+Vertical lines represent reads in subject 10608’s samples. Fewer bacterial reads in these samples.  
+
+### Samples where we lose one variant 
+First 10508 sample (1050801308) see only C2 with shotgun. G3 (ambiguous) and G1 were see. –we lose G1  
+```{r}
+#gardnerella found by metaphlan in sample 1050801308
+gardVarDF %>%
+  filter(SampleID=="1050801308") %>%
+  select(SampleID, Var, propGard, Method)
+
+#percent Gardnerella in this sample
+mDF %>%
+  select(SampleID, Gardnerella_vaginalis) %>%
+  filter(SampleID=="1050801308")
+
+#read depth of these samples
+sgDF %>%
+  filter(SampleID=="1050801308") %>%
+  select(SampleID, TotalReads, upload_pe, bbmapFiltered_pe, PctHuman, finalPctHuman)
+
+ggplot(data=sgDF) +
+  geom_density(aes(x=TotalReads)) +
+  geom_vline(xintercept = sgDF$TotalReads[sgDF$SampleID=="1050801308"], color="red")
+
+ggplot(data=sgDF) +
+  geom_density(aes(x=upload_pe)) +
+  geom_vline(xintercept = sgDF$upload_pe[sgDF$SampleID=="1050801308"], color="red")
+
+ggplot(data=sgDF) +
+  geom_density(aes(x=bbmapFiltered_pe)) +
+  geom_vline(xintercept = sgDF$bbmapFiltered_pe[sgDF$SampleID=="1050801308"], color="red")
+```
+
+Third sample 10629 (1062901318) We lose G5 (ie don’t see C6, but G5 was the least abundant variant in this sample.  
+```{r}
+#gardnerella found by metaphlan in sample 1062901318
+gardVarDF %>%
+  filter(SampleID=="1062901318") %>%
+  select(SampleID, Var, propGard, Method)
+
+#percent Gardnerella in this sample
+mDF %>%
+  select(SampleID, Gardnerella_vaginalis) %>%
+  filter(SampleID=="1062901318")
+
+#read depth of these samples
+sgDF %>%
+  filter(SampleID=="1062901318") %>%
+  select(SampleID, TotalReads, upload_pe, bbmapFiltered_pe, PctHuman, finalPctHuman)
+
+ggplot(data=sgDF) +
+  geom_density(aes(x=TotalReads)) +
+  geom_vline(xintercept = sgDF$TotalReads[sgDF$SampleID=="1062901318"], color="red")
+
+ggplot(data=sgDF) +
+  geom_density(aes(x=upload_pe)) +
+  geom_vline(xintercept = sgDF$upload_pe[sgDF$SampleID=="1062901318"], color="red")
+
+ggplot(data=sgDF) +
+  geom_density(aes(x=bbmapFiltered_pe)) +
+  geom_vline(xintercept = sgDF$bbmapFiltered_pe[sgDF$SampleID=="1062901318"], color="red")
+```
+
+Second 10627 sample (1062701298) G3 looks like C1, C2, and C6 – we haven’t seen a G3 variant in C6 before, but it is not impossible as we only have 1 reference strain in this clade at present.  
+
+# Session Info
+```{r}
+sessionInfo()
+```
+

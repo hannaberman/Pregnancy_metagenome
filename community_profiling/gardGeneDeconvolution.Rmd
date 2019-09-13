@@ -1,5 +1,5 @@
 ---
-title: "Gardnerella Clades Gene Content"
+title: "Gardnerella Gene Deconvolution"
 author: "Hanna Berman"
 date: "8/9/2019"
 output: html_document
@@ -9,6 +9,8 @@ output: html_document
 ## Packages
 ```{r}
 library(tidyverse)
+library(nnls)
+library(glmnet)
 ```
 
 ## File paths
@@ -86,64 +88,104 @@ head(gvGF)
 #   str_split("\t")
 ```
 
-# Test case with alpha-L-Fucosidase
-Uniref gene E3D7F6
+# Choose constant genomic elements
+Ban et al. chose 11 ribosomal proteins from a starting set of 31. The 11 that they chose were present in at least 98% of the bacteria and archaea in KEGG v60.  
+I am starting with 19 robosomal proteins from the Mende et al., 2013 set (where I was certain the match between the COGs listed in Mende et al. matched the uniprot genes in the humann2 output) and chose the genes that were present in ~98% of samples (~94 samples)  
 ```{r}
+#19 ribosomal proteins from Mende et al., 2013 list of universal single copy reference genes
+univSingleCopy <- c("UniRef90_R6G9Q3: Ribosomal protein S7",
+                    "UniRef90_D2RB42: 30S ribosomal protein S2",
+                    "UniRef90_D2R9N2: 30S ribosomal protein S3",
+                    "UniRef90_E3D7X1: 30S ribosomal protein S5",
+                    "UniRef90_A1A058: 30S ribosomal protein S9",
+                    "UniRef90_B8DW37: 30S ribosomal protein S11",
+                    "UniRef90_B8DTV4: 30S ribosomal protein S12",
+                    "UniRef90_A1A093: 30S ribosomal protein S13",
+                    "UniRef90_D2RC68: 50S ribosomal protein L1",
+                    "UniRef90_B8DW16: 50S ribosomal protein L2",
+                    "UniRef90_M4RGM7: 50S ribosomal protein L3",
+                    "UniRef90_E3D7Y7: 50S ribosomal protein L4",
+                    "UniRef90_A1A081: 50S ribosomal protein L5",
+                    "UniRef90_A0ZZZ5: 50S ribosomal protein L11",
+                    "UniRef90_E3D7Z2: 50S ribosomal protein L13",
+                    "UniRef90_B8DW23: 50S ribosomal protein L14",
+                    "UniRef90_D2R9P2: 50S ribosomal protein L15",
+                    "UniRef90_D2R9N9: 50S ribosomal protein L18",
+                    "UniRef90_D2R9N1: 50S ribosomal protein L22")
+
+univSingleCopy0 <- paste(univSingleCopy, collapse ="|")
+
+#choose reference genes that are present in 98% of samples (~94 samples)
+Ggenes <- gvGF %>%
+  filter(str_detect(geneFamily, univSingleCopy0)) %>%
+  gather("Sample", "rpk", gardSamples) %>%
+  mutate(rpk=case_when(rpk>0~1,
+                       rpk==0~0)) %>%
+  group_by(geneFamily) %>%
+  summarise(nSamples=sum(rpk)) %>%
+  filter(nSamples>=94) %>%
+  .$geneFamily
+Ggenes
+Ggenes0 <- paste(Ggenes, collapse="|")
+```
+11 genes tota chosen as constant genomic elements 
+
+Function for deconvoluting gene presence in taxa:    
+```{r}
+deconGene <- function(Gene){
 gvGF0 <- gvGF %>%
-  filter(str_detect(geneFamily, "E3D7F6")) %>%
+  filter(str_detect(geneFamily, Gene)) %>%
   rbind(colnames(gvGF)) %>%
   t() %>%
   as.data.frame() %>%
   filter(V2!="geneFamily") %>%
-  dplyr::rename(E3D7F6=V1, 
+  dplyr::rename(geneE=V1, 
                 SampleID=V2) %>%
-  mutate(E3D7F6=as.numeric(as.character(E3D7F6)),
+  mutate(geneE=as.numeric(as.character(geneE)),
          SampleID=as.character(SampleID)) %>%
-  select(SampleID, E3D7F6)
+  select(SampleID, geneE)
 head(gvGF0)
 
-totalGvreads <- gvGF %>%
-  transmute_if(is.numeric, sum) %>%
-  unique() %>%
-  rbind(colnames(.)) %>%
-  t() %>% 
-  as.tibble() %>%
-  dplyr::rename(samTot=V1,
-                SampleID=V2) %>%
-  mutate(samTot=as.numeric(as.character(samTot)))
-head(totalGvreads)
-
-secYDF <- gvGF %>%
-  filter(str_detect(geneFamily, "SecY")) %>%
+GDF <- gvGF %>%
+  filter(str_detect(geneFamily,  Ggenes0)) %>%
   rbind(colnames(gvGF)) %>%
   t() %>%
   as.data.frame() %>%
-  filter(V2!="geneFamily") %>%
-  dplyr::rename(secY=V1, 
-                SampleID=V2) %>%
-  mutate(secY=as.numeric(as.character(secY)),
-         SampleID=as.character(SampleID)) %>%
-  select(SampleID, secY)
-head(secYDF)
+  slice(2:nrow(.)) %>%
+  gather("refGene", "rpk", c(1:length(Ggenes))) %>%
+  mutate(rpk=as.numeric(as.character(rpk))) %>%
+  dplyr::rename(SampleID=paste0("V", length(Ggenes)+1)) %>%
+  group_by(SampleID) %>%
+  summarise(refG=sum(rpk))
 
 regDF <- mDFG0 %>%
   left_join(gvGF0, by="SampleID") %>%
-  left_join(secYDF, by="SampleID") %>%
-  left_join(totalGvreads, by="SampleID") %>%
-  mutate(Ginv=samTot/secY,
-         Greads=E3D7F6/Ginv)
-head(regDF)
+  left_join(GDF, by="SampleID") %>%
+  mutate(Ginv=refG/length(Ggenes),
+         Greads=geneE/refG)
 
-glm(data=regDF, E3D7F6~SubjectID+Gardnerella_vaginalis_C1+Gardnerella_vaginalis_C2+Gardnerella_vaginalis_C3+Gardnerella_vaginalis_C4+Gardnerella_vaginalis_C5+Gardnerella_vaginalis_C6) %>%
+A <- glm(data=regDF, geneE~SubjectID+Gardnerella_vaginalis_C1*refG+Gardnerella_vaginalis_C2*refG+Gardnerella_vaginalis_C3*refG+Gardnerella_vaginalis_C4*refG+Gardnerella_vaginalis_C5*refG+Gardnerella_vaginalis_C6*refG) %>%
   summary()
 
-glm(data=regDF, Greads~SubjectID+Gardnerella_vaginalis_C1+Gardnerella_vaginalis_C2+Gardnerella_vaginalis_C3+Gardnerella_vaginalis_C4+Gardnerella_vaginalis_C5+Gardnerella_vaginalis_C6) %>%
+B <- glm(data=regDF, Greads~SubjectID+Gardnerella_vaginalis_C1+Gardnerella_vaginalis_C2+Gardnerella_vaginalis_C3+Gardnerella_vaginalis_C4+Gardnerella_vaginalis_C5+Gardnerella_vaginalis_C6) %>%
   summary()
-
-#glm(data=regDF, E3D7F6~SubjectID+Gardnerella_vaginalis_C1*Ginv+Gardnerella_vaginalis_C2*Ginv+Gardnerella_vaginalis_C3*Ginv+Gardnerella_vaginalis_C4*Ginv+Gardnerella_vaginalis_C5*Ginv+Gardnerella_vaginalis_C6*Ginv) %>%
-#z  summary()
+return(list(A, B))
+}
 ```
 
+# Test case with alpha-L-Fucosidase
+Uniref gene E3D7F6
+```{r}
+deconGene("E3D7F6")
+```
+
+# Test case with LicD
+Uniref gene D2RC48  
+Previously found in Clades 3, 4, 5, and 6, and in one strain in clade 2
+```{r}
+deconGene("D2RC48")
+```
+Results from each of the two genes are giving a 1 significant coefficient that is less than 1. This may reflect a chance of one copy appearing in strains of that clade.  Will assess regression methods further.  
 
 # Session Info
 ```{r}

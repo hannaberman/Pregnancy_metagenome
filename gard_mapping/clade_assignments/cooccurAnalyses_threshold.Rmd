@@ -1,12 +1,12 @@
 ---
 title: "Taxon-Taxon Associations: Co-occurrence"
 author: "Hanna Berman"
-date: "8/8/2019"
+date: "8/10/2019"
 output: html_document
 ---
 
 Assess *Gardnerella* clade and *Lactobacillus spp.* co-occurrence using a hypergeometric null of the probability of *j* co-occurrences   $$P_{j}=\frac{\binom{N}{j}\times\binom{N-N_1}{N_2-j}}{\binom{N}{N-2}}$$   
-Where $N =$ the numner of sites surveyed, $N_1=$ the number of sites where taxon 1 occurrs, and $N_2=$ the number of sites where taxon 2 occurrs.  
+Where $N =$ the numner of sites surveyed, $N_1=$ the number of sites where taxon 1 occurrs, and $N_2=$ the number of sites where taxon 2 occurrs. Adding a 0.1% threshold for true presence.
 
 # Set up
 Packages
@@ -53,8 +53,8 @@ DF <- sgDF %>%
 
 DFpa <- DF %>% #presence, absence DF
   mutate_if(is.numeric, 
-            ~case_when(.x>0~1,
-                       .x==0~0)) %>%
+            ~case_when(.x>0.001~1,
+                       .x<0.001~0)) %>%  # threshold by .01% (0.001. value used in Fettweis et al. 2019 and Ansicar et al. 2019)
   mutate(GDcoll=as.numeric(as.character(GDcoll)))
 
 subsetSamples <- read_lines(file.path("..", "..", "sampleSubset.txt"))
@@ -205,10 +205,17 @@ cooccurr_analyses("UAB", sgDF$SampleID, allGardSpecies)
 cooccurr_analyses("UAB", subsetSamples, cladesSpecies)
 cooccurr_analyses("UAB", subsetSamples, allGardSpecies)
 ```
-Note: no *L. crispatus* in any of the randomly selected subset samples in the UAB cohort. All of these samples have C1 and total Gard
+Note: no *L. crispatus* in any of the randomly selected subset samples in the UAB cohort. All of these samples have and total Gard. After ading threshold, not all samples in UAB subset have C1.
+
+
 
 Overall, results support previous findings that Gv less associated with Lactobaillus spp., whereas Gv clades and other BV-associated taxa may cooccurr. C1 appears co-occur more strongly with *Atopobium vaginae* in Stanford cohort compared to other Clades.
 C5 may co-occur with L. iners (small trend found in both cohorts.) Not significant, but consistently greatest effects in exclusion with C1, C2 and C5 and Lactos (except C5 and L. iners). However, this method has low power with few sample sites (Veech, 2013), which may affect the ability to interpret results.
+
+No major changes in Stanford  samples after thresholding. Exclusion between *L. iners* and *L. gasseri* now significant. *L. iners* and C5 relationship gets stronger. C5 and *M. hominis* co-occurrence is no longer significant.
+
+In UAB samples, C1 and *A. vaginae* significantly co-ccurr, and C5 and C6 exclude *P. bivia*.
+
 
 # Presence-Absence in Samples
 ## Presence-Absence in all samples
@@ -268,8 +275,8 @@ Looking at other taxa to possibly include
 ```{r}
 testDists <- mDFG %>%
   select(SampleID, contains("Ureaplasma"), contains("Trich")) %>%
-  mutate_if(is.numeric, ~case_when(.x==0~"Absent",
-                                   .x>0~"Present")) %>%
+  mutate_if(is.numeric, ~case_when(.x<0.001~"Absent",
+                                   .x>0.001~"Present")) %>%
   left_join(sgDF[,c("SampleID", "Cohort")], by="SampleID") %>%
   gather("Organism", "PresAbs", c("Ureaplasma_parvum", "Ureaplasma_unclassified", "Ureaplasma_urealyticum", "Trichomonas_vaginalis"))
 colnames(testDists)
@@ -309,7 +316,7 @@ DFpa %>%
   facet_grid(Cohort~Organism) +
   labs(x="Presence vs. Absence", y="Reads")
 ```
-All sequenced reads before any filtering. No consistent trend of presence vs. absence (without any thresholding) across all taxa.
+All sequenced reads before any filtering. No consistent trend of presence vs. absence (without any thresholding) across all taxa.  
 
 ## Uploaded Reads
 ```{r, fig.height=3, fig.width=7}
@@ -389,7 +396,7 @@ DFpa %>%
   facet_grid(Cohort~Method) +
   labs(x="Presence vs. Absence", y="Reads")
 ```
-Agregating all taxa. no consistent differences in presence vs. absence. 
+Agregating all taxa. no consistent differences in presence vs. absence.   
 
 # Session Info
 ```{r}

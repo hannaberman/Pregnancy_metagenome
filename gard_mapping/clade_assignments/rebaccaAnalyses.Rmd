@@ -29,8 +29,6 @@ load("metaphlanAbundances.Rdata")
 
 #subset
 sampleSubset <- read_lines(file.path("..", "..", "sampleSubset.txt"))
-
-
 ```
 
 ## Set up data frame
