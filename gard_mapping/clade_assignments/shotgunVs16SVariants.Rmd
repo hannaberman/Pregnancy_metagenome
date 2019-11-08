@@ -44,7 +44,7 @@ sgGardDF <- "./gardRelativeAbundance.tsv" %>%
 Set up metaphlan table
 ```{r}
 #metaphlan data
-mDF0 <- file.path("/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/humann2/out_tables/mergedMetaphlanAbundance.tsv") %>%
+mDF0 <- file.path("/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/humann2/merged_tables/mergedMetaphlanAbundance.tsv") %>%
   read_tsv() %>%
   filter(str_detect(ID, "s__"), !str_detect(ID, "t__")) %>%
   mutate(Species = str_extract(ID, "(?<=s__)\\w+$")) %>%
@@ -68,7 +68,6 @@ mDF <- mDF0 %>%
   select(SampleID, everything())
 mDF[1:6,1:5]
 ```
-
 
 # Get variants
 ```{r}
@@ -217,23 +216,25 @@ ggplot(aes(x=GWcoll, y=propGard, shape=Method, size=Method, color=Var)) +
 
 
 ```{r}
-sapply(list(ReadDepth=sgDF$TotalReads, inputReads=sgDF$upload_pe, bbmapFiltered=sgDF$bbmapFiltered_pe), summary)
-meanDepth <- mean(sgDF$TotalReads)
+sapply(list(ReadDepth=sgDF$TotalPairs, inputReads=sgDF$upload_pairs, bbmapFiltered=sgDF$bbmapFiltered_pairs), summary)
+meanDepth <- mean(sgDF$TotalPairs)
 meanDepth
-meanInput <- mean(sgDF$upload_pe)
+meanInput <- mean(sgDF$bbmapFiltered_pairs)
 meanInput
 
 sgDF0 <- sgDF %>%
-  select(TotalReads, upload_pe, bbmapFiltered_pe) %>%
-  gather("Reads", "Count", c(1:3))
-sgDF0$Reads <- factor(sgDF0$Reads, levels=c("TotalReads", "upload_pe", "bbmapFiltered_pe"))
+  select(TotalPairs, bbmapFiltered_pairs) %>%
+  gather("Reads", "Count", c(1:2))
+sgDF0$Reads <- factor(sgDF0$Reads, levels=c("TotalPairs", "bbmapFiltered_pairs"))
 
 ggplot(data=sgDF0, aes(y=Count, x=Reads)) +
   geom_boxplot() +
   geom_jitter()
 ```
 
-### Samples where we lose all Gardnerella
+## Comparison with other 
+
+## Samples where we lose all Gardnerella
 In subject 10608: No Gardnerella was detected. Shotgun sequencing can demonstrate less sensitivity than amplicon sequencing.  
 In subject 10626: Some Gardnerella was detected (by metaphlan), but we do not see any after filtering the reads with our criteria.   
 **Sample 10608**
@@ -259,22 +260,17 @@ mDF %>%
 #read depth of these samples
 sgDF %>%
   filter(is.element(SampleID, samples10608)) %>%
-  select(SampleID, TotalReads, upload_pe, bbmapFiltered_pe, PctHuman, finalPctHuman)
+  select(SampleID, TotalPairs, bbmapFiltered_pairs, finalPctHuman_po)
 
 ggplot(data=sgDF) +
-  geom_density(aes(x=TotalReads)) +
-  geom_vline(xintercept = sgDF$TotalReads[sgDF$SampleID==samples10608[1]], color="red") +
-  geom_vline(xintercept = sgDF$TotalReads[sgDF$SampleID==samples10608[2]], color="blue")
+  geom_density(aes(x=TotalPairs)) +
+  geom_vline(xintercept = sgDF$TotalPairs[sgDF$SampleID==samples10608[1]], color="red") +
+  geom_vline(xintercept = sgDF$TotalPairs[sgDF$SampleID==samples10608[2]], color="blue")
 
 ggplot(data=sgDF) +
-  geom_density(aes(x=upload_pe)) +
-  geom_vline(xintercept = sgDF$upload_pe[sgDF$SampleID==samples10608[1]], color="red") +
-  geom_vline(xintercept = sgDF$upload_pe[sgDF$SampleID==samples10608[2]], color="blue")
-
-ggplot(data=sgDF) +
-  geom_density(aes(x=bbmapFiltered_pe)) +
-  geom_vline(xintercept = sgDF$bbmapFiltered_pe[sgDF$SampleID==samples10608[1]], color="red") +
-  geom_vline(xintercept = sgDF$bbmapFiltered_pe[sgDF$SampleID==samples10608[2]], color="blue")
+  geom_density(aes(x=bbmapFiltered_pairs)) +
+  geom_vline(xintercept = sgDF$bbmapFiltered_pairs[sgDF$SampleID==samples10608[1]], color="red") +
+  geom_vline(xintercept = sgDF$bbmapFiltered_pairs[sgDF$SampleID==samples10608[2]], color="blue")
 ```
 
 **Sample 10626**
@@ -300,25 +296,19 @@ mDF %>%
 #read depth of these samples
 sgDF %>%
   filter(is.element(SampleID, samples10626)) %>%
-  select(SampleID, TotalReads, upload_pe, bbmapFiltered_pe, PctHuman, finalPctHuman)
+  select(SampleID, TotalPairs, bbmapFiltered_pairs, PctHuman, finalPctHuman_po)
 
 ggplot(data=sgDF) +
-  geom_density(aes(x=TotalReads)) +
-  geom_vline(xintercept = sgDF$TotalReads[sgDF$SampleID==samples10626[1]], color="red") +
-  geom_vline(xintercept = sgDF$TotalReads[sgDF$SampleID==samples10626[2]], color="blue") +
-  geom_vline(xintercept = sgDF$TotalReads[sgDF$SampleID==samples10626[3]], color="orange")
+  geom_density(aes(x=TotalPairs)) +
+  geom_vline(xintercept = sgDF$TotalPairs[sgDF$SampleID==samples10626[1]], color="red") +
+  geom_vline(xintercept = sgDF$TotalPairs[sgDF$SampleID==samples10626[2]], color="blue") +
+  geom_vline(xintercept = sgDF$TotalPairs[sgDF$SampleID==samples10626[3]], color="orange")
 
 ggplot(data=sgDF) +
-  geom_density(aes(x=upload_pe)) +
-  geom_vline(xintercept = sgDF$upload_pe[sgDF$SampleID==samples10626[1]], color="red") +
-  geom_vline(xintercept = sgDF$upload_pe[sgDF$SampleID==samples10626[2]], color="blue") +
-  geom_vline(xintercept = sgDF$upload_pe[sgDF$SampleID==samples10626[3]], color="orange")
-
-ggplot(data=sgDF) +
-  geom_density(aes(x=bbmapFiltered_pe)) +
-  geom_vline(xintercept = sgDF$bbmapFiltered_pe[sgDF$SampleID==samples10626[1]], color="red") +
-  geom_vline(xintercept = sgDF$bbmapFiltered_pe[sgDF$SampleID==samples10626[2]], color="blue") +
-  geom_vline(xintercept = sgDF$bbmapFiltered_pe[sgDF$SampleID==samples10626[3]], color="orange")
+  geom_density(aes(x=bbmapFiltered_pairs)) +
+  geom_vline(xintercept = sgDF$bbmapFiltered_pairs[sgDF$SampleID==samples10626[1]], color="red") +
+  geom_vline(xintercept = sgDF$bbmapFiltered_pairs[sgDF$SampleID==samples10626[2]], color="blue") +
+  geom_vline(xintercept = sgDF$bbmapFiltered_pairs[sgDF$SampleID==samples10626[3]], color="orange")
 ```
 Vertical lines represent reads in subject 10608’s samples. Fewer bacterial reads in these samples.  
 
@@ -338,19 +328,15 @@ mDF %>%
 #read depth of these samples
 sgDF %>%
   filter(SampleID=="1050801308") %>%
-  select(SampleID, TotalReads, upload_pe, bbmapFiltered_pe, PctHuman, finalPctHuman)
+  select(SampleID, TotalPairs, bbmapFiltered_pairs, PctHuman, finalPctHuman_po)
 
 ggplot(data=sgDF) +
-  geom_density(aes(x=TotalReads)) +
-  geom_vline(xintercept = sgDF$TotalReads[sgDF$SampleID=="1050801308"], color="red")
+  geom_density(aes(x=TotalPairs)) +
+  geom_vline(xintercept = sgDF$TotalPairs[sgDF$SampleID=="1050801308"], color="red")
 
 ggplot(data=sgDF) +
-  geom_density(aes(x=upload_pe)) +
-  geom_vline(xintercept = sgDF$upload_pe[sgDF$SampleID=="1050801308"], color="red")
-
-ggplot(data=sgDF) +
-  geom_density(aes(x=bbmapFiltered_pe)) +
-  geom_vline(xintercept = sgDF$bbmapFiltered_pe[sgDF$SampleID=="1050801308"], color="red")
+  geom_density(aes(x=bbmapFiltered_pairs)) +
+  geom_vline(xintercept = sgDF$bbmapFiltered_pairs[sgDF$SampleID=="1050801308"], color="red")
 ```
 
 Third sample 10629 (1062901318) We lose G5 (ie don’t see C6, but G5 was the least abundant variant in this sample.  
@@ -368,22 +354,65 @@ mDF %>%
 #read depth of these samples
 sgDF %>%
   filter(SampleID=="1062901318") %>%
-  select(SampleID, TotalReads, upload_pe, bbmapFiltered_pe, PctHuman, finalPctHuman)
+  select(SampleID, TotalPairs, bbmapFiltered_pairs, PctHuman, finalPctHuman_po)
 
 ggplot(data=sgDF) +
-  geom_density(aes(x=TotalReads)) +
-  geom_vline(xintercept = sgDF$TotalReads[sgDF$SampleID=="1062901318"], color="red")
+  geom_density(aes(x=TotalPairs)) +
+  geom_vline(xintercept = sgDF$TotalPairs[sgDF$SampleID=="1062901318"], color="red")
 
 ggplot(data=sgDF) +
-  geom_density(aes(x=upload_pe)) +
-  geom_vline(xintercept = sgDF$upload_pe[sgDF$SampleID=="1062901318"], color="red")
-
-ggplot(data=sgDF) +
-  geom_density(aes(x=bbmapFiltered_pe)) +
-  geom_vline(xintercept = sgDF$bbmapFiltered_pe[sgDF$SampleID=="1062901318"], color="red")
+  geom_density(aes(x=bbmapFiltered_pairs)) +
+  geom_vline(xintercept = sgDF$bbmapFiltered_pairs[sgDF$SampleID=="1062901318"], color="red")
 ```
 
 Second 10627 sample (1062701298) G3 looks like C1, C2, and C6 – we haven’t seen a G3 variant in C6 before, but it is not impossible as we only have 1 reference strain in this clade at present.  
+
+# Testing Absolute Abundance
+## Minimum Proportion vs. percent human (all taxa metaphlan)
+```{r}
+mDF %>%
+  gather("Taxon", "Abundance", c(2:ncol(.))) %>%
+  filter(Abundance>0) %>%
+  group_by(SampleID) %>%
+  summarise(minAb=min(Abundance)) %>%
+  left_join(sgDF[,c("SampleID", "finalPctHuman_po", "finalPctHuman_all", "bbmapFiltered_pairs", "bbmapFiltered_sngl")], by="SampleID") %>%
+ggplot(aes(x=bbmapFiltered_pairs, y=minAb)) +
+  geom_point()
+```
+
+## Number taxa vs filtered read count
+```{r}
+mDF %>%
+  gather("Taxon", "Abundance", c(2:ncol(.))) %>%
+  filter(Abundance>0) %>%
+  group_by(SampleID) %>%
+  summarise(nTaxa=n_distinct(Taxon)) %>%
+  left_join(sgDF[,c("SampleID", "finalPctHuman_po", "finalPctHuman_all", "bbmapFiltered_pairs", "bbmapFiltered_sngl")], by="SampleID") %>%
+  ggplot(aes(x=bbmapFiltered_pairs, y=nTaxa)) +
+    geom_point()
+```
+
+## Minimum Reads vs. percent human (shotgun, gard only)
+```{r}
+sgGardDF %>%
+  group_by(SampleID) %>%
+  summarise(minReads=min(n)) %>%
+  left_join(sgDF[,c("SampleID", "finalPctHuman_po", "finalPctHuman_all", "bbmapFiltered_pairs", "bbmapFiltered_sngl")], by="SampleID") %>%
+  ggplot(aes(x=bbmapFiltered_pairs, y=minReads)) +
+    geom_point()
+```
+
+## Minimum Reads vs. percent human (Callahan et al 2017, amplicon all taxa )
+```{r}
+PS16S_170 %>%
+  psmelt() %>%
+  filter(Abundance>0) %>%
+  group_by(SampleID) %>%
+  summarise(minReads=min(Abundance)) %>%
+  left_join(sgDF[,c("SampleID", "finalPctHuman_po", "finalPctHuman_all", "bbmapFiltered_pairs", "bbmapFiltered_sngl")], by="SampleID") %>%
+  ggplot(aes(x=bbmapFiltered_pairs, y=minReads)) +
+    geom_point()
+```
 
 # Session Info
 ```{r}

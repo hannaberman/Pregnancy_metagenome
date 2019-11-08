@@ -1,16 +1,38 @@
-ASSIGN GARDNERELLA SHORT READS TO CLADES
+Clade Assignments Read Me
+10/03/2019
+Purpose: Determine clades of Gardnerella reads using a two step alingment process to filter and align reads. Input reads are bbmap filtered to remove human sequences. Input is paired bbmap filtered reads only. 
 
+Contents:
+1) `./ref_genes` directory of Gardnerella reference genes determined by `./getRefGenes.Rmd`
+2) `./scripts` : 
+	a) scripts > buildBowtieDB.sh : for building Bowtie2 indexed database of Gardnerella reference genes
+	b) scripts > bowtieAlign.sh : align short reads to Gardnerella databse with Bowtie2
+	c) scripts > bowtieCmds.sh : script to call bowtieAlign.sh for each sample
+	d) scripts > filterAlns.sh : for filtering alignments with mapq score less than  and convert bam files to fastq
+	e) scripts > filterCmds.sh : for calling filterAlns.sh script for each sample
+	f) scripts > usearch.sh : align Gardnerella reads from Bowtie2 output to Gardnerella database to bin reads to clades
+	g) scripts > usearchCmds.sh : for calling usearch.sh script for each sample
+
+Steps CLADE ASSIGNMENTS/READ BINNING:
+FIRST PASS: pre-bbmap-filtered reads (Ran in February/March 2019)
 1) Get reference genes `getRefGenes.Rmd` and save to `./ref_genes` directory
-2)Perform alignments with bowtie v2.1.0  . Scripts in `./brc_scripts` directory
-	1) Build Bowtie2 database `./brc_scripts/buildBowtieDB.sh`
-	2) Align short reads to reference gene database `./brc_scripts/bowtieAlign.sh`
-	3) Filter out alignments with a mapq score <20 `./brc_scripts/filterAlns.sh`
-	4) Filter out alignments with a mapq score <42 `./brc_scripts/filterAlns42.sh`
-	5) Convert bam files to fastq with `./brc_scripts/bam2fastq`	
-3) Make Rdata file with bam format alignments `./getRefGenes.Rmd` > `./gardRefBamAlns.RData` **as of now not used**
-4) Evaluate with `./compareFiltering.Rmd`
-5) Perform second mapping with  usearch v11.0.667  `./brc_scripts/usearch20.sh` on mapq 20 filtered fastq reads
+2)Perform alignments in bowtie scripts in `./scripts` directory
+	1) Build Bowtie2 database `./scripts/buildBowtieDB.sh`
+	2) Align short reads to reference gene database `./scripts/bowtieAlign.sh`
+	3) Filter out alignments with a mapq score <20 ./scripts/filterAlns.sh`
+	4) Filter out alignments with a mapq score <42 ./scripts/filterAlns42.sh`
+	5) Convert bam files to fastq with `./scripts/bam2fastq`	
+3) Perform second mapping with search `./brc_scripts/usearch20.sh` on mapq 20 filtered fastq reads
 	merge pairs and then concatenate singles from bowtie filtering. 
-6) assess with `./cladeAssignments.Rmd`
-7) compare these assignments to 16S amplicon variants in `./16S_variants.Rmd`
-8) Preliminary assessments with `./exploratoryAnalyses.Rmd`
+
+SECOND PASS: bbmap-filtered reads (Ran in October 2019)
+1) Align shotgun metagenomic reads to Gardnerella reference databse for the purpose of filtering out non-Gardnerella reads with Bowtie2 v 2.1.0 `./scripts/bowtieAlign.sh`. Use `./scripts/bowtieCmds.sh` to send command for each sample to the cluster and filter out reads with mapq score less than 20 (Samtools v1.9)
+2) Perform global alignments with USEARCH v11.0.667_i86linux32
+
+Contents: Analysis
+1) `./compareFiltering.Rmd`: for comparing mapq 20 vs mapq 40 filtering results. (not used in second pass)
+2) `./cladeAssignments.Rmd` : to assign reads to clades
+3) `./shotgunVs16Svariants.Rmd`: compare shotgun G. vaginalis classification with 16S amplicon
+4) `./rebaccaAnalyses.Rmd` : testing the use of REBACCA for co-occurrence analyses
+5) `./cooccurAnalyses.Rmd` : testing cooccur method which uses a hypergeometric distribution to assess the probability of taxon-taxon co-occurrence (Veech 2013 and Griffith et al., 2016)
+6) `./`

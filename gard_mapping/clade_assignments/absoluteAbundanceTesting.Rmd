@@ -1,0 +1,63 @@
+---
+title: "Untitled"
+author: "Hanna Berman"
+date: "10/7/2019"
+output: html_document
+---
+
+# Set up
+## packages
+```{r}
+library(tidyverse)
+library(phyloseq)
+library(Biostrings)
+```
+
+```{r}
+repo_dir <- "/Users/hlberman/Documents/GitHub/pregnancy_metagenome/"
+
+#shotgun metadata
+sgDF <- file.path(repo_dir, "shotgunMetadata.tsv") %>%
+  read_delim(delim = "\t") %>%
+  mutate(SampleID=as.character(SampleID),
+         SampleID_a=as.character(SampleID_a))
+```
+
+Set up metaphlan table
+```{r}
+#metaphlan data
+mDF0 <- file.path("/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/humann2/out_tables/mergedMetaphlanAbundance.tsv") %>%
+  read_tsv() %>%
+  filter(str_detect(ID, "s__"), !str_detect(ID, "t__")) %>%
+  mutate(Species = str_extract(ID, "(?<=s__)\\w+$")) %>%
+  select(Species, everything(), -ID) %>%
+  as.data.frame()
+
+#make col and row names
+samps <- colnames(mDF0[2:ncol(mDF0)]) %>%
+  str_extract("[0-9]{10}")
+samps
+colnames(mDF0) <- c("Species", samps)
+rownames(mDF0) <- mDF0$Species
+
+#Final edits to table
+mDF <- mDF0 %>%
+  select(-Species) %>%
+  t() %>%
+  as_tibble() %>%
+  mutate_all(funs(./100)) %>%
+  mutate(SampleID=samps) %>% 
+  select(SampleID, everything())
+mDF[1:6,1:5]
+```
+
+# Figures
+## Minimum Proportion vs. percent human
+```{r}
+
+```
+
+# Session Info
+```{r}
+sessionInfo()
+```

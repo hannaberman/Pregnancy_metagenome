@@ -1,0 +1,228 @@
+---
+title: "Sample and Subject Metadata"
+author: "HLB"
+output:
+  html_document: default
+  html_notebook: default
+---
+
+The following script is to update metadata with detailed sample metadata and describe the sampling. 
+
+# Setup
+Packages
+```{r}
+library(tidyverse)
+set.seed(7334)
+```
+
+# Collection Figure
+```{r}
+# sgDF <- "./shotgunMetadata.tsv" %>%
+#   read_tsv() %>%
+#   mutate(SubjectID= as.character(SubjectID))
+
+sgDF <- "./Tables_4_Ben.txt" %>%
+  read_delim(delim="\t") %>%
+  dplyr::rename(SampleIndex=`Sample Index`,
+                SampleType=`Sample Type`,
+                SubjectID=Subject,
+                SampleID=`Sample ID`,
+                GDcoll=GD_Coll,
+                GWdell=GW_Dell,
+                TermPre=`Term/Pre`,
+                TotalReads=`Total reads`,
+                TotalPairs=`Total pairs`,
+                Sickle100_pe=`Sickle_100 (pe)`,
+                Sickle_pairs=Sickle_pe,
+                Human_pairs=Human_pe,
+                PctTrim=`Pct Trim`,
+                PctHuman=`Pct Human`) %>%
+  mutate(SampleID=as.character(SampleID),
+         SubjectID=as.character(SubjectID),
+         PctTrim=as.numeric(as.character(str_extract(PctTrim, ".*(?=\\%)")))/100,
+         PctHuman=as.numeric(as.character(str_extract(PctHuman, ".*(?=\\%)")))/100, 
+         GWcoll=GDcoll/7,
+         SampleID_a=paste0(substr(SampleID, 1, 5), "01", substr(SampleID, 8, 10)),
+         RNAlater=case_when(str_detect(SampleID, "[0-9]{5}01[0-9]{3}")~"No",
+                            str_detect(SampleID, "[0-9]{5}35[0-9]{3}")~"Yes"))
+head(sgDF)
+```
+
+## sanity checks
+```{r}
+#sickle pairs == half of `Sickle100_pe`
+sgDF %>%
+  select(Sickle100_pe, Sickle_pairs) %>%
+  mutate(test=Sickle_pairs*2,
+         TF=case_when(test==Sickle100_pe~TRUE,
+                      test!=Sickle100_pe~FALSE)) %>%
+  .$TF %>%
+  table()
+
+#Percent trimmed is Sickle 100 paired and single reads divided by total reads
+sgDF %>%
+  select(TotalReads, Sickle100_pe, Sickle_sngl, PctTrim) %>%
+  mutate(test=as.character(round(((Sickle100_pe+Sickle_sngl)/TotalReads), 4)),
+         PctTrim=as.character(PctTrim),
+         TF=case_when(test==PctTrim~TRUE,
+                      test!=PctTrim~FALSE)) %>%
+  .$TF %>%
+  table()
+
+#Percent human is bowtie paired and single reads divided by total reads
+sgDF %>%
+  select(Sickle100_pe, Sickle_pairs, Sickle_sngl, Human_pairs, Human_sngl,PctHuman) %>%
+  mutate(test=as.character(round((Human_pairs*2+Human_sngl)/(Sickle100_pe+Sickle_sngl),4)),
+         PctHuman=as.character(PctHuman),
+         TF=case_when(test==PctHuman~TRUE,
+                      test!=PctHuman~FALSE)) %>%
+  .$TF %>%
+  table
+```
+Unsure how percent human was calculated here...
+
+```{r}
+PS15 <- "./sampledata_VaginalSwabs_Pregnancy_DiGiulio2015.tsv" %>%
+  read_tsv() %>%
+  dplyr::rename(GDcoll=GDColl) %>%
+  mutate(SubjectID= as.character(SubjectID),
+         Cohort="Stanford",
+         Method="Amplicon",
+         PaperCohort="2015") %>%
+  select(SampleID, SubjectID, GDcoll, Cohort, Method, PaperCohort)
+
+PS17 <- "./MAP_MANUSCRIPT_IL02-IL09_ToBen_20170404_fixed.txt" %>%
+  read_delim(delim="\t") %>%
+  mutate(SubjectID= as.character(SubjectID),
+         Cohort=case_when(UAB_Sample==0~"Stanford",
+                                 UAB_Sample==1~"UAB"),
+         Method="Amplicon",
+         PaperCohort="2017") %>%
+  select(SampleID, SubjectID, GDcoll, Cohort, Method, PaperCohort)
+
+AMP <- rbind(PS15, PS17) %>%
+  unique.data.frame()
+
+sgDF0 <- sgDF %>%
+  left_join(AMP[,c("SubjectID", "Cohort", "PaperCohort")], by="SubjectID") %>%
+  filter(SampleID %in% sgDF$SampleID) %>%
+  mutate(Cohort=replace_na(Cohort,"Stanford")) %>%
+  unique.data.frame()
+
+
+SHOT <- sgDF0 %>%
+  select(SubjectID, GDcoll, Cohort, PaperCohort) %>%
+  filter(PaperCohort=="2015"|PaperCohort=="2017") %>%
+  mutate(Method="Shotgun") %>%
+  unique.data.frame() 
+```
+
+# Collection Figure
+```{r}
+ggplot() +
+  geom_point(data=AMP, aes(x=GDcoll, y=as.character(SubjectID), shape=Method, color=Cohort, size=Method), alpha=.5) +
+   geom_point(data=SHOT, aes(x=GDcoll, y=as.character(SubjectID), shape=Method, size=Method), color="black") +
+  xlim(0,280) +
+     labs(x = "Gestation Days",
+          y = "Subject") +
+     scale_color_manual(values=c("olivedrab", "steelblue", "black"))+
+     scale_shape_manual(values=c(19, 15)) +
+     scale_size_manual(values=c(1,2)) +
+     #theme_classic()+
+     theme(axis.ticks.y = element_blank(),
+     #axis.text.x = element_text(size = 10),
+     axis.text.y  = element_blank()
+     #axis.title.x = element_text(size=20),
+     #axis.title.y = element_text(size=20)
+     )
+     #scale_x_continuous(breaks = c(0,50,100,150,200, 250))
+#ggsave("/Users/hlberman/Desktop/collectionPlot.svg", height=8, width=8.5)
+```
+
+# Trimesters
+```{r}
+sgDF1 <- sgDF0 %>%
+  group_by(SubjectID) %>%
+  mutate(sampleOrder=rank(GDcoll),
+         sampleTrimester=case_when(GDcoll<=97~"First",
+                                   GDcoll>=98&GDcoll<=195~"Second",
+                                   GDcoll>=196~"Third")) %>%
+  ungroup() 
+
+#save updated dataframe
+write_tsv(sgDF1, "../shotgunMetadata.tsv")
+```
+
+# Samples/subjects per cohort
+```{r}
+sgDF1 %>%
+  filter(Cohort=="UAB")%>%
+  nrow()
+
+sgDF1 %>%
+  filter(Cohort=="UAB") %>%
+  select(SubjectID) %>%
+  n_distinct()
+
+sgDF1 %>%
+  filter(Cohort=="Stanford")%>%
+  nrow()
+
+sgDF1 %>%
+  filter(Cohort=="Stanford") %>%
+  select(SubjectID) %>%
+  n_distinct()
+```
+
+# Subsetting
+## Look at potential ways to subset samples
+```{r}
+range(sgDF1$GDcoll)
+summary(sgDF1$GDcoll[sgDF1$sampleOrder==1])
+summary(sgDF1$GDcoll[sgDF1$sampleOrder==2])
+summary(sgDF1$GDcoll[sgDF1$sampleOrder==3])
+
+
+sgDF1 %>%
+  ggplot(aes(x=sampleOrder, y=GDcoll, group=sampleOrder)) +
+  geom_boxplot() +
+  geom_point() +
+  facet_wrap(~Cohort) +
+  labs(x="Sample Order", y="Gestation Days at Collection")
+
+sgDF1 %>%
+  ggplot(aes(x=GDcoll, y=as.character(SubjectID), color=Cohort)) +
+  geom_point() +
+  geom_vline(xintercept = 97.5)+
+  geom_vline(xintercept = 195.5) +
+  labs(x="Gestation Days at Collection", y="Subject ID")
+```
+
+## Randomly select one sample per subject from each subject
+It seems that is the best way to maintain a small range of gestation days at collection of each range while excluding the least number of samples (will only exclude one sample)
+```{r}
+#Create dataframe of subsets
+sgDFsubset <- sgDF1 %>%
+  filter(sampleTrimester=="Second") %>%
+  group_by(SubjectID) %>%
+  sample_n(size=1) %>%
+  ungroup
+
+sampleSubset <- sgDFsubset$SampleID
+sampleSubset
+#save list of subset
+#write_lines(sampleSubset, "../sampleSubset.txt")
+
+#what subject is missing a sample
+setdiff(unique(sgDF$SubjectID), sgDFsubset$SubjectID)
+```
+
+## gestation days range of subset
+```{r}
+summary(sgDFsubset$GDcoll)
+```
+
+# Session Info
+```{r}
+sessionInfo()
+```

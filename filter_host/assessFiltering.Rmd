@@ -6,39 +6,56 @@ output: html_document
 ---
 # Set up
 ## Packages
-```{r setup, include=FALSE}
+```{r}
 library(tidyverse)
-#library(Biostrings)
-#library(BiocParallel)
 ```
 
 ## File paths 
 ```{r}
 #set paths
 repo_dir <- "/Users/hlberman/Documents/GitHub/pregnancy_metagenome/"
-countsDF_path <- file.path(repo_dir, "filter_host", "fastq_counts.txt")
-countsDFbbmap_path <- file.path(repo_dir, "filter_host", "fastq_counts_bbmap.txt")
-sgDF_path <- file.path(repo_dir, "shotgunMetadata.tsv")
-krakenReads <- read_delim(file.path(repo_dir, "methods_comparisons", "assess_kraken", "krakenHumanReads.tsv"), delim="\t")
 
-#Load
-sgDF <- read_delim(sgDF_path, delim = "\t")
-countsDF <- read_delim(countsDF_path, delim="\ ")
-countsDFbbmap <- read_delim(countsDFbbmap_path, delim="\ ")
+countsDFbowtie <- file.path(repo_dir, "filter_host", "fastq_counts.txt") %>%
+  read_delim(delim="\ ")
+
+countsDFbbmapOLD <- file.path(repo_dir, "filter_host", "fastq_counts_bbmapX.txt") %>%
+  read_delim(delim="\ ")
+
+countsDFbbmapNEW <- file.path(repo_dir, "filter_host", "fastq_counts_bbmap.txt") %>%
+  read_delim(delim="\ ")
+
+bbmapCompare <- countsDFbbmapOLD %>%
+  left_join(countsDFbbmapNEW, by="Sample") %>%
+  select(Sample, filteredCount1.x, filteredCount1.y) %>%
+  dplyr::rename(old=filteredCount1.x,
+                new=filteredCount1.y) %>%
+  mutate(new=new/4,
+         old=old/4,
+    diff=new-old)
+
+summary(bbmapCompare$diff)
+
+
+sgDF <- file.path(repo_dir, "shotgunMetadata.tsv") %>%
+  read_tsv()
+
+krakenReads <- file.path(repo_dir, "methods_comparisons", "assess_kraken", "krakenHumanReads.tsv") %>%
+  read_tsv()
 ```
+
 
 # Compare amount of human reads filtered
 ```{r}
 #bowtie by HLB counts
-countsDhbBowtieF0 <- countsDF %>%
+countsDhbBowtieF0 <- countsDFbowtie %>%
   mutate(uploadCount1=uploadCount1/4,
          uploadCount2=uploadCount2/4,
          uploadCountS=uploadCountS/4,
          filteredCount1=filteredCount1/4,
          filteredCount2=filteredCount2/4,
          filteredCountS=filteredCountS/4,
-         uploadTotal=uploadCount1+uploadCount2+uploadCountS,
-         filteredTotalBowtie=filteredCount1+filteredCount2+filteredCountS,
+         uploadTotal=uploadCount1+uploadCount2, #+uploadCountS,
+         filteredTotalBowtie=filteredCount1+filteredCount2, #+filteredCountS,
          pctFilteredBowtie=filteredTotalBowtie/uploadTotal,
          pctHumanBowtie=(uploadTotal-filteredTotalBowtie)/uploadTotal,
          SampleID=Sample) 
@@ -51,8 +68,8 @@ countsDFbbmap0 <- countsDFbbmap %>%
          filteredCount1=filteredCount1/4,
          filteredCount2=filteredCount2/4,
          filteredCountS=filteredCountS/4,
-         uploadTotal=uploadCount1+uploadCount2+uploadCountS,
-         filteredTotalBbmap=filteredCount1+filteredCount2+filteredCountS,
+         uploadTotal=uploadCount1+uploadCount2,  #+uploadCountS,
+         filteredTotalBbmap=filteredCount1+filteredCount2,  #+filteredCountS,
          pctFilteredBbmap=filteredTotalBbmap/uploadTotal,
          pctHumanBbmap=(uploadTotal-filteredTotalBbmap)/uploadTotal,
          SampleID=Sample) 
@@ -73,20 +90,47 @@ ggplot(sgDF0) +
   scale_color_manual(values=c("black", "red", "blue", "darkgreen"))
 #ggsave("/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/filter_host/filterHuman.pdf")
 ```
-
+  
 Add information to shotgun data frame
 ```{r}
 sgDF1 <- countsDFbbmap0 %>%
-  mutate(bbmapFiltered_pe=filteredCount1+filteredCount2,
-         bbmapFiltered_s=filteredCountS,
-         upload_pe=uploadCount1 + uploadCount2,
-         upload_s=uploadCountS) %>%
-  select(SampleID, bbmapFiltered_pe, bbmapFiltered_s, upload_pe, upload_s) %>%
+  mutate(bbmapFiltered_pairs=filteredCount1,
+         bbmapFiltered_sngl=filteredCountS,
+         upload_pairs=uploadCount1,
+         upload_sngl=uploadCountS) %>%
+  select(SampleID, bbmapFiltered_pairs, bbmapFiltered_sngl, upload_pairs, upload_sngl) %>%
   left_join(sgDF, by="SampleID") %>%
-  mutate(finalPctHuman=(TotalReads-bbmapFiltered_pe-bbmapFiltered_s)/TotalReads) %>%
-  select(SampleIndex, SampleType, SubjectID, SampleID, GDcoll, GWdell, TermPre, Operator, TotalReads, TotalPairs, Sickle100_pe, Sickle_pe, Sickle_sngl, PctTrim, Human_pe, Human_sngl, PctHuman, upload_pe, upload_s, bbmapFiltered_pe, bbmapFiltered_s, finalPctHuman, GWcoll, GWcoll1, SampleID_a, RNAlater, GWcoll_16S, GDcoll_16S, Cohort, PaperCohort, sampleOrder, sampleTrimester)
+  mutate(finalPctHuman_po=((Sickle_pairs-bbmapFiltered_pairs)/Sickle_pairs), #pairs only
+         finalPctHuman_all=((Sickle_pairs+Sickle_sngl)-(bbmapFiltered_pairs+bbmapFiltered_sngl))/(Sickle_pairs+Sickle_sngl)) %>% 
+  select(SampleIndex, SampleType, SubjectID, SampleID, GDcoll, GWcoll, GWdell, TermPre, Operator, TotalReads, TotalPairs, Sickle100_pe, Sickle_pairs, Sickle_sngl, PctTrim, Human_pairs, Human_sngl, PctHuman, upload_pairs, upload_sngl, bbmapFiltered_pairs, bbmapFiltered_sngl, finalPctHuman_po, finalPctHuman_all, SampleID_a, RNAlater, Cohort, PaperCohort, sampleOrder, sampleTrimester)
 
 write_tsv(sgDF1, file.path(repo_dir, "shotgunMetadata.tsv"))
+```
+
+```{r}
+# bbmapReads <- sgDF %>%
+#   select(SampleID, bbmapFiltered_pe, bbmapFiltered_s) %>%
+#   mutate(totalBBmap=bbmapFiltered_pe+bbmapFiltered_s,
+#          pctSingles=bbmapFiltered_s/totalBBmap)
+# View(bbmapReads)
+# summary(bbmapReads$pctSingles)
+# 
+# ggplot(bbmapReads, aes(x=pctSingles)) +
+#   geom_histogram()
+# 
+# ggplot(bbmapReads, aes(x=1, y=pctSingles)) +
+#   geom_boxplot() +
+#   geom_jitter()
+# 
+# bbmapReads %>%
+#   gather("p_s", "count", c(bbmapFiltered_pe, bbmapFiltered_s)) %>%
+#   ggplot(., aes(x=reorder(as.character(SampleID), count), y=count, fill=p_s)) +
+#   geom_bar(stat="identity")
+# 
+# 
+# bbmapReads %>%
+#   ggplot(aes(x=pctSingles, y=bbmapFiltered_pe))+
+#   geom_jitter()
 ```
 
 # Session Info
