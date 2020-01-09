@@ -1,7 +1,7 @@
 ---
 title: "Shotgun Vs. 16S Gardnerella variants"
 author: "Hanna Berman"
-date: "9/10/2019"
+date: "12/10/2019"
 output: html_document
 ---
 # Set up
@@ -148,7 +148,6 @@ ggplot(data=S16gardDF, aes(x=GWcoll, y=propGard, color=Var, shape=RNAlater)) +
 #ggsave(filename = file.path(figure_out, "cladesBy16S.pdf"))
 ```
 
-
 ## Save table
 ```{r}
 #write_delim(S16gardDF, "./16SgardVariants.tsv", delim="\t")
@@ -163,7 +162,7 @@ S16gardDF0 <- S16gardDF %>%
   mutate(Method="V4 region 16S amplicon")
 
 sgGardDF0 <- sgGardDF %>%
-  select(-n) %>%
+#  select(-n) %>%
   dplyr::rename(Var=Clade,
                 propGard=propClade) %>%
   mutate(Var=case_when(Var=="C1"~"Clade 1",
@@ -206,7 +205,7 @@ gardVarDF %>%
 ggplot(aes(x=GWcoll, y=propGard, shape=Method, size=Method, color=Var)) +
   geom_point() +
   scale_size_manual(values=c(1.5, 3)) +
-  scale_color_manual(values=c("salmon", "indianred", "lightblue", "blue3", "darkorchid2", "yellowgreen", "red", "blue1", "grey48", "darkorchid2", "yellowgreen"), labels=c("Clade C1 (shotgun)", "Clade C2 (shotgun)", "Clade C3 (shotgun)", "Clade C4 (shotgun)", "Clade C5 (shotgun)", "Clade C6 (shotgun)", "G2: Clades 1/2 (V4 amplicon)", "G1: Clades 3/4 (V4 amplicon)", "G3: indeterminant (V4 amplicon)", "G4: Clade 5 (V4 amplicon)", "G5: Clade 6 (V4 amplicon)")) + # note: change labels to match Callahan 2017
+  scale_color_manual(values=c("salmon", "indianred", "lightblue", "blue3", "darkorchid2", "yellowgreen", "red", "blue1", "grey48", "darkorchid2", "yellowgreen"), labels=c("Clade C1 (shotgun)", "Clade C2 (shotgun)", "Clade C3 (shotgun)", "Clade C4 (shotgun)", "Clade C5 (shotgun)", "Clade C6 (shotgun)", "G2: Clades 1/2 (V4 amplicon)", "G1: Clades 3/4 (V4 amplicon)", "G3: indeterminant (V4 amplicon)", "G4: Clade 5 (V4 amplicon)", "G5: Clade 6 (V4 amplicon)")) + 
   scale_shape_manual(values = c(16, 1)) +
   facet_wrap(~SubjectID, nrow=2) +
   labs(x="Gestation weeks at collection", y="Proportion of Gardnerella", shape="Method", color="Variant") +
@@ -214,7 +213,138 @@ ggplot(aes(x=GWcoll, y=propGard, shape=Method, size=Method, color=Var)) +
 #ggsave(file.path(figure_out, "biolunchV4SGv1.png"), width=8, height=6)
 ```
 
+# Add thresholds and test:
+```{r, fig.height=6, fig.width=9}
+# create data frames
+thresholds <- c(1:49) %>% # set the threshold range
+  map(~filter(gardVarDF, n>.x)) %>% # filter out clades below read threshold 
+  map(~group_by(.x, SampleID)) %>%
+  map(~mutate(.x, propGard=propGard/sum(propGard))) %>% # recalculate proportions after threshold filtering
+  map(ungroup) %>%
+  map2(c(1:49), ~mutate(.x, Threshold=.y)) %>% # add threshold column
+  purrr::reduce(full_join, by=c(colnames(gardVarDF), "Threshold")) # reduce to one data frame
 
+# add threshold information to data frame
+gardVarDF0 <- gardVarDF %>%
+  mutate(Threshold=0) %>% # set zero threshold for baseline
+  rbind(thresholds) %>%
+  mutate(Threshold=Threshold+1) # make threshold as >=n 
+
+# plot
+gardVarDF0 %>%
+  filter(RNAlater=="No", PaperCohort=="2017") %>%
+  ggplot(aes(x=Threshold, y=propGard, shape=Method, size=Method, color=Var)) + 
+  geom_point() +
+  scale_size_manual(values=c(2, 4), guide=FALSE) +
+  scale_shape_manual(values = c(16, 5), guide=FALSE) +
+  scale_color_manual(values=c("salmon", "indianred", "lightblue", "blue3", "darkorchid2", "yellowgreen", "red", "blue1", "grey48", "darkorchid2", "yellowgreen"), labels=c("Clade C1 (shotgun)", "Clade C2 (shotgun)", "Clade C3 (shotgun)", "Clade C4 (shotgun)", "Clade C5 (shotgun)", "Clade C6 (shotgun)", "G2: Clades 1/2 (V4 amplicon)", "G1: Clades 3/4 (V4 amplicon)", "G3: indeterminant (V4 amplicon)", "G4: Clade 5 (V4 amplicon)", "G5: Clade 6 (V4 amplicon)")) +
+  ylim(0,1) +
+  scale_x_continuous(breaks = seq(0,50, 5)) +
+  facet_wrap(~SampleID) +
+  guides(color=guide_legend(override.aes=list(shape=c(rep(16, 6), rep(5, 5)), size=c(rep(2, 6), rep(4, 5))))) +
+  labs(x="Threshold (reads ≥ n)", y="Proportion of Gardnerella")
+```
+
+
+At threshold ≥1: 8 V4 variants are unrepresented
+At threshold ≥2: 10 V4 variants are unrepresented
+At threshold ≥3: 10 V4 variants are unrepresented
+At threshold ≥4: 14 V4 variants are unrepresented
+At threshold ≥5: 14 V4 variants are unrepresented
+
+Percent of cases where a variant is lost. 
+```{r, fig.height=5, fig.width=6}
+V4Vars <- gardVarDF0 %>%
+  filter(RNAlater=="No",
+         PaperCohort=="2017",
+         Method=="V4 region 16S amplicon") %>%
+  select(SampleID, Var, propGard) %>%
+  group_by(SampleID) %>%
+  summarise(V4vars=n())
+
+sum(V4Vars$V4vars)
+
+varCounts <- gardVarDF0 %>%
+  filter(RNAlater=="No",
+         PaperCohort=="2017",
+         Method=="Shotgun") %>%
+  select(SampleID, Var, propGard, Threshold) %>%
+  group_by(SampleID, Threshold) %>%
+  summarise(shotgunVars=n()) %>%
+  full_join(map(1:50, ~mutate(V4Vars, Threshold=.x)) %>%
+            purrr::reduce(full_join, by=c("SampleID", "V4vars", "Threshold")), 
+            by=c("SampleID", "Threshold")) %>%
+  replace_na(list(shotgunVars=0))
+
+varCounts %>%
+  gather("Method", "Vars", c(shotgunVars, V4vars)) %>%
+ggplot(aes(x=Threshold, y=Vars, group=Method, color=Method, linetype=Method)) +
+  geom_line() +
+  facet_wrap(~SampleID) +
+  scale_y_continuous(breaks=seq(0,6,1)) +
+  scale_color_manual(values=c("blue", "red"), labels=c("Shotgun variants", "V4 variants")) +
+  scale_linetype(guide=FALSE) +
+  guides(color=guide_legend(override.aes=list(linetype=c(1,2)))) +
+  labs(x="Threshold (reads≥n)", y="Variants", color="Method")
+```
+
+With 56 V4 variants total in these 26 samples, percent missing at each threshold:
+```{r}
+tribble(
+  ~Threshold, ~nMissing, ~total,
+  1,8,56,
+  2,10,56,
+  3,10,56,
+  4,14,56,
+  5,14,56
+) %>%
+  mutate(`Percent Missing`=round(nMissing/total*100, 1)) %>%
+  select(-nMissing, -total) %>%
+  formattable::formattable()
+```
+
+Look at distribution of clades per sample after threshold filtering
+```{r}
+# 1 to 5
+add0s <- tibble(SampleID=rep(sgDF$SampleID, 5),
+               Threshold=c(rep(1, 107), rep(2, 107), rep(3, 107), rep(4, 107), rep(5, 107)))
+
+gardVarDF0 %>%
+  filter(Method == "Shotgun") %>%
+  filter(Threshold %in% c(1:5)) %>%
+  group_by(Threshold, SampleID) %>%
+  summarise(nClades=n()) %>%
+  full_join(add0s, by=c("SampleID", "Threshold")) %>% #each sample has 5 entries (1 per threshold)
+  mutate(nClades=replace_na(nClades, 0)) %>% #replace NAs with 0's
+  left_join(sgDF[,c("SampleID", "Cohort")]) %>%
+  ggplot(aes(x=nClades, group=Threshold, fill=Threshold)) +
+  geom_bar(stat="count", position="dodge") +
+  facet_wrap(~Cohort) +
+  scale_x_continuous(breaks=seq(0,6,1)) +
+  scale_y_continuous(breaks=seq(0,20,2)) +
+  labs(x="Clades per sample", y="Count", fill="Threshold ≥")
+
+add0s <- tibble(SampleID=rep(sgDF$SampleID, 5),
+               Threshold=c(rep(6, 107), rep(7, 107), rep(8, 107), rep(9, 107), rep(10, 107)))
+
+#6 to 10
+gardVarDF0 %>%
+  filter(Method == "Shotgun") %>%
+  filter(Threshold %in% c(6:10)) %>%
+  group_by(Threshold, SampleID) %>%
+  summarise(nClades=n()) %>%
+  full_join(add0s, by=c("SampleID", "Threshold")) %>% #each sample has 5 entries (1 per threshold)
+  mutate(nClades=replace_na(nClades, 0)) %>% #replace NAs with 0's
+  left_join(sgDF[,c("SampleID", "Cohort")]) %>%
+  ggplot(aes(x=nClades, group=Threshold, fill=Threshold)) +
+  geom_bar(stat="count", position="dodge") +
+  facet_wrap(~Cohort) +
+  scale_x_continuous(breaks=seq(0,6,1)) +
+  scale_y_continuous(breaks=seq(0,20,2)) +
+  labs(x="Clades per sample", y="Count", fill="Threshold ≥")
+```
+
+# Proportion of reads before and after filtering
 ```{r}
 sapply(list(ReadDepth=sgDF$TotalPairs, inputReads=sgDF$upload_pairs, bbmapFiltered=sgDF$bbmapFiltered_pairs), summary)
 meanDepth <- mean(sgDF$TotalPairs)
@@ -231,8 +361,6 @@ ggplot(data=sgDF0, aes(y=Count, x=Reads)) +
   geom_boxplot() +
   geom_jitter()
 ```
-
-## Comparison with other 
 
 ## Samples where we lose all Gardnerella
 In subject 10608: No Gardnerella was detected. Shotgun sequencing can demonstrate less sensitivity than amplicon sequencing.  
@@ -255,11 +383,11 @@ samples10608
 #percent Gardnerella in these samples
 mDF %>%
   select(SampleID, Gardnerella_vaginalis) %>%
-  filter(is.element(SampleID, samples10608))
+  filter(SampleID %in% samples10608)
 
 #read depth of these samples
 sgDF %>%
-  filter(is.element(SampleID, samples10608)) %>%
+  filter(SampleID %in% samples10608) %>%
   select(SampleID, TotalPairs, bbmapFiltered_pairs, finalPctHuman_po)
 
 ggplot(data=sgDF) +
@@ -291,11 +419,11 @@ samples10626
 #percent Gardnerella in these samples
 mDF %>%
   select(SampleID, Gardnerella_vaginalis) %>%
-  filter(is.element(SampleID, samples10626))
+  filter(SampleID %in% samples10626)
 
 #read depth of these samples
 sgDF %>%
-  filter(is.element(SampleID, samples10626)) %>%
+  filter(SampleID %in% samples10626) %>%
   select(SampleID, TotalPairs, bbmapFiltered_pairs, PctHuman, finalPctHuman_po)
 
 ggplot(data=sgDF) +
@@ -311,6 +439,35 @@ ggplot(data=sgDF) +
   geom_vline(xintercept = sgDF$bbmapFiltered_pairs[sgDF$SampleID==samples10626[3]], color="orange")
 ```
 Vertical lines represent reads in subject 10608’s samples. Fewer bacterial reads in these samples.  
+
+
+```{r}
+sgGardDF %>%
+  full_join(mDF[,c("SampleID", "Gardnerella_vaginalis")], by="SampleID") %>%
+  filter(is.na(n), Gardnerella_vaginalis>0)
+```
+**Subject 10626** noted above. Additional sample **1060435348**. This sample previously had one read of Clade 4, and now has no reads. There is only 0.2% *Gardnerella vaginalis* in the sample. 
+
+```{r}
+#proportion Gardnerella vaginalis from metaphlan results
+mDF %>%
+  filter(SampleID=="1060435348") %>%
+  select(SampleID, Gardnerella_vaginalis)
+
+#read depth of this sample
+sgDF %>%
+  filter(SampleID=="1060435348") %>%
+  select(SampleID, TotalPairs, bbmapFiltered_pairs, PctHuman, finalPctHuman_po)
+
+ggplot(data=sgDF) +
+  geom_density(aes(x=TotalPairs)) +
+  geom_vline(xintercept = sgDF$TotalPairs[sgDF$SampleID=="1060435348"], color="red")
+
+ggplot(data=sgDF) +
+  geom_density(aes(x=bbmapFiltered_pairs)) +
+  geom_vline(xintercept = sgDF$bbmapFiltered_pairs[sgDF$SampleID=="1060435348"], color="red")
+```
+Relatively low read count in this sample. 
 
 ### Samples where we lose one variant 
 First 10508 sample (1050801308) see only C2 with shotgun. G3 (ambiguous) and G1 were see. –we lose G1  
@@ -367,52 +524,47 @@ ggplot(data=sgDF) +
 
 Second 10627 sample (1062701298) G3 looks like C1, C2, and C6 – we haven’t seen a G3 variant in C6 before, but it is not impossible as we only have 1 reference strain in this clade at present.  
 
-# Testing Absolute Abundance
-## Minimum Proportion vs. percent human (all taxa metaphlan)
+# Reads cutoff?:
 ```{r}
-mDF %>%
-  gather("Taxon", "Abundance", c(2:ncol(.))) %>%
-  filter(Abundance>0) %>%
-  group_by(SampleID) %>%
-  summarise(minAb=min(Abundance)) %>%
-  left_join(sgDF[,c("SampleID", "finalPctHuman_po", "finalPctHuman_all", "bbmapFiltered_pairs", "bbmapFiltered_sngl")], by="SampleID") %>%
-ggplot(aes(x=bbmapFiltered_pairs, y=minAb)) +
-  geom_point()
-```
+sgGardDF$n %>%
+  summary
 
-## Number taxa vs filtered read count
-```{r}
-mDF %>%
-  gather("Taxon", "Abundance", c(2:ncol(.))) %>%
-  filter(Abundance>0) %>%
+sgGardDF %>%
   group_by(SampleID) %>%
-  summarise(nTaxa=n_distinct(Taxon)) %>%
-  left_join(sgDF[,c("SampleID", "finalPctHuman_po", "finalPctHuman_all", "bbmapFiltered_pairs", "bbmapFiltered_sngl")], by="SampleID") %>%
-  ggplot(aes(x=bbmapFiltered_pairs, y=nTaxa)) +
-    geom_point()
-```
+  summarise(nClades=n()) %>%
+  right_join(sgGardDF, by="SampleID") %>%
+  ggplot(aes(x=n, fill=nClades)) +
+  geom_histogram(binwidth = 50)
 
-## Minimum Reads vs. percent human (shotgun, gard only)
+sgGardDF %>%
+  group_by(SampleID) %>%
+  summarise(nClades=n()) %>%
+  right_join(sgGardDF, by="SampleID") %>%
+  ggplot(aes(x=n, fill=nClades)) +
+  geom_bar() +
+  scale_x_continuous(limits=c(0,50), breaks=seq(0,50,by=5))
+```
+range of reads per clade is 1 to ~16,000. A large portion are below 5 reads per clade.
+
+Cases of one read per clade:
 ```{r}
 sgGardDF %>%
   group_by(SampleID) %>%
-  summarise(minReads=min(n)) %>%
-  left_join(sgDF[,c("SampleID", "finalPctHuman_po", "finalPctHuman_all", "bbmapFiltered_pairs", "bbmapFiltered_sngl")], by="SampleID") %>%
-  ggplot(aes(x=bbmapFiltered_pairs, y=minReads)) +
-    geom_point()
+  summarise(nClades=n()) %>%
+  right_join(sgGardDF, by="SampleID") %>%
+  ungroup() %>%
+  filter(n==1) %>%
+  ggplot(aes(x=nClades)) +
+  geom_bar() +
+  scale_y_continuous(limits = c(0,10), breaks = seq(0,10,by=1), minor_breaks = NULL)
+```
+Only 3 samples have one read of one clade. 
+
+# Save metaphlan tables
+```{r}
+
 ```
 
-## Minimum Reads vs. percent human (Callahan et al 2017, amplicon all taxa )
-```{r}
-PS16S_170 %>%
-  psmelt() %>%
-  filter(Abundance>0) %>%
-  group_by(SampleID) %>%
-  summarise(minReads=min(Abundance)) %>%
-  left_join(sgDF[,c("SampleID", "finalPctHuman_po", "finalPctHuman_all", "bbmapFiltered_pairs", "bbmapFiltered_sngl")], by="SampleID") %>%
-  ggplot(aes(x=bbmapFiltered_pairs, y=minReads)) +
-    geom_point()
-```
 
 # Session Info
 ```{r}

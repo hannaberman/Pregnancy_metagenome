@@ -290,7 +290,7 @@ ggplot(data=testDists, aes(x=PresAbs)) +
 ## Total Reads
 ```{r, fig.height=3, fig.width=7}
 DFpa %>%
-  left_join(sgDF[,c("SampleID", "TotalReads", "upload_pe", "bbmapFiltered_pe")]) %>%
+  left_join(sgDF[,c("SampleID", "TotalReads")]) %>%
   gather("Organism", "PresAbs", c("Gardnerella_vaginalis", cladesSpecies)) %>%
   mutate(PresAbs=case_when(PresAbs==0~"Absent",
                            PresAbs==1~"Present"),
@@ -318,41 +318,10 @@ DFpa %>%
 ```
 All sequenced reads before any filtering. No consistent trend of presence vs. absence (without any thresholding) across all taxa.  
 
-## Uploaded Reads
-```{r, fig.height=3, fig.width=7}
-DFpa %>%
-  left_join(sgDF[,c("SampleID", "TotalReads", "upload_pe", "bbmapFiltered_pe")]) %>%
-  gather("Organism", "PresAbs", c("Gardnerella_vaginalis", cladesSpecies)) %>%
-  mutate(PresAbs=case_when(PresAbs==0~"Absent",
-                           PresAbs==1~"Present"),
-         Organism=case_when(Organism=="Gardnerella_vaginalis_C1"~"C1",
-                            Organism=="Gardnerella_vaginalis_C2"~"C2",
-                            Organism=="Gardnerella_vaginalis_C3"~"C3",
-                            Organism=="Gardnerella_vaginalis_C4"~"C4",
-                            Organism=="Gardnerella_vaginalis_C5"~"C5",
-                            Organism=="Gardnerella_vaginalis_C6"~"C6",
-                            Organism=="Gardnerella_vaginalis"~"total_Gard",
-                            Organism=="Atopobium_vaginae"~"A_vaginae",
-                            Organism=="Lactobacillus_crispatus"~"L_crispatus",
-                            Organism=="Lactobacillus_gasseri"~"L_gasseri",
-                            Organism=="Lactobacillus_iners"~"L_iners",
-                            Organism=="Lactobacillus_jensenii"~"L_jensenii",
-                            Organism=="Prevotella_bivia"~"P_bivia",
-                            Organism=="Ureaplasma_parvum"~"U_parvum",
-                            Organism=="Mycoplasma_hominis"~"M_hominis")) %>%
-  ggplot(aes(x=as.character(PresAbs), y=upload_pe)) +
-  geom_boxplot() +
-  geom_jitter() +
-  theme(axis.text.x = element_text(angle=45, hjust=1)) +
-  facet_grid(Cohort~Organism) +
-  labs(x="Presence vs. Absence", y="Reads")
-```
-Number of uploaded pairs (what was put through the pipeline) comparing presence vs. absence of each taxon. No consistent trends. 
-
 ## Reads after bbmap
 ```{r, fig.height=3, fig.width=7}
 DFpa %>%
-  left_join(sgDF[,c("SampleID", "TotalReads", "upload_pe", "bbmapFiltered_pe")]) %>%
+  left_join(sgDF[,c("SampleID", "TotalReads", "bbmapFiltered_pairs")]) %>%
   gather("Organism", "PresAbs", c("Gardnerella_vaginalis", cladesSpecies)) %>%
   mutate(PresAbs=case_when(PresAbs==0~"Absent",
                            PresAbs==1~"Present"),
@@ -371,21 +340,21 @@ DFpa %>%
                             Organism=="Prevotella_bivia"~"P_bivia",
                             Organism=="Ureaplasma_parvum"~"U_parvum",
                             Organism=="Mycoplasma_hominis"~"M_hominis")) %>%
-  ggplot(aes(x=as.character(PresAbs), y=bbmapFiltered_pe)) +
+  ggplot(aes(x=as.character(PresAbs), y=bbmapFiltered_pairs)) +
   geom_boxplot() +
   geom_jitter() +
   theme(axis.text.x = element_text(angle=45, hjust=1)) +
   facet_grid(Cohort~Organism) +
-  labs(x="Presence vs. Absence", y="Reads")
+  labs(x="Presence vs. Absence", y="Bacterial Reads")
 ```
 Number of reads after bbmap filtering. (Not input into pipeline, but a better representation of bacterial reads per sample). May be some increase in presence vs. absence in some cases, but there are taxa with few absent/few present cases. 
 
 ## All presence absence by method
 ```{r}
 DFpa %>%
-  left_join(sgDF[,c("SampleID", "TotalReads", "upload_pe", "bbmapFiltered_pe")]) %>%
+  left_join(sgDF[,c("SampleID", "TotalReads", "bbmapFiltered_pairs")]) %>%
   gather("Organism", "PresAbs", c("Gardnerella_vaginalis", cladesSpecies)) %>%
-  gather("Method", "Reads", c("TotalReads", "upload_pe", "bbmapFiltered_pe")) %>%
+  gather("Method", "Reads", c("TotalReads", "bbmapFiltered_pairs")) %>%
   mutate(PresAbs=case_when(PresAbs==0~"Absent",
                            PresAbs==1~"Present")) %>%
   ggplot(aes(x=as.character(PresAbs), y=Reads)) +
