@@ -51,6 +51,76 @@ mDF <- mDF0 %>%
 mDF[1:6,1:5]
 ```
 
+# Testing Absolute Abundance
+## Number taxa vs filtered read count
+```{r}
+mDF %>%
+  gather("Taxon", "Abundance", c(2:ncol(.))) %>%
+  filter(Abundance>0) %>%
+  group_by(SampleID) %>%
+  summarise(nTaxa=n_distinct(Taxon)) %>%
+  left_join(sgDF[,c("SampleID", "TotalReads", "bbmapFiltered_pairs")], by="SampleID") %>%
+  gather("measure", "readCount", c(TotalReads, bbmapFiltered_pairs)) %>%
+  mutate(measure=case_when(measure=="TotalReads"~"Library Size",
+                           measure=="bbmapFiltered_pairs"~"Bacterial Reads")) %>%
+  ggplot(aes(x=readCount, y=nTaxa)) +
+    geom_point() +
+    geom_smooth(method="lm") +
+    facet_wrap(~measure, scales="free_x") +
+    labs(x="Reads", y="N Taxa")
+
+mDF %>%
+  gather("Taxon", "Abundance", c(2:ncol(.))) %>%
+  filter(Abundance>0) %>%
+  group_by(SampleID) %>%
+  summarise(nTaxa=n_distinct(Taxon)) %>%
+  left_join(sgDF[,c("SampleID", "finalPctHuman_po", "finalPctHuman_all", "bbmapFiltered_pairs", "bbmapFiltered_sngl")], by="SampleID") %>%
+  lm(data=., nTaxa~bbmapFiltered_pairs) %>%
+  summary
+```
+
+```{r}
+sgDF %>%
+  ggplot(aes(x=TotalReads, y=(1-finalPctHuman_po))) +
+  geom_point() +
+  geom_smooth(method="lm") +
+  labs(x="Library Size", y="Percent Bacteria")
+```
+
+## Richness vs percent bacteria
+```{r}
+mDF %>%
+  gather("Taxon", "Abundance", c(2:ncol(.))) %>%
+  filter(Abundance>0) %>%
+  group_by(SampleID) %>%
+  summarise(nTaxa=n_distinct(Taxon)) %>%
+  left_join(sgDF[,c("SampleID", "finalPctHuman_po", "finalPctHuman_all", "bbmapFiltered_pairs", "bbmapFiltered_sngl")], by="SampleID") %>%
+  ggplot(aes(x=(1-finalPctHuman_po)*100, y=nTaxa)) +
+    geom_point() +
+    geom_smooth(method="lm") +
+    labs(x="Percent Bacteria", y="N Taxa")
+
+mDF %>%
+  gather("Taxon", "Abundance", c(2:ncol(.))) %>%
+  filter(Abundance>0) %>%
+  group_by(SampleID) %>%
+  summarise(nTaxa=n_distinct(Taxon)) %>%
+  left_join(sgDF[,c("SampleID", "finalPctHuman_po", "finalPctHuman_all", "bbmapFiltered_pairs", "bbmapFiltered_sngl")], by="SampleID") %>%
+  mutate(pct_bacteria=1-finalPctHuman_po) %>%
+  lm(data=., nTaxa~pct_bacteria) %>%
+  summary
+```
+
+# Make absolute abundance 
+```{r}
+mDFabsolute <- mDF %>%
+ left_join(sgDF[,c("SampleID", "finalPctHuman_po")], by="SampleID") %>%
+ mutate_at(c(3:ncol(.)), ~.x*((1-finalPctHuman_po)/finalPctHuman_po)) #proportion 
+ select(SampleID, , everything()) %>%
+# save(mDFabsolute, file = "./metaphlanAbsoluteAbundances.Rdata")
+```
+
+
 # Figures
 ## Minimum Proportion vs. percent human
 ```{r}

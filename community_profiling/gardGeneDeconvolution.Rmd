@@ -30,8 +30,7 @@ sampleSubset <- read_lines(file.path("..", "sampleSubset.txt"))
 ## Humann2 Output tables
 ```{r}
 #humann2 outs
-dataDir <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/humann2/out_tables"
-GF_path <- file.path(dataDir, "VM_genefamilies_names_cpm.tsv")
+dataDir <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/humann2/merged_tables"
 # GFP_path <- file.path(dataDir, "VM_genefamilies_paths.tsv")
 # GOnames_path <- file.path(dataDir, "map_go_name.txt")
 # GFGO_path <- file.path(dataDir, "map_go_uniref90.txt")
@@ -40,7 +39,8 @@ GF_path <- file.path(dataDir, "VM_genefamilies_names_cpm.tsv")
 # PA_path <- file.path(dataDir, "VM_pathabundance.tsv")
 
 # read in data frames
-GF <- read_delim(GF_path, delim = "\t") %>% # Gene family abundances
+GF <- file.path(dataDir, "VM_genefamilies_names.tsv") %>%
+  read_delim(delim = "\t") %>% # Gene family abundances
   separate(`# Gene Family`, into=c("geneFamily", "org"), sep="\\|", fill="right") %>%
   separate(org, into=c("Genus", "Species"), sep="\\.") %>%
   mutate(Genus=str_extract(Genus,"[^g__].*$"),
@@ -126,7 +126,6 @@ Ggenes <- gvGF %>%
   filter(nSamples>=94) %>%
   .$geneFamily
 Ggenes
-Ggenes0 <- paste(Ggenes, collapse="|")
 ```
 11 genes tota chosen as constant genomic elements 
 
@@ -147,7 +146,7 @@ gvGF0 <- gvGF %>%
 head(gvGF0)
 
 GDF <- gvGF %>%
-  filter(str_detect(geneFamily,  Ggenes0)) %>%
+  filter(geneFamily %in% Ggenes) %>%
   rbind(colnames(gvGF)) %>%
   t() %>%
   as.data.frame() %>%
