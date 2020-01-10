@@ -253,7 +253,8 @@ At threshold ≥4: 14 V4 variants are unrepresented
 At threshold ≥5: 14 V4 variants are unrepresented
 
 Percent of cases where a variant is lost. 
-```{r, fig.height=5, fig.width=6}
+```{r}
+#fig.height=5, fig.width=6}
 V4Vars <- gardVarDF0 %>%
   filter(RNAlater=="No",
          PaperCohort=="2017",
@@ -282,6 +283,18 @@ ggplot(aes(x=Threshold, y=Vars, group=Method, color=Method, linetype=Method)) +
   geom_line() +
   facet_wrap(~SampleID) +
   scale_y_continuous(breaks=seq(0,6,1)) +
+  scale_color_manual(values=c("blue", "red"), labels=c("Shotgun variants", "V4 variants")) +
+  scale_linetype(guide=FALSE) +
+  guides(color=guide_legend(override.aes=list(linetype=c(1,2)))) +
+  labs(x="Threshold (reads≥n)", y="Variants", color="Method")
+
+varCounts %>%
+  gather("Method", "Vars", c(shotgunVars, V4vars)) %>%
+ggplot(aes(x=Threshold, y=Vars, group=Method, color=Method, linetype=Method)) +
+  geom_line() +
+  facet_wrap(~SampleID) +
+  scale_y_continuous(breaks=seq(0,6,1)) +
+  xlim(1,5) +
   scale_color_manual(values=c("blue", "red"), labels=c("Shotgun variants", "V4 variants")) +
   scale_linetype(guide=FALSE) +
   guides(color=guide_legend(override.aes=list(linetype=c(1,2)))) +
