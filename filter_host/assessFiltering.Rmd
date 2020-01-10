@@ -13,33 +13,30 @@ library(tidyverse)
 ## File paths 
 ```{r}
 #set paths
-repo_dir <- "/Users/hlberman/Documents/GitHub/pregnancy_metagenome/"
-
-countsDFbowtie <- file.path(repo_dir, "filter_host", "fastq_counts.txt") %>%
+getwd()
+countsDFbowtie <- file.path("fastq_counts.txt") %>%
   read_delim(delim="\ ")
 
-countsDFbbmapOLD <- file.path(repo_dir, "filter_host", "fastq_counts_bbmapX.txt") %>%
+#countsDFbbmapOLD <- file.path("fastq_counts_bbmapX.txt") %>%
+#  read_delim(delim="\ ")
+
+countsDFbbmap <- file.path("fastq_counts_bbmap.txt") %>%
   read_delim(delim="\ ")
 
-countsDFbbmapNEW <- file.path(repo_dir, "filter_host", "fastq_counts_bbmap.txt") %>%
-  read_delim(delim="\ ")
+#bbmapCompare <- countsDFbbmapOLD %>%
+#  left_join(countsDFbbmap, by="Sample") %>%
+#  select(Sample, filteredCount1.x, filteredCount1.y) %>%
+#  dplyr::rename(old=filteredCount1.x,
+#                new=filteredCount1.y) %>%
+#  mutate(new=new/4,
+#         old=old/4,
+#    diff=new-old)
+#summary(bbmapCompare$diff)
 
-bbmapCompare <- countsDFbbmapOLD %>%
-  left_join(countsDFbbmapNEW, by="Sample") %>%
-  select(Sample, filteredCount1.x, filteredCount1.y) %>%
-  dplyr::rename(old=filteredCount1.x,
-                new=filteredCount1.y) %>%
-  mutate(new=new/4,
-         old=old/4,
-    diff=new-old)
-
-summary(bbmapCompare$diff)
-
-
-sgDF <- file.path(repo_dir, "shotgunMetadata.tsv") %>%
+sgDF <- file.path("..", "metadata", "shotgunMetadata.tsv") %>%
   read_tsv()
 
-krakenReads <- file.path(repo_dir, "methods_comparisons", "assess_kraken", "krakenHumanReads.tsv") %>%
+krakenReads <- file.path("..", "methods_comparisons", "assess_kraken", "krakenHumanReads.tsv") %>%
   read_tsv()
 ```
 
@@ -88,7 +85,7 @@ ggplot(sgDF0) +
   theme(axis.text.x = element_blank())+
   labs(x="Sample", y="Proportion Human Reads") +
   scale_color_manual(values=c("black", "red", "blue", "darkgreen"))
-#ggsave("/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/filter_host/filterHuman.pdf")
+#ggsave("./filterHuman.pdf")
 ```
   
 Add information to shotgun data frame
@@ -104,7 +101,7 @@ sgDF1 <- countsDFbbmap0 %>%
          finalPctHuman_all=((Sickle_pairs+Sickle_sngl)-(bbmapFiltered_pairs+bbmapFiltered_sngl))/(Sickle_pairs+Sickle_sngl)) %>% 
   select(SampleIndex, SampleType, SubjectID, SampleID, GDcoll, GWcoll, GWdell, TermPre, Operator, TotalReads, TotalPairs, Sickle100_pe, Sickle_pairs, Sickle_sngl, PctTrim, Human_pairs, Human_sngl, PctHuman, upload_pairs, upload_sngl, bbmapFiltered_pairs, bbmapFiltered_sngl, finalPctHuman_po, finalPctHuman_all, SampleID_a, RNAlater, Cohort, PaperCohort, sampleOrder, sampleTrimester)
 
-write_tsv(sgDF1, file.path(repo_dir, "shotgunMetadata.tsv"))
+write_tsv(sgDF1, file.path("..", "metadata", "shotgunMetadata.tsv"))
 ```
 
 ```{r}

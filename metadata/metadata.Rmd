@@ -17,10 +17,6 @@ set.seed(7334)
 
 # Collection Figure
 ```{r}
-# sgDF <- "./shotgunMetadata.tsv" %>%
-#   read_tsv() %>%
-#   mutate(SubjectID= as.character(SubjectID))
-
 sgDF <- "./Tables_4_Ben.txt" %>%
   read_delim(delim="\t") %>%
   dplyr::rename(SampleIndex=`Sample Index`,
@@ -136,7 +132,7 @@ ggplot() +
      #axis.title.y = element_text(size=20)
      )
      #scale_x_continuous(breaks = c(0,50,100,150,200, 250))
-#ggsave("/Users/hlberman/Desktop/collectionPlot.svg", height=8, width=8.5)
+#ggsave("./collectionPlot.svg", height=8, width=8.5)
 ```
 
 # Trimesters
@@ -150,7 +146,7 @@ sgDF1 <- sgDF0 %>%
   ungroup() 
 
 #save updated dataframe
-write_tsv(sgDF1, "../shotgunMetadata.tsv")
+#write_tsv(sgDF1, "./shotgunMetadata.tsv")
 ```
 
 # Samples/subjects per cohort
@@ -211,7 +207,7 @@ sgDFsubset <- sgDF1 %>%
 sampleSubset <- sgDFsubset$SampleID
 sampleSubset
 #save list of subset
-#write_lines(sampleSubset, "../sampleSubset.txt")
+#write_lines(sampleSubset, "./sampleSubset.txt")
 
 #what subject is missing a sample
 setdiff(unique(sgDF$SubjectID), sgDFsubset$SubjectID)
