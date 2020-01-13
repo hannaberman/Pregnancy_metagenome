@@ -65,7 +65,7 @@ sgDF %>%
   .$TF %>%
   table()
 
-#Percent human is bowtie paired and single reads divided by total reads
+#Percent human is bowtie paired and single reads divided by total reads?
 sgDF %>%
   select(Sickle100_pe, Sickle_pairs, Sickle_sngl, Human_pairs, Human_sngl,PctHuman) %>%
   mutate(test=as.character(round((Human_pairs*2+Human_sngl)/(Sickle100_pe+Sickle_sngl),4)),
@@ -75,7 +75,7 @@ sgDF %>%
   .$TF %>%
   table
 ```
-Unsure how percent human was calculated here...
+Unsure how pct human was calculated...
 
 ```{r}
 PS15 <- "./sampledata_VaginalSwabs_Pregnancy_DiGiulio2015.tsv" %>%
@@ -132,7 +132,7 @@ ggplot() +
      #axis.title.y = element_text(size=20)
      )
      #scale_x_continuous(breaks = c(0,50,100,150,200, 250))
-#ggsave("./collectionPlot.svg", height=8, width=8.5)
+#ggsave("./collectionPlot.svg", height=8, width=8.5) 
 ```
 
 # Trimesters
@@ -146,7 +146,7 @@ sgDF1 <- sgDF0 %>%
   ungroup() 
 
 #save updated dataframe
-#write_tsv(sgDF1, "./shotgunMetadata.tsv")
+#write_tsv(sgDF1, "../shotgunMetadata.tsv") # save to main path of repo
 ```
 
 # Samples/subjects per cohort
@@ -207,7 +207,7 @@ sgDFsubset <- sgDF1 %>%
 sampleSubset <- sgDFsubset$SampleID
 sampleSubset
 #save list of subset
-#write_lines(sampleSubset, "./sampleSubset.txt")
+#write_lines(sampleSubset, "../sampleSubset.txt") # save to main folder of repo
 
 #what subject is missing a sample
 setdiff(unique(sgDF$SubjectID), sgDFsubset$SubjectID)
