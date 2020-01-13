@@ -33,7 +33,7 @@ countsDFbbmap <- file.path("fastq_counts_bbmap.txt") %>%
 #    diff=new-old)
 #summary(bbmapCompare$diff)
 
-sgDF <- file.path("..", "metadata", "shotgunMetadata.tsv") %>%
+sgDF <- "../shotgunMetadata.tsv" %>%
   read_tsv()
 
 krakenReads <- file.path("..", "methods_comparisons", "assess_kraken", "krakenHumanReads.tsv") %>%
@@ -101,7 +101,7 @@ sgDF1 <- countsDFbbmap0 %>%
          finalPctHuman_all=((Sickle_pairs+Sickle_sngl)-(bbmapFiltered_pairs+bbmapFiltered_sngl))/(Sickle_pairs+Sickle_sngl)) %>% 
   select(SampleIndex, SampleType, SubjectID, SampleID, GDcoll, GWcoll, GWdell, TermPre, Operator, TotalReads, TotalPairs, Sickle100_pe, Sickle_pairs, Sickle_sngl, PctTrim, Human_pairs, Human_sngl, PctHuman, upload_pairs, upload_sngl, bbmapFiltered_pairs, bbmapFiltered_sngl, finalPctHuman_po, finalPctHuman_all, SampleID_a, RNAlater, Cohort, PaperCohort, sampleOrder, sampleTrimester)
 
-write_tsv(sgDF1, file.path("..", "metadata", "shotgunMetadata.tsv"))
+#write_tsv(sgDF1, "../shotgunMetadata.tsv")
 ```
 
 ```{r}
