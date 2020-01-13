@@ -2,8 +2,9 @@
 Analysis of shotgun metagenomic data from vaginal swabs of 35 pregnant women 
 
 ## Metadata
-    Reformat `./Metadata_4_Hanna.csv' (table from Daniela) and assess metadata
-    Save as `./shotgunMetadata.tsv'
+Reformat `./Tables_4_Ben.txt` (table from Daniela) and assess metadata
+Save as `./shotgunMetadata.tsv`
+Other metadata from manuscripts from `sampledata_VaginalSwabs_Pregnancy_DiGiulio2015.tsv` and `MAP_MANUSCRIPT_IL02-IL09_ToBen_20170404_fixed.txt`
 
 ## Filter Host
 Filter host data with BBmap
