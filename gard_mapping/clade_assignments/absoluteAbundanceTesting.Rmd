@@ -14,7 +14,7 @@ library(Biostrings)
 ```
 
 ```{r}
-repo_dir <- "/Users/hlberman/Documents/GitHub/pregnancy_metagenome/"
+repo_dir <- "../../"
 
 #shotgun metadata
 sgDF <- file.path(repo_dir, "shotgunMetadata.tsv") %>%
@@ -25,30 +25,32 @@ sgDF <- file.path(repo_dir, "shotgunMetadata.tsv") %>%
 
 Set up metaphlan table
 ```{r}
-#metaphlan data
-mDF0 <- file.path("/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/humann2/out_tables/mergedMetaphlanAbundance.tsv") %>%
-  read_tsv() %>%
-  filter(str_detect(ID, "s__"), !str_detect(ID, "t__")) %>%
-  mutate(Species = str_extract(ID, "(?<=s__)\\w+$")) %>%
-  select(Species, everything(), -ID) %>%
-  as.data.frame()
+load("./metaphlanAbundances.Rdata")
 
-#make col and row names
-samps <- colnames(mDF0[2:ncol(mDF0)]) %>%
-  str_extract("[0-9]{10}")
-samps
-colnames(mDF0) <- c("Species", samps)
-rownames(mDF0) <- mDF0$Species
-
-#Final edits to table
-mDF <- mDF0 %>%
-  select(-Species) %>%
-  t() %>%
-  as_tibble() %>%
-  mutate_all(funs(./100)) %>%
-  mutate(SampleID=samps) %>% 
-  select(SampleID, everything())
-mDF[1:6,1:5]
+# #metaphlan data
+# mDF0 <- file.path("/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/humann2/merged_tables/mergedMetaphlanAbundance.tsv") %>%
+#   read_tsv() %>%
+#   filter(str_detect(ID, "s__"), !str_detect(ID, "t__")) %>%
+#   mutate(Species = str_extract(ID, "(?<=s__)\\w+$")) %>%
+#   select(Species, everything(), -ID) %>%
+#   as.data.frame()
+# 
+# #make col and row names
+# samps <- colnames(mDF0[2:ncol(mDF0)]) %>%
+#   str_extract("[0-9]{10}")
+# samps
+# colnames(mDF0) <- c("Species", samps)
+# rownames(mDF0) <- mDF0$Species
+# 
+# #Final edits to table
+# mDF <- mDF0 %>%
+#   select(-Species) %>%
+#   t() %>%
+#   as_tibble() %>%
+#   mutate_all(funs(./100)) %>%
+#   mutate(SampleID=samps) %>% 
+#   select(SampleID, everything())
+# mDF[1:6,1:5]
 ```
 
 # Testing Absolute Abundance
@@ -113,19 +115,140 @@ mDF %>%
 
 # Make absolute abundance 
 ```{r}
-mDFabsolute <- mDF %>%
+# Total Gardnerella 
+mDFaa <- mDF %>%
  left_join(sgDF[,c("SampleID", "finalPctHuman_po")], by="SampleID") %>%
- mutate_at(c(3:ncol(.)), ~.x*((1-finalPctHuman_po)/finalPctHuman_po)) #proportion 
- select(SampleID, , everything()) %>%
-# save(mDFabsolute, file = "./metaphlanAbsoluteAbundances.Rdata")
-```
+ select(SampleID, finalPctHuman_po, everything()) %>%
+ mutate_at(c(3:ncol(.)), ~.x*((1-finalPctHuman_po)/finalPctHuman_po)) #%>% #proportion 
 
+# Gardnerella separated by clade
+mDFaaG <- mDFG %>%
+ left_join(sgDF[,c("SampleID", "finalPctHuman_po")], by="SampleID") %>%
+ select(SampleID, finalPctHuman_po, everything()) %>%
+ mutate_at(c(3:ncol(.)), ~.x*((1-finalPctHuman_po)/finalPctHuman_po)) #%>% #proportion 
+```
 
 # Figures
 ## Minimum Proportion vs. percent human
 ```{r}
 
 ```
+
+## Correlation among important taxa
+Organize data frame
+```{r}
+DF <- sgDF %>%
+  select(SampleID, SubjectID, Cohort, GDcoll) %>%
+  left_join(mDFaa[,c("SampleID", "Gardnerella_vaginalis")], by="SampleID") %>%
+  left_join(mDFaaG[,c("SampleID",
+                    "Gardnerella_vaginalis_C1", 
+                    "Gardnerella_vaginalis_C2", 
+                    "Gardnerella_vaginalis_C3", 
+                    "Gardnerella_vaginalis_C4",
+                    "Gardnerella_vaginalis_C5",
+                    "Gardnerella_vaginalis_C6",
+                    "Lactobacillus_crispatus", 
+                    "Lactobacillus_gasseri",
+                    "Lactobacillus_jensenii", 
+                    "Lactobacillus_iners", 
+                    "Atopobium_vaginae", 
+                    "Mycoplasma_hominis",
+                    "Prevotella_bivia",
+                    "Ureaplasma_parvum")],
+            by="SampleID") %>%
+    dplyr::rename(C1=Gardnerella_vaginalis_C1,
+                C2=Gardnerella_vaginalis_C2,
+                C3=Gardnerella_vaginalis_C3,
+                C4=Gardnerella_vaginalis_C4,
+                C5=Gardnerella_vaginalis_C5,
+                C6=Gardnerella_vaginalis_C6,
+                G_vaginalis=Gardnerella_vaginalis,
+                A_vaginae=Atopobium_vaginae,
+                L_crispatus=Lactobacillus_crispatus,
+                L_gasseri=Lactobacillus_gasseri,
+                L_iners=Lactobacillus_iners,
+                L_jensenii=Lactobacillus_jensenii,
+                P_bivia=Prevotella_bivia,
+                U_parvum=Ureaplasma_parvum,
+                M_hominis=Mycoplasma_hominis) %>%
+  mutate(SampleID=as.character(SampleID),
+         SubjectID=as.character(SubjectID),
+         GDcoll=as.character(GDcoll))
+
+subsetSamples <- read_lines(file.path("..", "..", "sampleSubset.txt"))
+```
+
+Plot
+```{r, fig.height=8, fig.width=8}
+DF0 <- DF %>%
+  mutate(xC1=C1, 
+         xC2=C2,
+         xC3=C3,
+         xC4=C4,
+         xC5=C5,
+         xC6=C6,
+         xG_vaginalis=G_vaginalis,
+         xA_vaginae=A_vaginae,
+         xL_crispatus=L_crispatus,
+         xL_gasseri=L_gasseri, 
+         xL_iners=L_iners, 
+         xL_jensenii=L_jensenii, 
+         xP_bivia=P_bivia, 
+         xU_parvum=U_parvum, 
+         xM_hominis=M_hominis) %>%
+  gather("Taxon1", "absoluteAbundanceTax1", c(C1, C2, C3, C4, C5, C6, G_vaginalis, A_vaginae, L_crispatus, L_gasseri, L_iners, L_jensenii, P_bivia, U_parvum, M_hominis)) %>%
+  gather("Taxon2", "absoluteAbundanceTax2", c(xC1, xC2, xC3, xC4, xC5, xC6, xG_vaginalis, xA_vaginae, xL_crispatus, xL_gasseri, xL_iners, xL_jensenii, xP_bivia, xU_parvum, xM_hominis)) %>%
+  mutate(Taxon2=case_when(Taxon2=="xC1"~"C1", 
+                          Taxon2=="xC2"~"C2",
+                          Taxon2=="xC3"~"C3",
+                          Taxon2=="xC4"~"C4",
+                          Taxon2=="xC5"~"C5",
+                          Taxon2=="xC6"~"C6",
+                          Taxon2=="xG_vaginalis"~"G_vaginalis",
+                          Taxon2=="xA_vaginae"~"A_vaginae",
+                          Taxon2=="xL_crispatus"~"L_crispatus",
+                          Taxon2=="xL_gasseri"~"L_gasseri", 
+                          Taxon2=="xL_iners"~"L_iners", 
+                          Taxon2=="xL_jensenii"~"L_jensenii", 
+                          Taxon2=="xP_bivia"~"P_bivia", 
+                          Taxon2=="xU_parvum"~"U_parvum", 
+                          Taxon2=="xM_homonis"~"M_hominis")) #%>%
+  #filter(Taxon1!=Taxon2)
+  
+DF0 %>%
+  filter(Taxon1!="G_vaginalis",
+         Taxon2!="G_vaginalis",
+         Cohort=="Stanford") %>%
+ggplot(aes(x=absoluteAbundanceTax1, y=absoluteAbundanceTax2)) +
+  #geom_abline(intercept = 0, slope = 1, color="grey", linetype=2) +
+  geom_smooth(method="lm", se=FALSE, linetype=1, color="blue") +
+  geom_point() +
+  facet_grid(Taxon1~Taxon2) +
+  coord_fixed() +
+  scale_y_log10() +
+  scale_x_log10() +
+  theme(axis.text.x = element_text(angle=90)) 
+  #xlim(0,1) +
+  #ylim(0,1)
+```
+
+Correlation Coefficients
+```{r}
+# UAB
+DF %>%
+  filter(Cohort=="UAB") %>%
+  select(-SampleID, -SubjectID, -GDcoll, -Cohort) %>%
+  cor %>%
+  View
+
+# Stanford
+DF %>%
+  filter(Cohort=="Stanford") %>%
+  select(-SampleID, -SubjectID, -GDcoll, -Cohort) %>%
+  cor %>%
+  View
+```
+
 
 # Session Info
 ```{r}
