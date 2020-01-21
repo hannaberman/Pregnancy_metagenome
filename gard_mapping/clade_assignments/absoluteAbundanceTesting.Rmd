@@ -249,6 +249,79 @@ DF %>%
   View
 ```
 
+Clade presence Absence by Percent Bacterial Reads
+```{r}
+DF %>%
+  gather("Taxon", "absoluteAbundance", c(C1, C2, C3, C4, C5, C6, G_vaginalis, A_vaginae, L_crispatus, L_gasseri, L_iners, L_jensenii, P_bivia, U_parvum, M_hominis)) %>%
+  mutate(absoluteAbundance=case_when(absoluteAbundance==0~"absent",
+                                     absoluteAbundance>0~"present")) %>%
+  left_join(sgDF[,c("SampleID", "Sickle_pairs", "bbmapFiltered_pairs", "finalPctHuman_po")]) %>%
+  ggplot(aes(x=absoluteAbundance, y=1-finalPctHuman_po)) +
+  geom_boxplot() +
+  geom_jitter() +
+  facet_grid(Cohort~Taxon) +
+  theme(axis.text.x = element_text(angle=90))
+
+cladesByPctBact <- DF %>%
+  mutate_at(vars(G_vaginalis, C1, C2, C3, C4, C5, C6), ~case_when(.x==0~"absent",
+                                                     .x>0~"present")) %>%
+  left_join(sgDF[,c("SampleID", "Sickle_pairs", "bbmapFiltered_pairs", "finalPctHuman_po")]) %>%
+  mutate(ratio=((1-finalPctHuman_po)/finalPctHuman_po),
+         pctBact=1-finalPctHuman_po) %>%
+  filter(Cohort=="Stanford")
+
+tTestByPctBact <- map2(list(cladesByPctBact$pctBact, cladesByPctBact$pctBact, cladesByPctBact$pctBact, cladesByPctBact$pctBact, cladesByPctBact$pctBact, cladesByPctBact$pctBact, cladesByPctBact$pctBact), list(cladesByPctBact$G_vaginalis, cladesByPctBact$C1, cladesByPctBact$C2, cladesByPctBact$C3, cladesByPctBact$C4, cladesByPctBact$C5, cladesByPctBact$C6), ~t.test(.x~.y, alternative="less"))
+tTestByPctBact
+```
+Significance at a=0.05
+```{r}
+map(tTestByPctBact, 3) %>%
+  map(., ~.x<0.05)
+
+map(tTestByPctBact, 3) %>%
+  map(., ~.x<(0.05/7))
+```
+Clade presence absence by total abundance
+```{r}
+mDFaa %>%
+  select(-finalPctHuman_po) %>%
+  gather("tax", "ab", matches("._.")) %>%
+  group_by(SampleID) %>%
+  summarise(total_abundance=sum(ab)) %>%
+  select(SampleID, total_abundance) %>%
+  left_join(DF, by="SampleID") %>%
+  gather("Taxon", "absoluteAbundance", c(C1, C2, C3, C4, C5, C6, G_vaginalis, A_vaginae, L_crispatus, L_gasseri, L_iners, L_jensenii, P_bivia, U_parvum, M_hominis)) %>%
+  mutate(absoluteAbundance=case_when(absoluteAbundance==0~"absent",
+                                     absoluteAbundance>0~"present")) %>%
+  ggplot(aes(x=absoluteAbundance, y=total_abundance)) +
+  geom_boxplot() +
+  geom_jitter() +
+  facet_grid(Cohort~Taxon) +
+  scale_y_log10() +
+  theme(axis.text.x = element_text(angle=90))
+
+cladesByTotAb <- mDFaa %>%
+  select(-finalPctHuman_po) %>%
+  gather("tax", "ab", matches("._.")) %>%
+  group_by(SampleID) %>%
+  summarise(total_abundance=sum(ab)) %>%
+  select(SampleID, total_abundance) %>%
+  left_join(DF, by="SampleID") %>%
+  mutate_at(vars(G_vaginalis, C1, C2, C3, C4, C5, C6), ~case_when(.x==0~"absent",
+                                                     .x>0~"present")) %>%
+  filter(Cohort=="UAB")
+
+tTestByTotAb <- map2(list(cladesByTotAb$total_abundance, cladesByTotAb$total_abundance, cladesByTotAb$total_abundance, cladesByTotAb$total_abundance, cladesByTotAb$total_abundance, cladesByTotAb$total_abundance, cladesByTotAb$total_abundance), list(cladesByTotAb$G_vaginalis, cladesByTotAb$C1, cladesByTotAb$C2, cladesByTotAb$C3, cladesByTotAb$C4, cladesByTotAb$C5, cladesByTotAb$C6), ~t.test(.x~.y, alternative="less"))
+tTestByTotAb
+```
+Significance by a=0.05
+```{r}
+map(tTestByTotAb, 3) %>%
+  map(., ~.x<0.05)
+
+map(tTestByTotAb, 3) %>%
+  map(., ~.x<(0.05/7))
+```
 
 # Session Info
 ```{r}
