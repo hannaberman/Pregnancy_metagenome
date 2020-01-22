@@ -11,6 +11,7 @@ output: html_document
 library(tidyverse)
 library(phyloseq)
 library(Biostrings)
+library(broom)
 ```
 
 ```{r}
@@ -21,6 +22,21 @@ sgDF <- file.path(repo_dir, "shotgunMetadata.tsv") %>%
   read_delim(delim = "\t") %>%
   mutate(SampleID=as.character(SampleID),
          SampleID_a=as.character(SampleID_a))
+
+taxaOfInterest <- c("Gardnerella_vaginalis_C1", 
+                    "Gardnerella_vaginalis_C2", 
+                    "Gardnerella_vaginalis_C3", 
+                    "Gardnerella_vaginalis_C4",
+                    "Gardnerella_vaginalis_C5",
+                    "Gardnerella_vaginalis_C6",
+                    "Lactobacillus_crispatus", 
+                    "Lactobacillus_gasseri",
+                    "Lactobacillus_jensenii", 
+                    "Lactobacillus_iners", 
+                    "Atopobium_vaginae", 
+                    "Mycoplasma_hominis",
+                    "Prevotella_bivia",
+                    "Ureaplasma_parvum")
 ```
 
 Set up metaphlan table
@@ -140,21 +156,7 @@ Organize data frame
 DF <- sgDF %>%
   select(SampleID, SubjectID, Cohort, GDcoll) %>%
   left_join(mDFaa[,c("SampleID", "Gardnerella_vaginalis")], by="SampleID") %>%
-  left_join(mDFaaG[,c("SampleID",
-                    "Gardnerella_vaginalis_C1", 
-                    "Gardnerella_vaginalis_C2", 
-                    "Gardnerella_vaginalis_C3", 
-                    "Gardnerella_vaginalis_C4",
-                    "Gardnerella_vaginalis_C5",
-                    "Gardnerella_vaginalis_C6",
-                    "Lactobacillus_crispatus", 
-                    "Lactobacillus_gasseri",
-                    "Lactobacillus_jensenii", 
-                    "Lactobacillus_iners", 
-                    "Atopobium_vaginae", 
-                    "Mycoplasma_hominis",
-                    "Prevotella_bivia",
-                    "Ureaplasma_parvum")],
+  left_join(mDFaaG[,c(taxaOfInterest)],
             by="SampleID") %>%
     dplyr::rename(C1=Gardnerella_vaginalis_C1,
                 C2=Gardnerella_vaginalis_C2,
@@ -249,51 +251,20 @@ DF %>%
   View
 ```
 
-Clade presence Absence by Percent Bacterial Reads
-```{r}
-DF %>%
-  gather("Taxon", "absoluteAbundance", c(C1, C2, C3, C4, C5, C6, G_vaginalis, A_vaginae, L_crispatus, L_gasseri, L_iners, L_jensenii, P_bivia, U_parvum, M_hominis)) %>%
-  mutate(absoluteAbundance=case_when(absoluteAbundance==0~"absent",
-                                     absoluteAbundance>0~"present")) %>%
-  left_join(sgDF[,c("SampleID", "Sickle_pairs", "bbmapFiltered_pairs", "finalPctHuman_po")]) %>%
-  ggplot(aes(x=absoluteAbundance, y=1-finalPctHuman_po)) +
-  geom_boxplot() +
-  geom_jitter() +
-  facet_grid(Cohort~Taxon) +
-  theme(axis.text.x = element_text(angle=90))
-
-cladesByPctBact <- DF %>%
-  mutate_at(vars(G_vaginalis, C1, C2, C3, C4, C5, C6), ~case_when(.x==0~"absent",
-                                                     .x>0~"present")) %>%
-  left_join(sgDF[,c("SampleID", "Sickle_pairs", "bbmapFiltered_pairs", "finalPctHuman_po")]) %>%
-  mutate(ratio=((1-finalPctHuman_po)/finalPctHuman_po),
-         pctBact=1-finalPctHuman_po) %>%
-  filter(Cohort=="Stanford")
-
-tTestByPctBact <- map2(list(cladesByPctBact$pctBact, cladesByPctBact$pctBact, cladesByPctBact$pctBact, cladesByPctBact$pctBact, cladesByPctBact$pctBact, cladesByPctBact$pctBact, cladesByPctBact$pctBact), list(cladesByPctBact$G_vaginalis, cladesByPctBact$C1, cladesByPctBact$C2, cladesByPctBact$C3, cladesByPctBact$C4, cladesByPctBact$C5, cladesByPctBact$C6), ~t.test(.x~.y, alternative="less"))
-tTestByPctBact
-```
-Significance at a=0.05
-```{r}
-map(tTestByPctBact, 3) %>%
-  map(., ~.x<0.05)
-
-map(tTestByPctBact, 3) %>%
-  map(., ~.x<(0.05/7))
-```
 Clade presence absence by total abundance
 ```{r}
 mDFaa %>%
+  #filter(SampleID %in% subsetSamples) %>%
   select(-finalPctHuman_po) %>%
   gather("tax", "ab", matches("._.")) %>%
   group_by(SampleID) %>%
   summarise(total_abundance=sum(ab)) %>%
   select(SampleID, total_abundance) %>%
-  left_join(DF, by="SampleID") %>%
-  gather("Taxon", "absoluteAbundance", c(C1, C2, C3, C4, C5, C6, G_vaginalis, A_vaginae, L_crispatus, L_gasseri, L_iners, L_jensenii, P_bivia, U_parvum, M_hominis)) %>%
-  mutate(absoluteAbundance=case_when(absoluteAbundance==0~"absent",
-                                     absoluteAbundance>0~"present")) %>%
-  ggplot(aes(x=absoluteAbundance, y=total_abundance)) +
+  left_join(DF[,c("SampleID", "Cohort", "G_vaginalis", "C1", "C2", "C3", "C4", "C5", "C6", "A_vaginae", "L_crispatus", "L_gasseri", "L_iners", "L_jensenii", "P_bivia", "U_parvum", "M_hominis")], by="SampleID") %>%
+  gather("Taxon", "presAbs", c(G_vaginalis, C1, C2, C3, C4, C5, C6, A_vaginae, L_crispatus, L_gasseri, L_iners, L_jensenii, P_bivia, U_parvum, M_hominis)) %>%
+  mutate(presAbs=case_when(presAbs>0~"present", 
+                           presAbs==0~"absent")) %>%
+  ggplot(aes(x=presAbs, y=total_abundance)) +
   geom_boxplot() +
   geom_jitter() +
   facet_grid(Cohort~Taxon) +
@@ -301,27 +272,27 @@ mDFaa %>%
   theme(axis.text.x = element_text(angle=90))
 
 cladesByTotAb <- mDFaa %>%
+  #filter(SampleID %in% subsetSamples) %>%
   select(-finalPctHuman_po) %>%
   gather("tax", "ab", matches("._.")) %>%
   group_by(SampleID) %>%
   summarise(total_abundance=sum(ab)) %>%
   select(SampleID, total_abundance) %>%
-  left_join(DF, by="SampleID") %>%
-  mutate_at(vars(G_vaginalis, C1, C2, C3, C4, C5, C6), ~case_when(.x==0~"absent",
-                                                     .x>0~"present")) %>%
-  filter(Cohort=="UAB")
+  left_join(DF[,c("SampleID", "Cohort", "G_vaginalis", "C1", "C2", "C3", "C4", "C5", "C6")], by="SampleID") %>%
+  gather("Gard", "presAbs", c(G_vaginalis, C1, C2, C3, C4, C5, C6)) %>%
+  mutate(presAbs=case_when(presAbs>0~"present", 
+                           presAbs==0~"absent"))
 
-tTestByTotAb <- map2(list(cladesByTotAb$total_abundance, cladesByTotAb$total_abundance, cladesByTotAb$total_abundance, cladesByTotAb$total_abundance, cladesByTotAb$total_abundance, cladesByTotAb$total_abundance, cladesByTotAb$total_abundance), list(cladesByTotAb$G_vaginalis, cladesByTotAb$C1, cladesByTotAb$C2, cladesByTotAb$C3, cladesByTotAb$C4, cladesByTotAb$C5, cladesByTotAb$C6), ~t.test(.x~.y, alternative="less"))
-tTestByTotAb
+cladesByTotAb %>%
+  split(list(.$Gard, .$Cohort)) %>%
+  map(~wilcox.test(total_abundance~presAbs, data=.x, alternative="less")) %>%
+  map(~tidy(.x)) %>%
+  map2(., names(.), ~mutate(.x, Gard=.y)) %>%  # add name to table
+  purrr::reduce(full_join) %>%
+  mutate(BH=p.adjust(p.value, method = "BH")) %>%
+  select(Gard, method, alternative, statistic, p.value, BH) # re-order columns for easier reading
 ```
-Significance by a=0.05
-```{r}
-map(tTestByTotAb, 3) %>%
-  map(., ~.x<0.05)
 
-map(tTestByTotAb, 3) %>%
-  map(., ~.x<(0.05/7))
-```
 
 # Session Info
 ```{r}
