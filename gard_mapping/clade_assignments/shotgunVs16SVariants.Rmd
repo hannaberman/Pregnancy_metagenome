@@ -14,7 +14,8 @@ library(Biostrings)
 
 ## Paths
 ```{r}
-repo_dir <- "/Users/hlberman/Documents/GitHub/pregnancy_metagenome/"
+repo_dir <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/pregnancy_metagenome"
+google_drive_dir <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/"
 
 #shotgun metadata
 sgDF <- file.path(repo_dir, "shotgunMetadata.tsv") %>%
@@ -23,7 +24,7 @@ sgDF <- file.path(repo_dir, "shotgunMetadata.tsv") %>%
          SampleID_a=as.character(SampleID_a))
 
 #ASVs from Callahan et al., 2017
-S16_path <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/16S_data/RepRefine_Scripts/input/processed.rda"
+S16_path <- file.path(google_drive_dir, "16S_data/RepRefine_Scripts/input/processed.rda")
 load(S16_path)
 
 #Gardnerella 16S fasta sequences from reference WGS strains
@@ -44,7 +45,7 @@ sgGardDF <- "./gardRelativeAbundance.tsv" %>%
 Set up metaphlan table
 ```{r}
 #metaphlan data
-mDF0 <- file.path("/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/humann2/merged_tables/mergedMetaphlanAbundance.tsv") %>%
+mDF0 <- file.path(google_drive_dir, "/humann2/merged_tables/mergedMetaphlanAbundance.tsv") %>%
   read_tsv() %>%
   filter(str_detect(ID, "s__"), !str_detect(ID, "t__")) %>%
   mutate(Species = str_extract(ID, "(?<=s__)\\w+$")) %>%
@@ -230,7 +231,7 @@ gardVarDF0 <- gardVarDF %>%
   rbind(thresholds) %>%
   mutate(Threshold=Threshold+1) # make threshold as >=n 
 
-# plot
+# plot - thresholds 1 to 50
 gardVarDF0 %>%
   filter(RNAlater=="No", PaperCohort=="2017") %>%
   ggplot(aes(x=Threshold, y=propGard, shape=Method, size=Method, color=Var)) + 
@@ -243,16 +244,23 @@ gardVarDF0 %>%
   facet_wrap(~SampleID) +
   guides(color=guide_legend(override.aes=list(shape=c(rep(16, 6), rep(5, 5)), size=c(rep(2, 6), rep(4, 5))))) +
   labs(x="Threshold (reads ≥ n)", y="Proportion of Gardnerella")
+
+# plot - thresholds 1 to 5
+gardVarDF0 %>%
+  filter(RNAlater=="No", PaperCohort=="2017", Threshold<=5) %>%
+  ggplot(aes(x=Threshold, y=propGard, shape=Method, size=Method, color=Var)) + 
+  geom_point() +
+  scale_size_manual(values=c(2, 4), guide=FALSE) +
+  scale_shape_manual(values = c(16, 5), guide=FALSE) +
+  scale_color_manual(values=c("salmon", "indianred", "lightblue", "blue3", "darkorchid2", "yellowgreen", "red", "blue1", "grey48", "darkorchid2", "yellowgreen"), labels=c("Clade C1 (shotgun)", "Clade C2 (shotgun)", "Clade C3 (shotgun)", "Clade C4 (shotgun)", "Clade C5 (shotgun)", "Clade C6 (shotgun)", "G2: Clades 1/2 (V4 amplicon)", "G1: Clades 3/4 (V4 amplicon)", "G3: indeterminant (V4 amplicon)", "G4: Clade 5 (V4 amplicon)", "G5: Clade 6 (V4 amplicon)")) +
+  ylim(0,1) +
+  scale_x_continuous(breaks = seq(0,5, 1)) +
+  facet_wrap(~SampleID) +
+  guides(color=guide_legend(override.aes=list(shape=c(rep(16, 6), rep(5, 5)), size=c(rep(2, 6), rep(4, 5))))) +
+  labs(x="Threshold (reads ≥ n)", y="Proportion of Gardnerella")
 ```
 
-
-At threshold ≥1: 8 V4 variants are unrepresented
-At threshold ≥2: 10 V4 variants are unrepresented
-At threshold ≥3: 10 V4 variants are unrepresented
-At threshold ≥4: 14 V4 variants are unrepresented
-At threshold ≥5: 14 V4 variants are unrepresented
-
-Percent of cases where a variant is lost. 
+ 
 ```{r}
 #fig.height=5, fig.width=6}
 V4Vars <- gardVarDF0 %>%
@@ -276,7 +284,7 @@ varCounts <- gardVarDF0 %>%
             purrr::reduce(full_join, by=c("SampleID", "V4vars", "Threshold")), 
             by=c("SampleID", "Threshold")) %>%
   replace_na(list(shotgunVars=0))
-
+# Thresholds 1:50
 varCounts %>%
   gather("Method", "Vars", c(shotgunVars, V4vars)) %>%
 ggplot(aes(x=Threshold, y=Vars, group=Method, color=Method, linetype=Method)) +
@@ -287,7 +295,7 @@ ggplot(aes(x=Threshold, y=Vars, group=Method, color=Method, linetype=Method)) +
   scale_linetype(guide=FALSE) +
   guides(color=guide_legend(override.aes=list(linetype=c(1,2)))) +
   labs(x="Threshold (reads≥n)", y="Variants", color="Method")
-
+# Thresholds 1:5
 varCounts %>%
   gather("Method", "Vars", c(shotgunVars, V4vars)) %>%
 ggplot(aes(x=Threshold, y=Vars, group=Method, color=Method, linetype=Method)) +
@@ -300,6 +308,13 @@ ggplot(aes(x=Threshold, y=Vars, group=Method, color=Method, linetype=Method)) +
   guides(color=guide_legend(override.aes=list(linetype=c(1,2)))) +
   labs(x="Threshold (reads≥n)", y="Variants", color="Method")
 ```
+
+**Sensitivity**: Percent of cases where a variant is lost
+At threshold ≥1: 8 V4 variants are unrepresented
+At threshold ≥2: 10 V4 variants are unrepresented
+At threshold ≥3: 10 V4 variants are unrepresented
+At threshold ≥4: 14 V4 variants are unrepresented
+At threshold ≥5: 14 V4 variants are unrepresented
 
 With 56 V4 variants total in these 26 samples, percent missing at each threshold:
 ```{r}
@@ -315,6 +330,53 @@ tribble(
   select(-nMissing, -total) %>%
   formattable::formattable()
 ```
+
+**Specificity**: how many clades have no support
+At threshold ≥1: 2 clades are unsupported
+At threshold ≥2: 1 clade is unsupported
+At threshold ≥3: 0 clades are unsupported
+```{r}
+# Total number of clades found in at threshold >= 1 read matching
+gardVarDF0 %>%
+  select(SampleID, Var, propGard, RNAlater, PaperCohort, Method, Threshold) %>%
+  filter(Method=="Shotgun", Threshold==1, RNAlater=="No", PaperCohort=="2017") %>%
+  nrow
+```
+60 clades are found among the 28 samples being compated with 16S results
+
+```{r}
+tribble(
+  ~Threshold, ~nUnsupported, ~total,
+  1,2,60,
+  2,1,60,
+  3,0,60,
+) %>%
+  mutate(`Percent Supported`=round((total-nUnsupported)/total*100, 1)) %>%
+  select(-nUnsupported, -total) %>%
+  formattable::formattable()
+```
+  However, one of of these "unsupported clades" is clade 6 and G3 appears in that sample, so G3 *could* represent clade 6. Also, both of these have a match by 16S in another sample of the same subject.
+
+  Clades that appear in addition and are supported (ie a V4 variant appears as two clades):
+  At threshold ≥1: 9 clades are added
+  At threshold ≥2: 7  clade is added
+  At threshold ≥3: 5 clades are added
+  At threshold ≥4: 4 clades are added
+  At threshold ≥5: 4 clades are added
+```{r}
+tribble(
+  ~Threshold, ~added, ~total,
+  1,9,56,
+  2,7,56,
+  3,5,56,
+  4,4,56,
+  5,4,56
+) %>%
+  mutate(`Percent Supported`=round(added/total*100, 1)) %>%
+  select(-added, -total) %>%
+  formattable::formattable()
+```
+
 
 Look at distribution of clades per sample after threshold filtering
 ```{r}
