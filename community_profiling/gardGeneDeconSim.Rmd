@@ -250,7 +250,6 @@ glm(data=testGene, GReads~C1+C2+C3+C4+C5+C6) %>%
 ```
 The coefficients should be 1 and 0.
 
-
 NNLS
 make matrix A and b for nnls(A,b) to calculate $Ax=b$
 ```{r}
@@ -438,6 +437,28 @@ sampleStrains %>%
   formattable()
 ```
 The glm predicted 1.68 copies per strain in clade 2, in the sample set, there were an average of 1.24 sialidase copies per strain in clade 2. 
+
+# Testing more genes:
+```{r}
+#make a table of the genes for testing
+testGenes <- tribble(
+  ~mech, ~gene, 
+  "AMR", "HMPREF0421_20446",
+  "AMR", "HMPREF0421_20507",
+  "Biofilm formation", "HMPREF0421_20407",
+  "Biofilm formation", "HMPREF0421_20405",
+  "Biofilm formation", "HMPREF0421_20412",
+  "Biofilm formation", "HMPREF0421_20413",
+  "Biofilm formation", "HMPREF0424_1180",
+  "Biofilm formation", "HMPREF0424_1189",
+  "Biofilm formation", "HMPREF0424_1181",
+  "Epithelial adhesion", "HMPREF0424_1026",
+  "Mucin Degredation", "NedA",
+  "Mucin Degredation", "HMPREF0421_20101",
+  "Mucin Degredation", "SialidaseA",
+  "Virulence", "HMPREF0424_1186"
+)
+```
 
 ## Actual coefficients
 Calculated by actual read counts  
