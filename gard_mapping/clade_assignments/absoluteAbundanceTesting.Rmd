@@ -7,7 +7,7 @@ output: html_document
 
 # Set up
 ## packages
-```{r}
+```{r, message=FALSE}
 library(tidyverse)
 library(phyloseq)
 library(Biostrings)
@@ -145,19 +145,13 @@ mDFaaG <- mDFG %>%
 ```
 
 # Figures
-## Minimum Proportion vs. percent human
-```{r}
-
-```
-
 ## Correlation among important taxa
 Organize data frame
 ```{r}
 DF <- sgDF %>%
   select(SampleID, SubjectID, Cohort, GDcoll) %>%
   left_join(mDFaa[,c("SampleID", "Gardnerella_vaginalis")], by="SampleID") %>%
-  left_join(mDFaaG[,c(taxaOfInterest)],
-            by="SampleID") %>%
+  left_join(mDFaaG[,c("SampleID", taxaOfInterest)], by="SampleID") %>%
     dplyr::rename(C1=Gardnerella_vaginalis_C1,
                 C2=Gardnerella_vaginalis_C2,
                 C3=Gardnerella_vaginalis_C3,
