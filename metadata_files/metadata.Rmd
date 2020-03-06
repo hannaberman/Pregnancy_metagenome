@@ -17,63 +17,63 @@ set.seed(7334)
 
 # Collection Figure
 ```{r}
-sgDF <- "./Tables_4_Ben.txt" %>%
-  read_delim(delim="\t") %>%
-  dplyr::rename(SampleIndex=`Sample Index`,
-                SampleType=`Sample Type`,
-                SubjectID=Subject,
-                SampleID=`Sample ID`,
-                GDcoll=GD_Coll,
-                GWdell=GW_Dell,
-                TermPre=`Term/Pre`,
-                TotalReads=`Total reads`,
-                TotalPairs=`Total pairs`,
-                Sickle100_pe=`Sickle_100 (pe)`,
-                Sickle_pairs=Sickle_pe,
-                Human_pairs=Human_pe,
-                PctTrim=`Pct Trim`,
-                PctHuman=`Pct Human`) %>%
-  mutate(SampleID=as.character(SampleID),
-         SubjectID=as.character(SubjectID),
-         PctTrim=as.numeric(as.character(str_extract(PctTrim, ".*(?=\\%)")))/100,
-         PctHuman=as.numeric(as.character(str_extract(PctHuman, ".*(?=\\%)")))/100, 
-         GWcoll=GDcoll/7,
-         SampleID_a=paste0(substr(SampleID, 1, 5), "01", substr(SampleID, 8, 10)),
-         RNAlater=case_when(str_detect(SampleID, "[0-9]{5}01[0-9]{3}")~"No",
-                            str_detect(SampleID, "[0-9]{5}35[0-9]{3}")~"Yes"))
-head(sgDF)
+# sgDF <- "./Tables_4_Ben.txt" %>%
+#   read_delim(delim="\t") %>%
+#   dplyr::rename(SampleIndex=`Sample Index`,
+#                 SampleType=`Sample Type`,
+#                 SubjectID=Subject,
+#                 SampleID=`Sample ID`,
+#                 GDcoll=GD_Coll,
+#                 GWdell=GW_Dell,
+#                 TermPre=`Term/Pre`,
+#                 TotalReads=`Total reads`,
+#                 TotalPairs=`Total pairs`,
+#                 Sickle100_pe=`Sickle_100 (pe)`,
+#                 Sickle_pairs=Sickle_pe,
+#                 Human_pairs=Human_pe,
+#                 PctTrim=`Pct Trim`,
+#                 PctHuman=`Pct Human`) %>%
+#   mutate(SampleID=as.character(SampleID),
+#          SubjectID=as.character(SubjectID),
+#          PctTrim=as.numeric(as.character(str_extract(PctTrim, ".*(?=\\%)")))/100,
+#          PctHuman=as.numeric(as.character(str_extract(PctHuman, ".*(?=\\%)")))/100, 
+#          GWcoll=GDcoll/7,
+#          SampleID_a=paste0(substr(SampleID, 1, 5), "01", substr(SampleID, 8, 10)),
+#          RNAlater=case_when(str_detect(SampleID, "[0-9]{5}01[0-9]{3}")~"No",
+#                             str_detect(SampleID, "[0-9]{5}35[0-9]{3}")~"Yes"))
+# head(sgDF)
 ```
 
 ## sanity checks
 ```{r}
 #sickle pairs == half of `Sickle100_pe`
-sgDF %>%
-  select(Sickle100_pe, Sickle_pairs) %>%
-  mutate(test=Sickle_pairs*2,
-         TF=case_when(test==Sickle100_pe~TRUE,
-                      test!=Sickle100_pe~FALSE)) %>%
-  .$TF %>%
-  table()
-
-#Percent trimmed is Sickle 100 paired and single reads divided by total reads
-sgDF %>%
-  select(TotalReads, Sickle100_pe, Sickle_sngl, PctTrim) %>%
-  mutate(test=as.character(round(((Sickle100_pe+Sickle_sngl)/TotalReads), 4)),
-         PctTrim=as.character(PctTrim),
-         TF=case_when(test==PctTrim~TRUE,
-                      test!=PctTrim~FALSE)) %>%
-  .$TF %>%
-  table()
-
-#Percent human is bowtie paired and single reads divided by total reads?
-sgDF %>%
-  select(Sickle100_pe, Sickle_pairs, Sickle_sngl, Human_pairs, Human_sngl,PctHuman) %>%
-  mutate(test=as.character(round((Human_pairs*2+Human_sngl)/(Sickle100_pe+Sickle_sngl),4)),
-         PctHuman=as.character(PctHuman),
-         TF=case_when(test==PctHuman~TRUE,
-                      test!=PctHuman~FALSE)) %>%
-  .$TF %>%
-  table
+# sgDF %>%
+#   select(Sickle100_pe, Sickle_pairs) %>%
+#   mutate(test=Sickle_pairs*2,
+#          TF=case_when(test==Sickle100_pe~TRUE,
+#                       test!=Sickle100_pe~FALSE)) %>%
+#   .$TF %>%
+#   table()
+# 
+# #Percent trimmed is Sickle 100 paired and single reads divided by total reads
+# sgDF %>%
+#   select(TotalReads, Sickle100_pe, Sickle_sngl, PctTrim) %>%
+#   mutate(test=as.character(round(((Sickle100_pe+Sickle_sngl)/TotalReads), 4)),
+#          PctTrim=as.character(PctTrim),
+#          TF=case_when(test==PctTrim~TRUE,
+#                       test!=PctTrim~FALSE)) %>%
+#   .$TF %>%
+#   table()
+# 
+# #Percent human is bowtie paired and single reads divided by total reads?
+# sgDF %>%
+#   select(Sickle100_pe, Sickle_pairs, Sickle_sngl, Human_pairs, Human_sngl,PctHuman) %>%
+#   mutate(test=as.character(round((Human_pairs*2+Human_sngl)/(Sickle100_pe+Sickle_sngl),4)),
+#          PctHuman=as.character(PctHuman),
+#          TF=case_when(test==PctHuman~TRUE,
+#                       test!=PctHuman~FALSE)) %>%
+#   .$TF %>%
+#   table
 ```
 Unsure how pct human was calculated...
 
@@ -217,6 +217,34 @@ setdiff(unique(sgDF$SubjectID), sgDFsubset$SubjectID)
 ```{r}
 summary(sgDFsubset$GDcoll)
 ```
+
+
+# Collection figure: paired
+```{r}
+sgDF <- "../shotgunMetadata.tsv" %>%
+  read_tsv
+
+SHOT2 <- sgDF %>%
+  select(SubjectID, GDcoll, Cohort, PaperCohort, RNAlater) %>%
+  filter(PaperCohort=="2015"|PaperCohort=="2017") %>%
+  mutate(Method=case_when(RNAlater=="No"~"Paired 16S and shotgun",
+                          RNAlater=="Yes"~"Paired meta-omic")) %>%
+  unique.data.frame() 
+
+ggplot() +
+  geom_point(data=AMP, aes(x=GDcoll, y=as.character(SubjectID), shape=Method, color=Cohort, size=Method), alpha=.5) +
+   geom_point(data=SHOT2, aes(x=GDcoll, y=as.character(SubjectID), shape=Method, size=Method), color="black") +
+  xlim(0,280) +
+     labs(x = "Gestation Days",
+          y = "Subject") +
+     scale_color_manual(values=c("olivedrab", "steelblue", "black"))+
+     scale_shape_manual(values=c(19, 15)) +
+     scale_size_manual(values=c(1,2)) +
+     #theme_classic()+
+     theme(axis.ticks.y = element_blank(),
+      axis.text.y  = element_blank())
+```
+
 
 # Session Info
 ```{r}
