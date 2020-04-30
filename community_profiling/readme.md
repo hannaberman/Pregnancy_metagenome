@@ -25,4 +25,8 @@ Notes:
 Humann2 was run in April 2019 with paired output of uploaded reads and re-run in October 2019 with paired output of bbmap filtered reads (reads have been filtered with both bowtie2 and bbmap).
 
 
+II) HUMANN2 with Gardnerella clade-specific pangenome databases
+Steps: 
+1) Create Gardnerella clade-specific pangenome databases with `makeGardPangenomes.Rmd` and save in `/humann2_gard_clades/gardnerella_pangenomes` directory
+
 
