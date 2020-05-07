@@ -202,7 +202,27 @@ All samples
 ```{r}
 gardVarDF %>%
   filter(RNAlater=="No",
+         SubjectID=="10508",
          PaperCohort==2017)%>%
+ggplot(aes(x=GWcoll, y=propGard, shape=Method, size=Method, color=Var)) +
+  geom_point() +
+  scale_size_manual(values=c(1.5, 3)) +
+  #scale_color_manual(values=c("salmon", "indianred", "lightblue", "blue3", "darkorchid2", "yellowgreen", "red", "blue1", "grey48", "darkorchid2", "yellowgreen"), labels=c("Clade C1 (shotgun)", "Clade C2 (shotgun)", "Clade C3 (shotgun)", "Clade C4 (shotgun)", "Clade C5 (shotgun)", "Clade C6 (shotgun)", "G2: Clades 1/2 (V4 amplicon)", "G1: Clades 3/4 (V4 amplicon)", "G3: indeterminant (V4 amplicon)", "G4: Clade 5 (V4 amplicon)", "G5: Clade 6 (V4 amplicon)")) + 
+  scale_color_manual(values=c("indianred", "red", "blue1", "grey48"), labels=c("Clade C2 (shotgun)",  "G2: Clades 1/2 (V4 amplicon)", "G1: Clades 3/4 (V4 amplicon)", "G3: indeterminant (V4 amplicon)")) + 
+  scale_shape_manual(values = c(16, 1)) +
+  facet_wrap(~SubjectID, nrow=2) +
+  labs(x="Gestation weeks at collection", y="Proportion of Gardnerella", shape="Method", color="Variant") +
+  guides(color=guide_legend(override.aes=list(shape=15, size=3))) +
+  xlim(0,40)
+#ggsave(file.path(figure_out, "biolunchV4SGv1.png"), width=8, height=6)
+```
+
+Four Subjects:
+```{r}
+gardVarDF %>%
+  filter(RNAlater=="No",
+         PaperCohort==2017, 
+         SubjectID %in% c("10621", "10627", "10629", "19024"))%>%
 ggplot(aes(x=GWcoll, y=propGard, shape=Method, size=Method, color=Var)) +
   geom_point() +
   scale_size_manual(values=c(1.5, 3)) +
@@ -210,8 +230,10 @@ ggplot(aes(x=GWcoll, y=propGard, shape=Method, size=Method, color=Var)) +
   scale_shape_manual(values = c(16, 1)) +
   facet_wrap(~SubjectID, nrow=2) +
   labs(x="Gestation weeks at collection", y="Proportion of Gardnerella", shape="Method", color="Variant") +
-  guides(color=guide_legend(override.aes=list(shape=15, size=3)))
-#ggsave(file.path(figure_out, "biolunchV4SGv1.png"), width=8, height=6)
+  guides(color=guide_legend(override.aes=list(shape=15, size=3))) +
+  theme(plot.background = element_rect(fill = "transparent", color = NA),
+        legend.background = element_rect(fill = "transparent"))
+#ggsave("/Users/hlberman/Desktop/figure1.png", width=7, height=5, bg = "transparent")
 ```
 
 # Add thresholds and test:
@@ -476,7 +498,7 @@ ggplot(data=sgDF) +
   geom_vline(xintercept = sgDF$bbmapFiltered_pairs[sgDF$SampleID==samples10608[2]], color="blue")
 ```
 
-**Sample 10626**
+**Subject 10626**
 ```{r}
 #gardnerella found by metaphlan in subject 10626
 gardVarDF %>%
@@ -515,13 +537,13 @@ ggplot(data=sgDF) +
 ```
 Vertical lines represent reads in subject 10608’s samples. Fewer bacterial reads in these samples.  
 
-
+#### Samples with no Gardnerella by clade mapping but Gardnerella found by Metaphlan
 ```{r}
 sgGardDF %>%
   full_join(mDF[,c("SampleID", "Gardnerella_vaginalis")], by="SampleID") %>%
   filter(is.na(n), Gardnerella_vaginalis>0)
 ```
-**Subject 10626** noted above. Additional sample **1060435348**. This sample previously had one read of Clade 4, and now has no reads. There is only 0.2% *Gardnerella vaginalis* in the sample. 
+**Subject 10626** noted above. Additional Sample **1060435348**. This sample previously had one read of Clade 4, and now has no reads. There is only 0.2% *Gardnerella vaginalis* in the sample. 
 
 ```{r}
 #proportion Gardnerella vaginalis from metaphlan results
@@ -599,6 +621,33 @@ ggplot(data=sgDF) +
 
 Second 10627 sample (1062701298) G3 looks like C1, C2, and C6 – we haven’t seen a G3 variant in C6 before, but it is not impossible as we only have 1 reference strain in this clade at present.  
 
+## Clades found by *Gardnerella* mapping method but not by MetaPhlAn
+```{r}
+sgGardDF %>%
+  full_join(mDF[,c("SampleID", "Gardnerella_vaginalis")], by="SampleID") %>%
+  filter(Gardnerella_vaginalis==0, n>0)
+```
+
+Sample 1050801318
+```{r}
+#No gardnerella found by metaphlan in sample 1050801318
+gardVarDF %>%
+  filter(SubjectID=="10508") %>%
+  select(SampleID, Var, propGard, Method)
+
+#read depth of all sub samples
+sgDF %>%
+  filter(SampleID=="1050801318") %>%
+  select(SampleID, TotalPairs, bbmapFiltered_pairs, PctHuman, finalPctHuman_po)
+
+#Bacterial reads in all subject 10508 samples
+ggplot(data=sgDF) +
+  geom_density(aes(x=bbmapFiltered_pairs)) +
+  geom_vline(xintercept = sgDF$bbmapFiltered_pairs[sgDF$SampleID=="1050801318"], color="blue", show.legend = TRUE) +
+  geom_vline(xintercept = sgDF$bbmapFiltered_pairs[sgDF$SampleID=="1050801308"], color="red", show.legend = TRUE) +
+  geom_vline(xintercept = sgDF$bbmapFiltered_pairs[sgDF$SampleID=="1050835178"], color="green", show.legend = TRUE)
+```
+
 # Reads cutoff?:
 ```{r}
 sgGardDF$n %>%
@@ -634,11 +683,6 @@ sgGardDF %>%
   scale_y_continuous(limits = c(0,10), breaks = seq(0,10,by=1), minor_breaks = NULL)
 ```
 Only 3 samples have one read of one clade. 
-
-# Save metaphlan tables
-```{r}
-
-```
 
 
 # Session Info

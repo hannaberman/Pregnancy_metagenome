@@ -66,8 +66,9 @@ Define the two groups of taxa pairs to assess: (six *Gardnerella vaginalis* clad
 gardnerellaClades <- c("Gardnerella_vaginalis_C1", "Gardnerella_vaginalis_C2", "Gardnerella_vaginalis_C3", "Gardnerella_vaginalis_C4", "Gardnerella_vaginalis_C5", "Gardnerella_vaginalis_C6")
 cladesLactos <- c("Gardnerella_vaginalis_C1", "Gardnerella_vaginalis_C2", "Gardnerella_vaginalis_C3", "Gardnerella_vaginalis_C4", "Gardnerella_vaginalis_C5", "Gardnerella_vaginalis_C6", "Lactobacillus_crispatus", "Lactobacillus_gasseri", "Lactobacillus_iners", "Lactobacillus_jensenii")
 allGardLactos <- c("Gardnerella_vaginalis", "Lactobacillus_crispatus", "Lactobacillus_gasseri", "Lactobacillus_jensenii", "Lactobacillus_iners")
-cladesSpecies <- c("Gardnerella_vaginalis_C1", "Gardnerella_vaginalis_C2", "Gardnerella_vaginalis_C3", "Gardnerella_vaginalis_C4", "Gardnerella_vaginalis_C5", "Gardnerella_vaginalis_C6", "Lactobacillus_crispatus", "Lactobacillus_gasseri", "Lactobacillus_iners", "Lactobacillus_jensenii", "Atopobium_vaginae", "Mycoplasma_hominis", "Prevotella_bivia", "Ureaplasma_parvum")
-allGardSpecies <- c("Gardnerella_vaginalis", "Lactobacillus_crispatus", "Lactobacillus_gasseri", "Lactobacillus_iners", "Lactobacillus_jensenii", "Atopobium_vaginae", "Mycoplasma_hominis", "Prevotella_bivia", "Ureaplasma_parvum")
+
+cladesSpecies <- c("Lactobacillus_crispatus", "Lactobacillus_gasseri", "Lactobacillus_iners", "Lactobacillus_jensenii", "Gardnerella_vaginalis_C1", "Gardnerella_vaginalis_C2", "Gardnerella_vaginalis_C3", "Gardnerella_vaginalis_C4", "Gardnerella_vaginalis_C5", "Gardnerella_vaginalis_C6", "Atopobium_vaginae", "Mycoplasma_hominis", "Prevotella_bivia", "Ureaplasma_parvum")
+allGardSpecies <- c("Lactobacillus_crispatus", "Lactobacillus_gasseri", "Lactobacillus_iners", "Lactobacillus_jensenii", "Gardnerella_vaginalis", "Atopobium_vaginae", "Mycoplasma_hominis", "Prevotella_bivia", "Ureaplasma_parvum")
 ```
 
 # Co-occurrence
@@ -87,6 +88,10 @@ Effect size is the difference between observed and expected co-occurrences, norm
 ## Define functions
 Make a function to perform and plot analyses for convenience.  
 ```{r}
+#cohort <- "Stanford"
+#samples <- sgDF$SampleID
+#organisms <- cladesSpecies
+    
 cooccurr_analyses <- function(cohort, samples, organisms){  
   x <- DFpa %>%
     filter(Cohort==cohort,
@@ -97,8 +102,15 @@ cooccurr_analyses <- function(cohort, samples, organisms){
     as.matrix() %>%
     cooccur(., type="spp_site", spp_names=TRUE, prob="hyper", eff_standard=TRUE, thresh=FALSE)
   
+  #remove p values 
+  x$results <- x$results %>%
+    select(-p_lt, -p_gt)
+  
   x0 <- x$results %>%
-    select(sp1_name, sp2_name, obs_cooccur, exp_cooccur, p_lt, p_gt) %>%
+    select(sp1_name, sp2_name, obs_cooccur, exp_cooccur, 
+           # p_lt, ## no p-values for now
+           # p_gt
+           ) %>%
     mutate(sp1_name=as.character(sp1_name),
            sp2_name=as.character(sp2_name))
   
@@ -118,6 +130,9 @@ cooccurr_analyses <- function(cohort, samples, organisms){
   x3 <- x1 %>% 
     full_join(x2, by=colnames(x1)) %>%
     unique.data.frame()
+
+  x3$sp1_name <- factor(x3$sp1_name, levels=organisms) #order x axis
+  x3$sp2_name <-  factor(x3$sp2_name, levels=organisms)  
   
   # removing redundant iformation:
   x4 <- x3 %>%
@@ -134,37 +149,40 @@ cooccurr_analyses <- function(cohort, samples, organisms){
     mutate(sp1_name=x4$sp1_name) %>%
     select(sp1_name, everything()) %>% #rearrange columns
     gather("sp2_name", "effects", c(2:ncol(.))) %>%
-    left_join(x3[,c("sp1_name", "sp2_name", "p_lt", "p_gt")], by=c("sp1_name", "sp2_name")) %>%
-    mutate(p_lt=case_when(is.na(effects)==TRUE~1,
-                          is.na(effects)==FALSE~p_lt),
-           p_gt=case_when(is.na(effects)==TRUE~1,
-                          is.na(effects)==FALSE~p_gt),
-      pvalue=case_when(p_lt>0.01&p_gt>0.01~"",
-                            p_lt<=0.01&p_lt>0.001~"*",
-                            p_gt<=0.01&p_gt>0.001~"*",
-                            p_lt<=0.001&p_lt>0.0005~"**",
-                            p_gt<=0.001&p_gt>0.0005~"**",
-                            p_lt<=0.0005&p_lt>0.0001~"***",
-                            p_gt<=0.0005&p_gt>0.0001~"***",
-                            p_lt<=0.0001~"****",
-                            p_gt<=0.0001~"****"))
+    left_join(x3[,c("sp1_name", "sp2_name" 
+                    # , "p_lt", "p_gt"
+                    )], by=c("sp1_name", "sp2_name")) # %>%
+    # mutate(p_lt=case_when(is.na(effects)==TRUE~1,
+    #                       is.na(effects)==FALSE~p_lt),
+    #        p_gt=case_when(is.na(effects)==TRUE~1,
+    #                       is.na(effects)==FALSE~p_gt),
+    #        pvalue=case_when(p_lt>0.01&p_gt>0.01~"",
+    #                         p_lt<=0.01&p_lt>0.001~"*",
+    #                         p_gt<=0.01&p_gt>0.001~"*",
+    #                         p_lt<=0.001&p_lt>0.0005~"**",
+    #                         p_gt<=0.001&p_gt>0.0005~"**",
+    #                         p_lt<=0.0005&p_lt>0.0001~"***",
+    #                         p_gt<=0.0005&p_gt>0.0001~"***",
+    #                         p_lt<=0.0001~"****",
+    #                         p_gt<=0.0001~"****"))
   
   samples <- ifelse(length(samples)==length(subsetSamples), "Sample Subset", "All Samples")
   title <- ifelse(length(organisms)==length(cladesSpecies), "Co-occurrence of G. vaginalis clades and key species", "Co-occurrence of total G. vaginalis and key species")
-  x6$sp1_name <- factor(x6$sp1_name, levels=organisms[order(organisms)]) #order x axis
-  x6$sp2_name <-  factor(x6$sp2_name, levels=organisms[rev(order(organisms))]) #order y axis (reverse of x axis)
 
-    plot <- ggplot(x6, aes(x=sp1_name, y=sp2_name, fill=effects, label=pvalue)) +
-    geom_tile() +
-    geom_text()+
-    scale_fill_gradient2(low = "red", mid = "white", high = "blue", midpoint = 0) +
-    scale_x_discrete(position="bottom") +
-    theme(axis.text.x = element_text(angle = 45, hjust=1)) +
-    labs(title=title, subtitle = paste0(cohort, ": ", samples), x=NULL, y=NULL, fill="Effect size")
+  x6$sp2_name <-  factor(x6$sp2_name, levels=rev(organisms)) #order y axis (reverse of x axis)
+  
+    plot <- ggplot(x6, aes(x=sp1_name, y=sp2_name, fill=effects)) + #label=pvalue
+      geom_tile() +
+      #geom_text()+
+      scale_fill_gradient2(low = "red", mid = "white", high = "blue", midpoint = 0) +
+      scale_x_discrete(position="bottom") +
+      theme(axis.text.x = element_text(angle = 45, hjust=1)) +
+      labs(title=title, subtitle = paste0(cohort, ": ", samples), x=NULL, y=NULL, fill="Effect size") 
+    
   return(list(Cooccur_summary=summary(x), 
               Cooccur_results=x$results, 
-              Heatmap=plot))
-}
+              Heatmap=plot))}
+    
 ```
 
  

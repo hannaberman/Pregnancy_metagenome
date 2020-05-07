@@ -1,5 +1,6 @@
 Clade Assignments Read Me
-10/03/2019
+10/03/2019, updated 04/30/2020
+
 Purpose: Determine clades of Gardnerella reads using a two step alingment process to filter and align reads. Input reads are bbmap filtered to remove human sequences. Input is paired bbmap filtered reads only. 
 
 Contents:
@@ -31,8 +32,15 @@ SECOND PASS: bbmap-filtered reads (Ran in October 2019)
 
 Contents: Analysis
 1) `./compareFiltering.Rmd`: for comparing mapq 20 vs mapq 40 filtering results. (not used in second pass)
-2) `./cladeAssignments.Rmd` : to assign reads to clades
-3) `./shotgunVs16Svariants.Rmd`: compare shotgun G. vaginalis classification with 16S amplicon
-4) `./rebaccaAnalyses.Rmd` : testing the use of REBACCA for co-occurrence analyses
-5) `./cooccurAnalyses.Rmd` : testing cooccur method which uses a hypergeometric distribution to assess the probability of taxon-taxon co-occurrence (Veech 2013 and Griffith et al., 2016)
-6) `./`
+2) `./cladeAssignments.Rmd` : to assign reads to clades. Outputs: `./aglingmentsFinal.tsv` and `gardRelativeAbundance.tsv`
+3) `./shotgunVs16Svariants.Rmd`: compare shotgun G. vaginalis classification with 16S amplicon. Also assess mismatches with MetaPhlan2 analyses
+4) `./explotatoryAnalyses.Rmd`: explore proportions of 
+5) `./rebaccaAnalyses.Rmd` : testing the use of REBACCA for co-occurrence analyses. Functions in `./REBACCA_FUNCTIONS.R`
+6) `./cooccurAnalyses.Rmd` : testing cooccur method which uses a hypergeometric distribution to assess the probability of taxon-taxon co-occurrence (Veech 2013 and Griffith et al., 2016)
+7) `./cooccurAnalyses_threshold.Rmd`: test adding a threshold to the co-occurrence analyses.
+8) `./absoluteAbundanceTesting.Rmd`: Look at using absolute abundances (normalize 
+
+
+Other files: 
+`cladeAssignmentsBBmapUsearch.Rmd`: test results substituting BBmap for Bowtie2 (stick with Bowtie2). 
+``

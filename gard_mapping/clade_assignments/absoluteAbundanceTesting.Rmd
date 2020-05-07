@@ -162,6 +162,7 @@ mDFaaG <- mDFG %>%
 # Analyses
 Organize data frame
 ```{r}
+# dataframe with each taxon as a column
 DF <- sgDF %>%
   select(SampleID, SubjectID, Cohort, GDcoll) %>%
   left_join(mDFaa[,c("SampleID", "Gardnerella_vaginalis")], by="SampleID") %>%
@@ -193,6 +194,7 @@ totalAbundances <- sgDF %>%
 subsetSamples <- read_lines(file.path("..", "..", "sampleSubset.txt"))
 ```
 
+
 ## Distribution of each clade and total *G. vaginalis*
 ```{r}
 aaCladesPlot <- DF %>%
@@ -214,6 +216,7 @@ aaCladesPlot +
 ## Correlation among important taxa
 ### Scatterplots
 ```{r, fig.height=8, fig.width=8, warning=FALSE}
+#Taxon 1 vs. Taxon 2
 DF0 <- DF %>%
   mutate(xC1=C1, 
          xC2=C2,
@@ -264,7 +267,7 @@ DF0 %>%
 ```
 
 ### Correlations
-```{r, message=FALSE, warning=FALSE, fig.height=3, fig.width=5}
+```{r, message=FALSE, warning=FALSE, fig.height=3, fig.width=3}
 #function to calcualte spearman's rank correlation coefficients
 corTestFig <- function(df, name){
   cor_test_results <- df %>%
@@ -290,16 +293,18 @@ corTestFig <- function(df, name){
             Taxon1 == "A_vaginae" & Taxon2 %in% c("M_hominis", "P_bivia", "U_parvum")|
             Taxon1 == "M_hominis" & Taxon2 %in% c("P_bivia", "U_parvum")|
             Taxon1 == "P_bivia" & Taxon2 == "U_parvum") %>%
-      mutate(p.value=case_when(p.value>0.01~"",
-                             p.value<=0.01&p.value>0.001~"*",
-                             p.value<=0.001&p.value>0.0008~"**",
-                             p.value<=0.0008&p.value>0.0001~"***",
-                             p.value<=0.0001~"****"),
+      mutate(
+        # p.value=case_when(p.value>0.01~"",
+        #                      p.value<=0.01&p.value>0.001~"*",
+        #                      p.value<=0.001&p.value>0.0008~"**",
+        #                      p.value<=0.0008&p.value>0.0001~"***",
+        #                      p.value<=0.0001~"****"),
           Taxon1=factor(Taxon1, levels=c("G_vaginalis", taxaOfInterestAbbr)),
           Taxon2=factor(Taxon2, levels = c(rev(taxaOfInterestAbbr), "G_vaginalis"))) %>%
-    ggplot(aes(x=Taxon1, y=Taxon2, fill=estimate, label=p.value)) +
+    filter(Cohort=="Stanford") %>%
+    ggplot(aes(x=Taxon1, y=Taxon2, fill=estimate)) + #label=p.value
       geom_tile() +
-      geom_text() +
+      #geom_text() +
       scale_fill_gradient2(low = "red", mid = "white", high = "blue", midpoint = 0) +
       scale_x_discrete(drop=FALSE) +
       scale_y_discrete(drop=FALSE) +
@@ -317,15 +322,17 @@ list(AllSamples=DF0, SampleSubset=filter(DF0, SampleID %in% subsetSamples)) %>% 
 #### Prelim figures
 
 ```{r}
-#dataframe for 
+ 
 taxaOfInterestAbbr0 <- c("Gv", "C1", "C2", "C3", "C4", "C5", "C6", "Lc", "Lg", "Lj", "Li")
 
+# DF1 = remove duplicate entries
 DF1 <- DF0 %>%
   filter(Taxon1 %in% c("G_vaginalis", "C1", "C2", "C3", "C4", "C5", "C6"),
          Taxon2 %in% c("L_crispatus", "L_gasseri", "L_jensenii", "L_iners")) %>%
   mutate(Taxon1 = factor(Taxon1, levels=c("G_vaginalis", "C1", "C2", "C3", "C4", "C5", "C6"), labels=c("Gv", "C1", "C2", "C3", "C4", "C5", "C6")),
          Taxon2 = factor(Taxon2, levels=c("L_crispatus", "L_gasseri", "L_jensenii", "L_iners"), labels=c("Lc", "Lg", "Lj", "Li")))
 
+# DF2 = sample subset
 DF2 <- DF1 %>%
   filter(SampleID %in% subsetSamples)
 ```
@@ -347,19 +354,21 @@ corTestFig1 <- function(df, name){
       map(tidy) %>%
       map2(., names(.), ~mutate(.x, Group=.y)) %>%
       purrr::reduce(full_join, by = c("estimate", "statistic", "p.value", "method", "alternative", "Group")) %>%
+      select(-p.value) %>%
       separate(Group, c("Taxon1", "Taxon2", "Cohort"), sep="\\.") 
   plot <- cor_test_results %>%
-      mutate(p.value=case_when(p.value>0.05~"",
-                               p.value<=0.05&p.value>0.01~".",  
-                               p.value<=0.01&p.value>0.001~"*",
-                               p.value<=0.001&p.value>0.0004~"**",
-                               p.value<=0.0004&p.value>0.0001~"***",
-                               p.value<=0.0001~"****"),
+       mutate(
+         #p.value=case_when(p.value>0.05~"",
+      #                          p.value<=0.05&p.value>0.01~".",  
+      #                          p.value<=0.01&p.value>0.001~"*",
+      #                          p.value<=0.001&p.value>0.0004~"**",
+      #                          p.value<=0.0004&p.value>0.0001~"***",
+      #                          p.value<=0.0001~"****"),
              Taxon1=factor(Taxon1, levels=c("C6", "C5", "C4", "C3", "C2", "C1", "Gv")), 
              Taxon2=factor(Taxon2, levels=c("Lc", "Lg", "Lj", "Li"))) %>%
-    ggplot(aes(x=Taxon2, y=Taxon1, fill=estimate, label=p.value)) +
+    ggplot(aes(x=Taxon2, y=Taxon1, fill=estimate)) + #label=p.value
       geom_tile() +
-      geom_text() +
+      #geom_text() +
       scale_fill_gradient2(low = "red", mid = "white", high = "blue", midpoint = 0) +
       scale_x_discrete(drop=FALSE) +
       scale_y_discrete(drop=FALSE) +
@@ -370,6 +379,47 @@ corTestFig1 <- function(df, name){
 }
 ```
 
+## Clade presence-absence vs. total abundance
+```{r, message=FALSE}
+# safeWilcox <- safely(wilcox.test)
+PresAbsVsAbundance <- function(df, name){
+ df0 <- df %>%
+    left_join(totalAbundances, by="SampleID") %>%
+    gather("Taxon", "presAbs", c(G_vaginalis, C1, C2, C3, C4, C5, C6, A_vaginae, L_crispatus, L_gasseri, L_iners, L_jensenii, P_bivia, U_parvum, M_hominis)) %>%
+    mutate(presAbs=case_when(presAbs>0~"present",
+                             presAbs==0~"absent"),
+           presAbs=factor(presAbs, levels=c("present", "absent")),
+           Taxon=factor(Taxon, levels=c("G_vaginalis", taxaOfInterestAbbr), labels=c("Gv", "C1", "C2", "C3", "C4", "C5", "C6", "Lc", "Lg", "Lj", "Li", "Av", "Mh", "Pb", "Up")))
+  # wilcoxResults <- df0 %>%
+  #   split(list(.$Taxon, .$Cohort)) %>% #split
+  #   map(~safeWilcox(totalAbundance~presAbs, data=.x, alternative="two.sided")) %>% # run wilcox test
+  #   map("result") %>%
+  #   map(~tidy(.x)) %>%
+  #   map2(., names(.), ~mutate(.x, Taxon=.y)) %>%  # add name to table
+  #   purrr::reduce(full_join) %>%
+  #   separate(Taxon, c("Taxon", "Cohort"), sep = "\\.") %>%
+  #   mutate(BH=p.adjust(p.value, method = "BH")) %>%
+  #   select(Cohort, Taxon, method, alternative, statistic, p.value, BH) # re-order columns for easier reading
+  
+  plot <- df0 %>%
+    ggplot(aes(x=presAbs, y=totalAbundance)) +
+      geom_boxplot() +
+      geom_jitter() +
+      facet_grid(Cohort~Taxon) +
+      scale_x_discrete(drop=FALSE) +
+      scale_y_log10() +
+      theme(axis.text.x = element_text(angle=90)) +
+      labs(x=element_blank(), y="Bacterial Load", title="Presence-Absence vs. Abundance", subtitle = name)
+  outputList <- list(Figure=plot) #`Wilcox Results`=wilcoxResults, 
+}
+
+list(AllSamples=DF, SampleSubset=filter(DF, SampleID %in% subsetSamples)) %>% # full data frame and data frame with only subset samples
+   map2(c("All Samples", "Sample Subset"), PresAbsVsAbundance) # run function
+```
+
+# Prelim/F31 figures
+
+## Heat map
 All Samples
 ```{r, message=FALSE, warning=FALSE}
 corTestFig1(DF1)
@@ -380,45 +430,7 @@ Sample Subset
 corTestFig1(DF2)
 ```
 
-## Clade presence-absence vs. total abundance
-```{r, message=FALSE}
-safeWilcox <- safely(wilcox.test)
-PresAbsVsAbundance <- function(df, name){
- df0 <- df %>%
-    left_join(totalAbundances, by="SampleID") %>%
-    gather("Taxon", "presAbs", c(G_vaginalis, C1, C2, C3, C4, C5, C6, A_vaginae, L_crispatus, L_gasseri, L_iners, L_jensenii, P_bivia, U_parvum, M_hominis)) %>%
-    mutate(presAbs=case_when(presAbs>0~"present", 
-                             presAbs==0~"absent"),
-           presAbs=factor(presAbs, levels=c("present", "absent")),
-           Taxon=factor(Taxon, levels=c("G_vaginalis", taxaOfInterestAbbr), labels=c("Gv", "C1", "C2", "C3", "C4", "C5", "C6", "Lc", "Lg", "Lj", "Li", "Av", "Mh", "Pb", "Up"))) 
-  wilcoxResults <- df0 %>%
-    split(list(.$Taxon, .$Cohort)) %>% #split 
-    map(~safeWilcox(totalAbundance~presAbs, data=.x, alternative="two.sided")) %>% # run wilcox test
-    map("result") %>%
-    map(~tidy(.x)) %>%
-    map2(., names(.), ~mutate(.x, Taxon=.y)) %>%  # add name to table
-    purrr::reduce(full_join) %>%
-    separate(Taxon, c("Taxon", "Cohort"), sep = "\\.") %>%
-    mutate(BH=p.adjust(p.value, method = "BH")) %>%
-    select(Cohort, Taxon, method, alternative, statistic, p.value, BH) # re-order columns for easier reading
-  
-  plot <- df0 %>%
-    ggplot(aes(x=presAbs, y=totalAbundance)) +
-      geom_boxplot() +
-      geom_jitter() +
-      facet_grid(Cohort~Taxon) +
-      scale_x_discrete(drop=FALSE) +
-      scale_y_log10() +
-      theme(axis.text.x = element_text(angle=90)) +
-      labs(x=element_blank(), y="Total Abundance", title="Presence-Absence vs. Abundance", subtitle = name)
-  outputList <- list(`Wilcox Results`=wilcoxResults, Figure=plot)
-}
-
-list(AllSamples=DF, SampleSubset=filter(DF, SampleID %in% subsetSamples)) %>% # full data frame and data frame with only subset samples
-   map2(c("All Samples", "Sample Subset"), PresAbsVsAbundance) # run function
-```
-
-### Prelim figure
+## bacterial load vs. presence absence
 ```{r}
 prelimPresAbsAll <- DF %>%
     left_join(totalAbundances, by="SampleID") %>%
@@ -444,6 +456,99 @@ prelimPresAbsAll <- DF %>%
   }
   
 map(list(prelimPresAbsAll, prelimPresAbsSubset), prelimPresAbsFigure)  
+```
+
+### Final prelim oral figure
+```{r}
+prelimPresAbsAll <- DF %>%
+    left_join(totalAbundances, by="SampleID") %>%
+    gather("Taxon", "presAbs", c(G_vaginalis, C1, C2, C3, C4, C5, C6, A_vaginae, L_crispatus, L_gasseri, L_iners, L_jensenii, P_bivia, U_parvum, M_hominis)) %>%
+    filter(Taxon %in% c("G_vaginalis", "C1", "C6", "L_crispatus")) %>%
+    filter(Cohort=="Stanford") %>%
+    mutate(Taxon = factor(Taxon, levels=c("G_vaginalis", "C1", "C6", "L_crispatus"), labels=c("Gv", "C1", "C6", "Lc")),
+           presAbs=case_when(presAbs>0~"present", 
+                             presAbs==0~"absent"),
+           presAbs=factor(presAbs, levels=c("present", "absent")))
+  
+ prelimPresAbsSubset <-  prelimPresAbsAll %>%
+  filter(SampleID %in% subsetSamples)
+
+  prelimPresAbsFigure <- function(df){
+      ggplot(data=df, aes(x=presAbs, y=totalAbundance)) +
+      geom_boxplot() +
+      geom_jitter() +
+      facet_grid(Cohort~Taxon) +
+      scale_x_discrete(drop=FALSE) +
+      scale_y_log10() +
+      theme(axis.text.x = element_text(angle=90)) +
+      labs(x=element_blank(), y="Bacterial Load", title="Presence-Absence vs. Abundance")
+  }
+  
+map(list(prelimPresAbsAll, prelimPresAbsSubset), prelimPresAbsFigure)  
+```
+
+F31 figure
+```{r}
+#function to calcualte spearman's rank correlation coefficients
+corTestFig1 <- function(df, name){
+  cor_test_results <- df %>%
+    filter(Cohort=="Stanford") %>%
+    split(list(.$Taxon1, .$Taxon2)) %>%
+      map(~cor.test(~absoluteAbundanceTax1+absoluteAbundanceTax2, data=.x, alternative="two.sided", method="spearman")) %>%
+      map(tidy) %>%
+      map2(., names(.), ~mutate(.x, Group=.y)) %>%
+      purrr::reduce(full_join, by = c("estimate", "statistic", "p.value", "method", "alternative", "Group")) %>%
+      separate(Group, c("Taxon1", "Taxon2"), sep="\\.") %>%
+      select(-p.value)
+  plot <- cor_test_results %>%
+      # mutate(p.value=case_when(p.value>0.05~"",
+      #                          p.value<=0.05&p.value>0.01~".",  
+      #                          p.value<=0.01&p.value>0.001~"*",
+      #                          p.value<=0.001&p.value>0.0004~"**",
+      #                          p.value<=0.0004&p.value>0.0001~"***",
+      #                          p.value<=0.0001~"****"),
+             Taxon1=factor(Taxon1, levels=c("C6", "C5", "C4", "C3", "C2", "C1", "Gv")), 
+             Taxon2=factor(Taxon2, levels=c("Lc", "Lg", "Lj", "Li"))) %>%
+    ggplot(aes(x=Taxon2, y=Taxon1, fill=estimate)) + #label=p.value
+      geom_tile() +
+      #geom_text() +
+      scale_fill_gradient2(low = "red", mid = "white", high = "blue", midpoint = 0) +
+      scale_x_discrete(drop=FALSE) +
+      scale_y_discrete(drop=FALSE) +
+      labs(x="Lactobacillus", y="Gardnerella", title = "Abundance Correlations")
+  outputList <- list(Results=cor_test_results, Figure=plot)   
+    return(outputList)
+}
+```
+
+
+# Over time?
+```{r}
+DF %>%
+  gather("taxon", "abundance", c(5:ncol(.))) %>%
+  #filter(taxon=="C1"|taxon=="L_crispatus") %>%
+  mutate(GDcoll=as.numeric(as.character(GDcoll))) %>%
+ggplot(aes(x=GDcoll, y=abundance, group=taxon, color=taxon)) +
+  geom_line() +
+  facet_wrap(~SubjectID) +
+  ylim(0,0.25) +
+  scale_x_continuous(breaks = waiver()) +
+  #scale_y_continuous(breaks = waiver()) +
+  theme(axis.text.x = element_text(angle=45))
+```
+
+```{r}
+DF %>%
+  gather("taxon", "abundance", c(5:ncol(.))) %>%
+  #filter(taxon=="C1"|taxon=="L_crispatus") %>%
+  mutate(GDcoll=as.numeric(as.character(GDcoll))) %>%
+ggplot(aes(x=GDcoll, y=abundance, group=taxon, color=taxon)) +
+  geom_line() +
+  facet_wrap(~Cohort) +
+  ylim(0,0.25) +
+  scale_x_continuous(breaks = waiver()) +
+  #scale_y_continuous(breaks = waiver()) +
+  theme(axis.text.x = element_text(angle=45))
 ```
 
 

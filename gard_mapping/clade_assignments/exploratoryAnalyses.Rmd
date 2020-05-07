@@ -12,6 +12,7 @@ output:
 ## Packages
 ```{r}
 library(tidyverse)
+library(formattable)
 ```
 
 ## File paths
@@ -78,6 +79,19 @@ gardRelativeAbundance0 <- gardRelativeAbundance %>%
 gardRelativeAbundance1 <- gardRelativeAbundance0 %>%
    left_join(mDF[,c("SampleID", "Gardnerella_vaginalis")], by="SampleID") %>%
    mutate(propCladeCommunity=propClade*Gardnerella_vaginalis)
+```
+
+## number of RNAlater samples with multiple clades
+```{r}
+gardRelativeAbundance %>%
+  select(SampleID, Clade) %>%
+  left_join(sgDF[,c("SampleID", "Cohort", "RNAlater")], by="SampleID") %>%
+  filter(RNAlater=="Yes") %>%
+  group_by(SampleID,Cohort) %>%
+  split(.$Cohort) %>%
+  map(~summarise(.x, n=n())) %>%
+  map(~filter(.x, n>1)) %>%
+  map(nrow)
 ```
 
 ## Clades per sample

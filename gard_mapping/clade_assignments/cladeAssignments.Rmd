@@ -45,7 +45,6 @@ sgDF <- file.path(repo_dir, "shotgunMetadata.tsv") %>%
 ```
 
 # Asses alignments by usearch
-
 ## set up (load data)
 ```{r}
 # alns <- list.files(usearchAlns, all.files = FALSE, full.names = TRUE) %>%
