@@ -34,7 +34,7 @@ Contents: Analysis
 1) `./compareFiltering.Rmd`: for comparing mapq 20 vs mapq 40 filtering results. (not used in second pass)
 2) `./cladeAssignments.Rmd` : to assign reads to clades. Outputs: `./aglingmentsFinal.tsv` and `gardRelativeAbundance.tsv`
 3) `./shotgunVs16Svariants.Rmd`: compare shotgun G. vaginalis classification with 16S amplicon. Also assess mismatches with MetaPhlan2 analyses
-4) `./explotatoryAnalyses.Rmd`: explore proportions of 
+4) `./explotatoryAnalyses.Rmd`: explore proportions of G. vaginalis and other key taxa. Output: `./metaphlanAbundances.Rdata` with dataframes of abundances of all taxa and G. vaginalis (including clades)
 5) `./rebaccaAnalyses.Rmd` : testing the use of REBACCA for co-occurrence analyses. Functions in `./REBACCA_FUNCTIONS.R`
 6) `./cooccurAnalyses.Rmd` : testing cooccur method which uses a hypergeometric distribution to assess the probability of taxon-taxon co-occurrence (Veech 2013 and Griffith et al., 2016)
 7) `./cooccurAnalyses_threshold.Rmd`: test adding a threshold to the co-occurrence analyses.
@@ -44,3 +44,5 @@ Contents: Analysis
 Other files: 
 `cladeAssignmentsBBmapUsearch.Rmd`: test results substituting BBmap for Bowtie2 (stick with Bowtie2). 
 ``
+Notes:
+May 2020: Add labels and items on figures for samples with Gardnerella that is uncharacterized
