@@ -1229,7 +1229,7 @@ New dataframe not saved on 5/12/2020
 vTypesClades <- vtypeDF %>%
   left_join(cladeCounts, by="SampleID") %>%
   left_join(gardTypeDF, by="SampleID")
-#write_tsv(vTypesClades, "/Users/hlberman/Documents/GitHub/pregnancy_metagenome/vagitypesCladeCounts.tsv")
+#write_tsv(vTypesClades, "../../vagitypesCladeCounts.tsv")
 ```
 
 # save Rdata of Metaphlan relative abundances
