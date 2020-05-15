@@ -45,4 +45,6 @@ Other files:
 `cladeAssignmentsBBmapUsearch.Rmd`: test results substituting BBmap for Bowtie2 (stick with Bowtie2). 
 ``
 Notes:
-May 2020: Add labels and items on figures for samples with Gardnerella that is uncharacterized
+May 2020: 
+-Add labels and items on figures for samples with Gardnerella that is uncharacterized
+-Coefficients of correlation measureas
