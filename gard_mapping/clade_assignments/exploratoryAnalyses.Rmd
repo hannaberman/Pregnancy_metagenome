@@ -148,6 +148,25 @@ gardRelativeAbundance1 <- gardRelativeAbundance %>%
   mutate(SubjectID=as.character(SubjectID))
 ```
 
+## reads vs. metaphlan proportion
+```{r}
+gardRelativeAbundance %>%
+  group_by(SampleID) %>%
+  summarise(n=sum(n)) %>%
+  ungroup %>%
+  left_join(sgDF[,c("SampleID", "bbmapFiltered_pairs")], by="SampleID") %>%
+  left_join(mDF[,c("SampleID", "Gardnerella_vaginalis")], by="SampleID") %>%
+  rename(Metaphlan=Gardnerella_vaginalis) %>%
+  mutate(Mapping=n/bbmapFiltered_pairs) %>%
+  gather("method","value", Metaphlan, Mapping) %>%
+  ggplot(aes(x=SampleID, y=value, group=method, color=method)) +
+    geom_line() +
+    theme(axis.text.x = element_blank()) +
+    scale_y_log10() +
+    labs(y="Fraction of Sample", x="Sample")
+```
+
+
 ## number of RNAlater samples with multiple clades
 ```{r}
 gardRelativeAbundance %>%
@@ -161,7 +180,7 @@ gardRelativeAbundance %>%
   map(nrow)
 ```
 
-## Clades per sample *** EDIT ***
+## Clades per sample
 ```{r}
 #samples with uncharacterized Gard
 samplesGardUncharacterized <- gardRelativeAbundance1 %>%
@@ -1128,7 +1147,8 @@ ggplot(aes(x=reorder(reorder(SampleID, -Abundance, FUN=sum, na.rm=TRUE), TermPre
         axis.line.x = element_blank()) 
 ```
 
-# Get vagitypes
+
+# Vagitypes
 Set up dataframes for vagitype classification (max taxon. If maximum taxon is <30%, then vagitype is "no type")
 ```{r}
 gard4metaphlan <- gardRelativeAbundance1 %>%

@@ -423,64 +423,6 @@ pmap(list(list(AllSamples=DF0, SampleSubset=filter(DFrr, SampleID %in% subsetSam
      corTestFig)
 ```
 
-#### Prelim figures
-```{r}
-#  
-# taxaOfInterestAbbr0 <- c("Gv", "C1", "C2", "C3", "C4", "C5", "C6", "Lc", "Lg", "Lj", "Li")
-# 
-# # DF1 = remove duplicate entries
-# DF1 <- DF0 %>%
-#   filter(Taxon1 %in% c("G_vaginalis", "C1", "C2", "C3", "C4", "C5", "C6"),
-#          Taxon2 %in% c("L_crispatus", "L_gasseri", "L_jensenii", "L_iners")) %>%
-#   mutate(Taxon1 = factor(Taxon1, levels=c("G_vaginalis", "C1", "C2", "C3", "C4", "C5", "C6"), labels=c("Gv", "C1", "C2", "C3", "C4", "C5", "C6")),
-#          Taxon2 = factor(Taxon2, levels=c("L_crispatus", "L_gasseri", "L_jensenii", "L_iners"), labels=c("Lc", "Lg", "Lj", "Li")))
-# 
-# # DF2 = sample subset
-# DF2 <- DF1 %>%
-#   filter(SampleID %in% subsetSamples)
-```
-
-```{r}
-# DF1 %>%
-#   ggplot(aes(x=absoluteAbundanceTax1)) +
-#   geom_histogram(bins=100) +
-#   xlim(0,1)
-```
-
-```{r}
-#function to calcualte spearman's rank correlation coefficients
-# corTestFig1 <- function(df, name){
-  cor_test_results <- df %>%
-    split(list(.$Taxon1, .$Taxon2, .$Cohort)) %>%
-      map(~cor.test(~absoluteAbundanceTax1+absoluteAbundanceTax2, data=.x, alternative="two.sided", method="spearman")) %>%
-      map(tidy) %>%
-      map2(., names(.), ~mutate(.x, Group=.y)) %>%
-      purrr::reduce(full_join, by = c("estimate", "statistic", "p.value", "method", "alternative", "Group")) %>%
-      select(-p.value) %>%
-      separate(Group, c("Taxon1", "Taxon2", "Cohort"), sep="\\.") 
-  plot <- cor_test_results %>%
-       mutate(
-         #p.value=case_when(p.value>0.05~"",
-      #                          p.value<=0.05&p.value>0.01~".",  
-      #                          p.value<=0.01&p.value>0.001~"*",
-      #                          p.value<=0.001&p.value>0.0004~"**",
-      #                          p.value<=0.0004&p.value>0.0001~"***",
-      #                          p.value<=0.0001~"****"),
-             Taxon1=factor(Taxon1, levels=c("C6", "C5", "C4", "C3", "C2", "C1", "Gv")), 
-             Taxon2=factor(Taxon2, levels=c("Lc", "Lg", "Lj", "Li"))) %>%
-    ggplot(aes(x=Taxon2, y=Taxon1, fill=estimate)) + #label=p.value
-      geom_tile() +
-      #geom_text() +
-      scale_fill_gradient2(low = "red", mid = "white", high = "blue", midpoint = 0) +
-      scale_x_discrete(drop=FALSE) +
-      scale_y_discrete(drop=FALSE) +
-      facet_wrap(~Cohort) +
-      labs(x="Lactobacillus", y="Gardnerella", title = "Abundance Correlations")
-  outputList <- list(Results=cor_test_results, Figure=plot)   
-    return(outputList)
-}
-```
-
 ## Clade presence-absence vs. total abundance
 ```{r, message=FALSE}
 # # safeWilcox <- safely(wilcox.test)
@@ -522,17 +464,17 @@ pmap(list(list(AllSamples=DF0, SampleSubset=filter(DFrr, SampleID %in% subsetSam
 # Prelim/F31 figures
 ## Heat map
 All Samples
-```{r, message=FALSE, warning=FALSE}
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
 # corTestFig1(DF1)
 ```
 
 Sample Subset
-```{r, message=FALSE, warning=FALSE}
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
 # corTestFig1(DF2)
 ```
 
 ## bacterial load vs. presence absence
-```{r}
+```{r, echo=FALSE}
 # prelimPresAbsAll <- DF %>%
 #     left_join(totalAbundances, by="SampleID") %>%
 #     gather("Taxon", "presAbs", c(G_vaginalis, C1, C2, C3, C4, C5, C6, A_vaginae, L_crispatus, L_gasseri, L_iners, L_jensenii, P_bivia, U_parvum, M_hominis)) %>%
@@ -560,7 +502,7 @@ Sample Subset
 ```
 
 ### Final prelim oral figure
-```{r}
+```{r, echo=FALSE}
 # prelimPresAbsAll <- DF %>%
 #     left_join(totalAbundances, by="SampleID") %>%
 #     gather("Taxon", "presAbs", c(G_vaginalis, C1, C2, C3, C4, C5, C6, A_vaginae, L_crispatus, L_gasseri, L_iners, L_jensenii, P_bivia, U_parvum, M_hominis)) %>%
@@ -589,7 +531,7 @@ Sample Subset
 ```
 
 F31 figure
-```{r}
+```{r, echo=FALSE}
 #function to calcualte spearman's rank correlation coefficients
 # corTestFig1 <- function(df, name){
 #   cor_test_results <- df %>%
@@ -623,7 +565,7 @@ F31 figure
 ```
 
 # Over time?
-```{r}
+```{r, echo=FALSE}
 # DF %>%
 #   gather("taxon", "abundance", c(5:ncol(.))) %>%
 #   #filter(taxon=="C1"|taxon=="L_crispatus") %>%
@@ -637,7 +579,7 @@ F31 figure
 #   theme(axis.text.x = element_text(angle=45))
 ```
 
-```{r}
+```{r, echo=FALSE}
 # DF %>%
 #   gather("taxon", "abundance", c(5:ncol(.))) %>%
 #   #filter(taxon=="C1"|taxon=="L_crispatus") %>%
