@@ -88,10 +88,6 @@ Effect size is the difference between observed and expected co-occurrences, norm
 ## Define functions
 Make a function to perform and plot analyses for convenience.  
 ```{r}
-#cohort <- "Stanford"
-#samples <- sgDF$SampleID
-#organisms <- cladesSpecies
-    
 cooccurr_analyses <- function(cohort, samples, organisms){  
   x <- DFpa %>%
     filter(Cohort==cohort,
@@ -135,23 +131,22 @@ cooccurr_analyses <- function(cohort, samples, organisms){
   x3$sp2_name <-  factor(x3$sp2_name, levels=organisms)  
   
   # removing redundant iformation:
-  x4 <- x3 %>%
-    select(sp1_name, sp2_name, effects) %>%
-    spread(sp2_name, effects) 
-  x5 <- x4 %>% # remove sp1 names column and get lower triangle
-    select(-sp1_name) %>%
-    as.matrix()
-  x5[lower.tri(x5)] <- NA
-  
+   x4 <- x3 %>%
+     select(sp1_name, sp2_name, effects) %>%
+     spread(sp2_name, effects)
+   x5 <- x4 %>% # remove sp1 names column and get lower triangle
+     select(-sp1_name) %>%
+     as.matrix()
+   x5[lower.tri(x5)] <- NA
+
   #add sp1 names column back and other columns
-  x6 <- x5 %>% 
-    as.data.frame() %>%
-    mutate(sp1_name=x4$sp1_name) %>%
-    select(sp1_name, everything()) %>% #rearrange columns
-    gather("sp2_name", "effects", c(2:ncol(.))) %>%
-    left_join(x3[,c("sp1_name", "sp2_name" 
-                    # , "p_lt", "p_gt"
-                    )], by=c("sp1_name", "sp2_name")) # %>%
+   x6 <- x5 %>%
+     as.data.frame() %>%
+     mutate(sp1_name=x4$sp1_name) %>%
+     select(sp1_name, everything()) %>% #rearrange columns
+     gather("sp2_name", "effects", c(2:ncol(.))) %>%
+     left_join(x3[,c("sp1_name", "sp2_name")], by=c("sp1_name", "sp2_name"))  %>% #"p_lt", "p_gt"
+     mutate(Cohort=cohort)
     # mutate(p_lt=case_when(is.na(effects)==TRUE~1,
     #                       is.na(effects)==FALSE~p_lt),
     #        p_gt=case_when(is.na(effects)==TRUE~1,
@@ -165,19 +160,27 @@ cooccurr_analyses <- function(cohort, samples, organisms){
     #                         p_gt<=0.0005&p_gt>0.0001~"***",
     #                         p_lt<=0.0001~"****",
     #                         p_gt<=0.0001~"****"))
-  
+   
+  # x6 <- x3 %>%  # for when commenting out "removing reduntant information" to show both upper and lower triangle
+  #  select(sp1_name, sp2_name, effects) %>%
+  #  mutate(Cohort=cohort)
+    
   samples <- ifelse(length(samples)==length(subsetSamples), "Sample Subset", "All Samples")
   title <- ifelse(length(organisms)==length(cladesSpecies), "Co-occurrence of G. vaginalis clades and key species", "Co-occurrence of total G. vaginalis and key species")
 
-  x6$sp2_name <-  factor(x6$sp2_name, levels=rev(organisms)) #order y axis (reverse of x axis)
+    x6$sp2_name <-  factor(x6$sp2_name, levels=rev(organisms)) #order y axis (reverse of x axis)
   
     plot <- ggplot(x6, aes(x=sp1_name, y=sp2_name, fill=effects)) + #label=pvalue
       geom_tile() +
       #geom_text()+
       scale_fill_gradient2(low = "red", mid = "white", high = "blue", midpoint = 0) +
       scale_x_discrete(position="bottom") +
-      theme(axis.text.x = element_text(angle = 45, hjust=1)) +
-      labs(title=title, subtitle = paste0(cohort, ": ", samples), x=NULL, y=NULL, fill="Effect size") 
+      facet_wrap(~Cohort) +
+      theme(axis.text.x = element_text(angle = 45, hjust=1),
+            panel.background = element_blank(),
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank()) +
+      labs(title=title, subtitle = paste0(cohort, ": ", samples), x=NULL, y=NULL, fill="Effect size")
     
   return(list(Cooccur_summary=summary(x), 
               Cooccur_results=x$results, 
@@ -227,6 +230,42 @@ Note: no *L. crispatus* in any of the randomly selected subset samples in the UA
 
 Overall, results support previous findings that Gv less associated with Lactobaillus spp., whereas Gv clades and other BV-associated taxa may cooccurr. C1 appears co-occur more strongly with *Atopobium vaginae* in Stanford cohort compared to other Clades.
 C5 may co-occur with L. iners (small trend found in both cohorts.) Not significant, but consistently greatest effects in exclusion with C1, C2 and C5 and Lactos (except C5 and L. iners). However, this method has low power with few sample sites (Veech, 2013), which may affect the ability to interpret results.
+
+# Gard vs. Lactos only
+```{r}
+samples <- DFpa$SampleID
+cooccurr_analyses <- function(samples){  
+  x <- DFpa %>%
+    filter(is.element(SampleID, samples)) %>%
+    split(.$Cohort) %>%
+    map(., ~select(.x, -SampleID, -SubjectID, -GDcoll, -Cohort)) %>%
+    map(t) %>%
+    map(as.matrix) %>%
+    map(~cooccur(.x, type="spp_site", spp_names=TRUE, prob="hyper", eff_standard=TRUE, thresh=FALSE)) %>%
+    map(effect.sizes) %>%
+    map2(., names(.), ~mutate(.x, Cohort=.y)) %>%
+    purrr::reduce(full_join, by = c("sp1", "sp2", "effects", "Cohort")) %>%
+    filter(sp1 %in% c("Gardnerella_vaginalis", gardnerellaClades),
+           sp2 %in% c("Lactobacillus_crispatus", "Lactobacillus_gasseri", "Lactobacillus_jensenii", "Lactobacillus_iners")) %>%
+    mutate(sp1=factor(sp1, levels=rev(c("Gardnerella_vaginalis", gardnerellaClades)), labels=c("C6", "C5", "C4", "C3", "C2", "C1", "Gv")),
+           sp2=factor(sp2, levels=c("Lactobacillus_crispatus", "Lactobacillus_gasseri", "Lactobacillus_jensenii", "Lactobacillus_iners"), labels=c("Lc", "Lg", "Lj", "Li")))
+    
+    plot <- ggplot(x, aes(x=sp2, y=sp1, fill=effects)) + 
+      geom_tile() +
+      scale_fill_gradient2(low = "red", mid = "white", high = "blue", midpoint = 0) +
+      scale_x_discrete(position="bottom") +
+      facet_wrap(~Cohort) +
+      theme(panel.background = element_blank(),
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank()) +
+      labs(x=NULL, y=NULL, fill="Effect size")
+  return(plot)}
+```
+
+## Stanford
+```{r}
+cooccurr_analyses(sgDF$SampleID)
+```
 
 # Presence-Absence in Samples
 ## Presence-Absence in all samples

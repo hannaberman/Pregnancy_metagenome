@@ -1,7 +1,6 @@
 ---
 title: "Gardnerella clades, relative abundance, and preterm birth"
-author: "Hanna Berman"
-date: "4/25/2019"
+subtitle: "Exploratory analyses"
 output:
   html_document:
     toc: TRUE
@@ -9,14 +8,14 @@ output:
 ---
 
 # Setup
-## Packages
+  Packages
 ```{r}
 library(tidyverse)
 library(formattable)
 `%!in%` <- Negate(`%in%`)
 ```
 
-## ggplot Themes
+## ggplot settings
 ### Colors for clades
 ```{r}
 cladeColors <-  list(scale_color_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73"), labels=c("C1", "C2", "C3", "C4", "C5", "C6")),
@@ -81,7 +80,6 @@ mDF0 <- file.path("/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetag
 #make col and row names
 samps <- colnames(mDF0[2:ncol(mDF0)]) %>%
   str_extract("[0-9]{10}")
-samps
 colnames(mDF0) <- c("Species", samps)
 rownames(mDF0) <- mDF0$Species
 
@@ -110,27 +108,11 @@ Recalculate proportions of Gardnerella as proportions of the whole microbiome. (
 ```{r}
 SampleIDlist <- rep(unique(sgDF$SampleID), 6) %>%
   .[order(.)]
-
-#cladeFrame <- tibble(SampleID=SampleIDlist,
-#                     Clade=rep(c("C1","C2", "C3", "C4", "C5", "C6"), 107),
-#                     n=0, 
-#                     propClade=0)
-
-# gardRelativeAbundance0 <- gardRelativeAbundance %>%
-#  full_join(cladeFrame) %>%
-#  group_by(SampleID, Clade) %>%
-#  filter(n==max(n)) %>%
-#  ungroup() %>%  
-#  left_join(unique.data.frame(sgDF[,c("SampleID", "SubjectID", "TermPre", "GWdell", "Cohort", "GWcoll")])) %>%
-#  mutate(SubjectID=as.character(SubjectID))
 ```  
 
 ## Get Gardnerella relative abundances from metaphlan
 ```{r}
-#gardRelativeAbundance1 <- gardRelativeAbundance0 %>%
-#  left_join(mDF[,c("SampleID", "Gardnerella_vaginalis")], by="SampleID") %>%
-#  mutate(propCladeCommunity=propClade*Gardnerella_vaginalis)
-
+#Table with uncharacterized G. vaginalis
 gardRelativeAbundance1 <- gardRelativeAbundance %>%
   full_join(mDF[,c("SampleID", "Gardnerella_vaginalis")], by="SampleID") %>%
   mutate(propCladeCommunity=propClade*Gardnerella_vaginalis) %>%
@@ -146,11 +128,15 @@ gardRelativeAbundance1 <- gardRelativeAbundance %>%
   replace_na(list(n=0, propClade=0)) %>%
   left_join(unique.data.frame(sgDF[,c("SampleID", "SubjectID", "TermPre", "GWdell", "Cohort", "GWcoll")])) %>%
   mutate(SubjectID=as.character(SubjectID))
+
+#Table without uncharacerized G. vaginalis
+gardRelativeAbundance2 <- gardRelativeAbundance1 %>%
+  filter(Clade!="Uncharacterized")
 ```
 
 ## reads vs. metaphlan proportion
 ```{r}
-gardRelativeAbundance %>%
+mapVMetaphlan <- gardRelativeAbundance %>%
   select(SampleID, n) %>%
   full_join(sgDF[c("SampleID")], by="SampleID") %>% # add samples with zero gard reads by mapping method
   replace_na(list(n=0)) %>%
@@ -160,24 +146,14 @@ gardRelativeAbundance %>%
   left_join(sgDF[,c("SampleID", "bbmapFiltered_pairs")], by="SampleID") %>%
   left_join(mDF[,c("SampleID", "Gardnerella_vaginalis")], by="SampleID") %>%
   rename(Metaphlan=Gardnerella_vaginalis) %>%
-  mutate(Mapping=n/bbmapFiltered_pairs) %>%
+  mutate(Mapping=n/bbmapFiltered_pairs)
+
+mapVMetaphlan %>%
   ggplot(aes(x=Mapping, y=Metaphlan)) +
-    geom_point()
+    geom_point() +
+    labs(x="Mapping proportion", y="MetaPhlAn proportion")
 ```
   Some agreement between mapping and metaphlan methods.
-
-## number of RNAlater samples with multiple clades
-```{r}
-gardRelativeAbundance %>%
-  select(SampleID, Clade) %>%
-  left_join(sgDF[,c("SampleID", "Cohort", "RNAlater")], by="SampleID") %>%
-  filter(RNAlater=="Yes") %>%
-  group_by(SampleID,Cohort) %>%
-  split(.$Cohort) %>%
-  map(~summarise(.x, n=n())) %>%
-  map(~filter(.x, n>1)) %>%
-  map(nrow)
-```
 
 ## Clades per sample
 ```{r}
@@ -239,201 +215,8 @@ head(gardCladePositveSamples)
 ```
 
 ### Clade abundance
-Observe total proportion of other *Gardnerella* clades in the community vs. proportion of each clade
-```{r}
-ggplot(gardRelativeAbundance1, aes(x=propCladeCommunity, y=Gardnerella_vaginalis-propCladeCommunity, color=Clade)) +
-  geom_point() +
-  #scale_color_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73"), labels=c("C1", "C2", "C3", "C4", "C5", "C6")) +
-  cladeColorsN +
-  labs(x="Proportion of Gardnerella clade in community", y="Proportion of other Gardnerella clades in the community", color="Clade") + 
-  facet_grid(Cohort~Clade) +
-  theme(axis.text.x = element_text(angle=45))
-```  
-  
-Not the best plot for visualizing the data, but it does show that when the total there is one clade of Garnerella in the community and the community is nearly 100% *Gardnerella*, that clade is clade 1. 
-    
-Observe proportion of clades vs other clades. Use clade-positive samples only.
-
-```{r}
-# reformat dataframe for this
-cladexclade <- gardRelativeAbundance1 %>%
-  filter(SampleID %in% gardCladePositveSamples) %>%
-  select(-propClade, -n) %>%
-  spread(Clade, propCladeCommunity) %>%
-  mutate(x1=`C1`,
-         x2=`C2`,
-         x3=`C3`,
-         x4=`C4`,
-         x5=`C5`,
-         x6=`C6`) %>%
-  gather("Clade1","propClade1", c(`C1`,`C2`,`C3`,`C4`,`C5`,`C6`)) %>%
-  gather("Clade2", "propClade2", c(x1, x2, x3, x4, x5, x6))%>%
-  mutate(Clade2=case_when(Clade2=="x1"~"C1",
-                          Clade2=="x2"~"C2",
-                          Clade2=="x3"~"C3",
-                          Clade2=="x4"~"C4",
-                          Clade2=="x5"~"C5",
-                          Clade2=="x6"~"C6")) %>%
-  filter(Clade1!=Clade2)
-#Stanford
-stanford <- cladexclade %>%
-  filter(Cohort=="Stanford")
-ggplot(stanford, aes(x=propClade1, y=propClade2))+
-  geom_point() +
-  facet_grid(Clade1~Clade2) +
-  coord_fixed() +
-  labs(title="Stanford", x="Proportion clade x", y="Proportion clade y") +
-  theme(axis.text.x = element_text(angle=45))
-
-#UAB
-stanford <- cladexclade %>%
-  filter(Cohort=="UAB")
-ggplot(stanford, aes(x=propClade1, y=propClade2)) +
-  geom_point() +
-  facet_grid(Clade1~Clade2) +
-  coord_fixed() +
-  labs(title="UAB", x="Proportion clade x", y="Proportion clade y") +
-  theme(axis.text.x = element_text(angle=45))
-```
-  No clear patterns. 
-  
-  Ratios of clades to other clades (clade-positive samples only)
-```{r}
-cladexclade %>%
-  filter(Cohort=="Stanford"|Cohort=="UAB") %>%
-ggplot(aes(x=Clade1, y=propClade1/propClade2, color=Clade2, fill=Clade2))+
-  geom_violin(draw_quantiles = 0.5, alpha=0.5) +
-  scale_color_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73"), labels=c("C1", "C2", "C3", "C4", "C5", "C6")) +
-  scale_fill_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73"), labels=c("C1", "C2", "C3", "C4", "C5", "C6")) +
-  scale_y_log10() +
-  facet_wrap(~Cohort) +
-  labs(title="Clade : Clade ratios", x="Clade A", y="Clade A : Clade B", color="Clade B", fill="Clade B")
-```
-  
-Observe proportion of each clade in each sample vs. term/preterm delivery
-```{r}
-ggplot(data=gardRelativeAbundance1, aes(x=TermPre, y=propCladeCommunity, color=TermPre)) +
-  geom_jitter() +
-  geom_boxplot(alpha=0, outlier.alpha = 0) +
-  scale_y_log10(limits=c(1e-03, 1e03)) +
-  scale_x_discrete(labels=c("Preterm", "Term")) +
-  binaryColors +
-  facet_grid(Cohort~Clade) +
-  labs(x=element_blank(), y="Proportion clade in community") +
-  theme(legend.position = "none")
-```
-  
-Proportion of community vs preterm/term births faceted by clade. Does not suggest differences in proportion of each clade in each sample and term vs. preterm births. Perhaps the time series information is important here...
-  
-Look at two specific samples:
-```{r}
-ggplot(gardRelativeAbundance1[gardRelativeAbundance1$SubjectID=="10031",], aes(x=GWcoll, y=propCladeCommunity, color=Clade, fill=Clade))+
-  geom_bar(stat = "identity")+
-  cladeColorsN +
-  labs(title = "Subject 10031", subtitle = "Preterm")
-
-ggplot(gardRelativeAbundance1[gardRelativeAbundance1$SubjectID=="10621",], aes(x=GWcoll, y=propCladeCommunity, color=Clade, fill=Clade))+
-  geom_bar(stat = "identity") +
-  cladeColorsN +
-  labs(title="Subject 10621", subtitle = "Term", x="Gestation weeks at collection", y="Proportion of community")
-```
-  
-Not going to draw any major conclusions from these two subjects (small n), but I just wanted to take a closer look since they have the highest proportion of *Gardnerella* and specifically clade 1. 
-  
-Gestational frequency vs PTB:
-```{r}
-sgDF <- sgDF %>%
-  mutate(SubjectID=as.character(SubjectID))
-
-gardRelativeAbundance1 %>%
-  mutate(pres=case_when(propCladeCommunity>0~1,
-                        propCladeCommunity==0~0)) %>%
-  group_by(SubjectID, Clade) %>%
-  summarise(freq=mean(pres)) %>%
-  left_join(sgDF[,c("SubjectID", "Cohort", "TermPre")], by="SubjectID") %>% # add delivery time info 
-ggplot(., aes(x=TermPre, y=freq, color=TermPre))+
-  geom_jitter() +
-  geom_boxplot(alpha=0, outlier.alpha = 0) +
-  scale_x_discrete(labels=c("Preterm", "Term")) +
-  binaryColors +
-  facet_grid(Cohort~Clade) +
-  theme(legend.position = "none") + 
-  labs(x="Preterm vs. Term")
-```
-  
-Prevalence of each clade vs ptb (proportion samples in each group with/without clade)
-```{r}
-gardRelativeAbundance1 %>%
-  mutate(pres=case_when(propCladeCommunity>0~1,
-                        propCladeCommunity==0~0)) %>%
-  group_by(Cohort, TermPre, Clade) %>%
-  summarise(Prevalence=mean(pres)) %>%
-ggplot(., aes(x=TermPre, y=Prevalence, fill = TermPre)) +
-  geom_col() +
-  scale_x_discrete(labels=c("Preterm", "Term")) +
-  binaryColors +
-  facet_grid(Cohort~Clade) + 
-  labs(x="Preterm vs. Term") +
-  theme(legend.position = "none")
-```
-
-
-### Clade presence
-Clade presence and overall *Gardnerella* relative abundance
-```{r}
-ggplot(gardRelativeAbundance1, aes(x=(propCladeCommunity == 0), y=Gardnerella_vaginalis, color=(propCladeCommunity>0))) +
-  geom_jitter() +
-  geom_boxplot(alpha=0, outlier.alpha = 0) + 
-  scale_color_manual(values=c("#56B4E9", "#D55E00"), labels=c("Present", "Absent")) +
-  facet_grid(Cohort~Clade) +
-  labs(x="Clade presence", y="Proportion all Gv in community proportion of Gardnerella")+
-  scale_x_discrete(labels=c("Present", "Absent")) +
-  theme(legend.position = "none")
-
-gardRelativeAbundance1 %>%
-  filter(Cohort=="Stanford") %>%
-ggplot(aes(x=(propCladeCommunity == 0), y=Gardnerella_vaginalis, color=(propCladeCommunity>0))) +
-  geom_jitter() +
-  geom_boxplot(alpha=0, outlier.alpha = 0) + 
-  scale_color_manual(values=c("#56B4E9", "#D55E00"), labels=c("Present", "Absent")) +
-  facet_wrap(~Clade, nrow=1) +
-  labs(x="Clade presence", y="Total proportion Gv in community")+
-  scale_x_discrete(labels=c("Present", "Absent")) +
-  scale_y_log10() +
-  theme(legend.position = "none")
-#ggsave("/Users/hlberman/Desktop/GvProps.png", height=3, width = 7)
-```
-  
-Will need to test, but it seems that presence of clade 1 may predict relative abundance of *Gardnerella*. 
-  
-Ratio of each clade to other Gard types
-```{r}
-gardRelativeAbundance1 %>%
-  mutate(raioGard=propCladeCommunity/(Gardnerella_vaginalis-propCladeCommunity)) %>%
-ggplot(aes(x=Clade, y=raioGard, color=Clade)) +
-  geom_boxplot(show.legend = FALSE, outlier.alpha = 0) +
-  geom_jitter() +
-  cladeColorsN +
-  scale_y_log10(limits=c(1e-03, 1e03)) +
-  facet_grid(Cohort~.) +
-  labs(x= "Clade", y= bquote(italic(Gardnerella)~'Clade : Other Clades (Ratio)'))
-```
-  
-Ratio of gard to other Gards vs gard frequency(proportion)
-```{r}
-gardRelativeAbundance1 %>%
-  mutate(ratioGard=propCladeCommunity/(Gardnerella_vaginalis-propCladeCommunity)) %>%
-ggplot(aes(y=ratioGard, x=Gardnerella_vaginalis, color=Clade)) +
-  geom_jitter() +
-  cladeColorsN +
-  scale_y_log10() +
-  facet_grid(Cohort~Clade) +
-  #geom_smooth(method = "lm", show.legend = FALSE) +
-  labs(y=bquote(italic(Gardnerella)~'Clade : Other Clades (Ratio)'), x=bquote('Total'~italic(Gardnerella)~'(Frequency)')) +
-  theme(axis.text.x = element_text(angle=45))
-```
-    
-Proportion gard by Clade
+#### Proportions of Clades
+Proportion *G. vaginalis* by Clade
 ```{r}
 gardRelativeAbundance1 %>%
   ggplot(aes(x=Clade, y=propClade, color=Clade)) +
@@ -465,13 +248,164 @@ ggplot(aes(x=Clade, y=propCladeCommunity, color=Clade)) +
   labs(x="Clade", y="Proportion of community") +
   theme(axis.text.x = element_text(angle=45, hjust=1))
 ```
+
+#### Clade:Clade Ratios
+Observe total proportion of other *Gardnerella* clades in the community vs. proportion of each clade
+```{r}
+ggplot(gardRelativeAbundance1, aes(x=propCladeCommunity, y=Gardnerella_vaginalis-propCladeCommunity, color=Clade)) +
+  geom_point() +
+  #scale_color_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73"), labels=c("C1", "C2", "C3", "C4", "C5", "C6")) +
+  cladeColorsN +
+  labs(x="Proportion of Gardnerella clade in community", y="Proportion of other Gardnerella clades in the community", color="Clade") + 
+  facet_grid(Cohort~Clade) +
+  theme(axis.text.x = element_text(angle=45))
+```  
   
-Should test for odds ratio of clade 1 presence and PTB risk. (The selection of samples may hinder our ability to do this. Should we focus more on clade presence and overall relative abundance of *Gardnerella*). 
+  Not the best plot for visualizing the data, but it does show that when the total there is one clade of Garnerella in the community and the community is nearly 100% *Gardnerella*, that clade is clade 1. 
+    
+  Ratios of clades to other clades (clade-positive samples only)
+```{r}
+cladexclade <- gardRelativeAbundance1 %>%
+  filter(SampleID %in% gardCladePositveSamples) %>%
+  select(-propClade, -n) %>%
+  spread(Clade, propCladeCommunity) %>%
+  mutate(x1=`C1`,
+         x2=`C2`,
+         x3=`C3`,
+         x4=`C4`,
+         x5=`C5`,
+         x6=`C6`) %>%
+  gather("Clade1","propClade1", c(`C1`,`C2`,`C3`,`C4`,`C5`,`C6`)) %>%
+  gather("Clade2", "propClade2", c(x1, x2, x3, x4, x5, x6))%>%
+  mutate(Clade2=case_when(Clade2=="x1"~"C1",
+                          Clade2=="x2"~"C2",
+                          Clade2=="x3"~"C3",
+                          Clade2=="x4"~"C4",
+                          Clade2=="x5"~"C5",
+                          Clade2=="x6"~"C6")) %>%
+  filter(Clade1!=Clade2)
+
+cladexclade %>%
+  filter(Cohort=="Stanford"|Cohort=="UAB") %>%
+ggplot(aes(x=Clade1, y=propClade1/propClade2, color=Clade2, fill=Clade2))+
+  geom_violin(draw_quantiles = 0.5, alpha=0.5) +
+  scale_color_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73"), labels=c("C1", "C2", "C3", "C4", "C5", "C6")) +
+  scale_fill_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73"), labels=c("C1", "C2", "C3", "C4", "C5", "C6")) +
+  scale_y_log10() +
+  facet_wrap(~Cohort) +
+  labs(title="Clade : Clade ratios", x="Clade A", y="Clade A : Clade B", color="Clade B", fill="Clade B")
+```
+  
+  No clear patterns.
+  
+  Observe proportion of each clade in each sample vs. term/preterm delivery
+```{r}
+ggplot(data=gardRelativeAbundance2, aes(x=TermPre, y=propCladeCommunity, color=TermPre)) +
+  geom_jitter() +
+  geom_boxplot(alpha=0, outlier.alpha = 0) +
+  scale_y_log10(limits=c(1e-03, 1e03)) +
+  scale_x_discrete(labels=c("Preterm", "Term")) +
+  binaryColors +
+  facet_grid(Cohort~Clade) +
+  labs(x=element_blank(), y="Proportion clade in community") +
+  theme(legend.position = "none")
+```
+  
+Proportion of community vs preterm/term births faceted by clade. Does not suggest differences in proportion of each clade in each sample and term vs. preterm births. Perhaps the time series information is important here...
+  
+Look at two specific samples:
+```{r}
+ggplot(gardRelativeAbundance2[gardRelativeAbundance2$SubjectID=="10031",], aes(x=GWcoll, y=propCladeCommunity, color=Clade, fill=Clade))+
+  geom_bar(stat = "identity")+
+  cladeColors +
+  labs(title = "Subject 10031", subtitle = "Preterm")
+
+ggplot(gardRelativeAbundance2[gardRelativeAbundance2$SubjectID=="10621",], aes(x=GWcoll, y=propCladeCommunity, color=Clade, fill=Clade))+
+  geom_bar(stat = "identity") +
+  cladeColors +
+  labs(title="Subject 10621", subtitle = "Term", x="Gestation weeks at collection", y="Proportion of community")
+```
+  
+Not going to draw any major conclusions from these two subjects (small n), but I just wanted to take a closer look since they have the highest proportion of *Gardnerella* and specifically clade C1. 
+
+Prevalence of each clade vs ptb (proportion samples in each group with/without clade)
+```{r}
+gardRelativeAbundance2 %>%
+  mutate(pres=case_when(propCladeCommunity>0~1,
+                        propCladeCommunity==0~0)) %>%
+  group_by(Cohort, TermPre, Clade) %>%
+  summarise(Prevalence=mean(pres)) %>%
+ggplot(., aes(x=TermPre, y=Prevalence, fill = TermPre)) +
+  geom_col() +
+  scale_x_discrete(labels=c("Preterm", "Term")) +
+  binaryColors +
+  facet_grid(Cohort~Clade) + 
+  labs(x="Preterm vs. Term") +
+  theme(legend.position = "none")
+```
+
+
+### Clade presence
+Clade presence and overall *Gardnerella* relative abundance
+```{r}
+ggplot(gardRelativeAbundance2, aes(x=(propCladeCommunity == 0), y=Gardnerella_vaginalis, color=(propCladeCommunity>0))) +
+  geom_jitter() +
+  geom_boxplot(alpha=0, outlier.alpha = 0) + 
+  scale_color_manual(values=c("#56B4E9", "#D55E00"), labels=c("Present", "Absent")) +
+  facet_grid(Cohort~Clade) +
+  labs(x="Clade presence", y="Proportion all Gv in community proportion of Gardnerella")+
+  scale_x_discrete(labels=c("Present", "Absent")) +
+  theme(legend.position = "none")
+
+gardRelativeAbundance2 %>%
+  filter(Cohort=="Stanford") %>%
+ggplot(aes(x=(propCladeCommunity == 0), y=Gardnerella_vaginalis, color=(propCladeCommunity>0))) +
+  geom_jitter() +
+  geom_boxplot(alpha=0, outlier.alpha = 0) + 
+  scale_color_manual(values=c("#56B4E9", "#D55E00"), labels=c("Present", "Absent")) +
+  facet_wrap(~Clade, nrow=1) +
+  labs(x="Clade presence", y="Total proportion Gv in community")+
+  scale_x_discrete(labels=c("Present", "Absent")) +
+  scale_y_log10() +
+  theme(legend.position = "none")
+#ggsave("/Users/hlberman/Desktop/GvProps.png", height=3, width = 7)
+```
+  
+  Does presence of clade C1 predict relative abundance of *Gardnerella*? 
+  
+Ratio of each clade to other *G. vaginalis* clades
+```{r}
+gardRelativeAbundance2 %>%
+  mutate(raioGard=propCladeCommunity/(Gardnerella_vaginalis-propCladeCommunity)) %>%
+ggplot(aes(x=Clade, y=raioGard, color=Clade)) +
+  geom_boxplot(show.legend = FALSE, outlier.alpha = 0) +
+  geom_jitter() +
+  cladeColors +
+  scale_y_log10(limits=c(1e-03, 1e03)) +
+  facet_grid(Cohort~.) +
+  labs(x= "Clade", y= bquote(italic(Gardnerella)~'Clade : Other Clades (Ratio)'))
+```
+  
+Ratio of gard to other Gards vs gard frequency(proportion)
+```{r}
+gardRelativeAbundance2 %>%
+  mutate(ratioGard=propCladeCommunity/(Gardnerella_vaginalis-propCladeCommunity)) %>%
+ggplot(aes(y=ratioGard, x=Gardnerella_vaginalis, color=Clade)) +
+  geom_jitter() +
+  cladeColors +
+  scale_y_log10(limits=c(1e-04,1e+04), breaks=c(1e-03, 1e-01, 1e01, 1e+03)) +
+  facet_grid(Cohort~Clade) +
+  #geom_smooth(method = "lm", show.legend = FALSE) +
+  labs(y=bquote(italic(Gardnerella)~'Clade : Other Clades (Ratio)'), x=bquote('Total'~italic(Gardnerella)~'(Frequency)')) +
+  theme(axis.text.x = element_text(angle=45))
+```
+  
+Should test for odds ratio of clade C1 presence and PTB risk. (The selection of samples may hinder our ability to do this. Should we focus more on clade presence and overall relative abundance of *Gardnerella*). 
 
 ### Bar plots
 Remove 0 values and replace with NA so they don't show up on the barplot
 ```{r}
-gardRelativeAbundance2 <- gardRelativeAbundance1 %>%
+gardRelativeAbundance3 <- gardRelativeAbundance1 %>%
   mutate(propCladeCommunity=na_if(propCladeCommunity, 0),
          Clade=case_when(Clade=="Uncharacterized"~"Clade uncharacterized",
                          Clade!="Uncharacterized"~Clade))
@@ -479,7 +413,7 @@ gardRelativeAbundance2 <- gardRelativeAbundance1 %>%
 
 Plot
 ```{r}
-gardRelativeAbundance2 %>%
+gardRelativeAbundance3 %>%
   dplyr::filter(Cohort=="UAB") %>%
 ggplot(mapping=aes(x=reorder(SampleID, -propCladeCommunity, FUN=sum, na.rm=TRUE), y=propCladeCommunity, fill=Clade, color=Clade)) +
   geom_bar(stat="identity") +
@@ -487,8 +421,8 @@ ggplot(mapping=aes(x=reorder(SampleID, -propCladeCommunity, FUN=sum, na.rm=TRUE)
   geom_point(aes(y=-.03, color=TermPre, fill=TermPre), size=4, shape="square", show.legend = FALSE) +
   geom_point(aes(y=-.04, color=TermPre, fill=TermPre), size=4, shape="square", show.legend = FALSE) +
   geom_point(aes(y=-.05, color=TermPre, fill=TermPre), size=4, shape="square", show.legend = FALSE) +
-  scale_color_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#000000", "#999999"), labels=c("Clade 1", "Clade 2", "Clade 3", "Clade 4", "Clade 5", "Clade 6", "Preterm", "Term")) +
-  scale_fill_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#000000", "#999999"), labels=c("Clade 1", "Clade 2", "Clade 3", "Clade 4", "Clade 5", "Clade 6", "Preterm", "Term")) +
+  scale_color_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#000000", "#999999"), labels=c("Clade C1", "Clade C2", "Clade C3", "Clade C4", "Clade C5", "Clade C6", "Preterm", "Term")) +
+  scale_fill_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#000000", "#999999"), labels=c("Clade C1", "Clade C2", "Clade C3", "Clade C4", "Clade C5", "Clade C6", "Preterm", "Term")) +
   theme_classic() +
   facet_wrap(~Cohort) +
   #ggtitle("UAB") +
@@ -497,7 +431,7 @@ ggplot(mapping=aes(x=reorder(SampleID, -propCladeCommunity, FUN=sum, na.rm=TRUE)
         axis.line.x = element_blank())
   
 
-gardRelativeAbundance2 %>%
+gardRelativeAbundance3 %>%
   filter(Cohort=="Stanford") %>%
 ggplot(mapping=aes(x=reorder(SampleID, -propCladeCommunity, FUN=sum, na.rm=TRUE), y=propCladeCommunity, fill=Clade, color=Clade)) +
   geom_bar(stat="identity") +
@@ -505,8 +439,8 @@ ggplot(mapping=aes(x=reorder(SampleID, -propCladeCommunity, FUN=sum, na.rm=TRUE)
   geom_point(aes(y=-.03, color=TermPre, fill=TermPre), size=3, shape="square", show.legend = FALSE) +
   geom_point(aes(y=-.04, color=TermPre, fill=TermPre), size=3, shape="square", show.legend = FALSE) +
   geom_point(aes(y=-.05, color=TermPre, fill=TermPre), size=3, shape="square", show.legend = FALSE) +
-  scale_color_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#A9A9A9", "#000000", "#FFFFFF"), labels=c("Clade 1", "Clade 2", "Clade 3", "Clade 4", "Clade 5", "Clade 6", "Clade uncharacterized", "Preterm", "Term")) +
-  scale_fill_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#A9A9A9", "#000000", "#FFFFFF"), labels=c("Clade 1", "Clade 2", "Clade 3", "Clade 4", "Clade 5", "Clade 6", "Clade uncharacterized", "Preterm", "Term")) +
+  scale_color_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#A9A9A9", "#000000", "#FFFFFF"), labels=c("Clade C1", "Clade C2", "Clade C3", "Clade C4", "Clade C5", "Clade C6", "Clade uncharacterized", "Preterm", "Term")) +
+  scale_fill_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#A9A9A9", "#000000", "#FFFFFF"), labels=c("Clade C1", "Clade C2", "Clade C3", "Clade C4", "Clade C5", "Clade C6", "Clade uncharacterized", "Preterm", "Term")) +
   theme_classic() +
   facet_wrap(~Cohort) +
   #ggtitle("Stanford") +
@@ -515,28 +449,11 @@ ggplot(mapping=aes(x=reorder(SampleID, -propCladeCommunity, FUN=sum, na.rm=TRUE)
         axis.line.x = element_blank())
 ```
   
-Looks like we should test for a relationship between clade 1/2 presence and overall *Gardnerella* abundance. 
+  Again apparrent potential for Clade C1 and sample dominance. 
 
+  Separate bars by subject:
 ```{r}
-ggplot(data=gardRelativeAbundance2, mapping=aes(x=reorder(reorder(SampleID, -propCladeCommunity, FUN=sum, na.rm=TRUE), TermPre=="T", na.rm=TRUE), y=propCladeCommunity, fill=Clade, color=Clade)) +
-  geom_bar(stat="identity") +
-  labs(x="Sample", y="Proportion of community", color="Legend", fill="Legend") +
-  geom_point(aes(y=-.03, color=TermPre, fill=TermPre), shape="square", show.legend = FALSE) +
-  geom_point(aes(y=-.04, color=TermPre, fill=TermPre), shape="square", show.legend = FALSE) +
-  geom_point(aes(y=-.05, color=TermPre, fill=TermPre), shape="square", show.legend = FALSE) +
-  scale_color_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#A9A9A9", "#000000", "#FFFFFF"), labels=c("Clade 1", "Clade 2", "Clade 3", "Clade 4", "Clade 5", "Clade 6", "Clade uncharacterized", "Preterm", "Term")) +
-  scale_fill_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#A9A9A9", "#000000", "#FFFFFF"), labels=c("Clade 1", "Clade 2", "Clade 3", "Clade 4", "Clade 5", "Clade 6", "Clade uncharacterized", "Preterm", "Term")) +
-  facet_wrap(~Cohort) +
-  theme_classic() +
-  theme(axis.text.x = element_blank(),
-        axis.ticks.x = element_blank(),
-        axis.line.x = element_blank())
-```
-  
-A relationship with PTB might be more complicated. Consider working in methods that will include the time-series aspect of the data or subject average. 
-
-```{r}
-ggplot(data=gardRelativeAbundance2, mapping=aes(x=reorder(SampleID, TermPre=="T"), y=propCladeCommunity, fill=Clade, color=Clade)) +
+ggplot(data=gardRelativeAbundance3, mapping=aes(x=reorder(SampleID, TermPre=="T"), y=propCladeCommunity, fill=Clade, color=Clade)) +
   geom_bar(stat="identity") +
   labs(x="Sample", y="Proportion of community", color="Legend", fill="Legend") +
   geom_point(aes(y=-.03, color=TermPre, fill=TermPre), shape="square", show.legend = FALSE) +
@@ -551,11 +468,10 @@ ggplot(data=gardRelativeAbundance2, mapping=aes(x=reorder(SampleID, TermPre=="T"
   geom_line(aes(x=reorder(as.numeric(SubjectID), TermPre=="T", na.rm=TRUE), y=0))
 ```
   
-Separate bars by subject.
-
-# Subject averages
+## Subject averages
 Caclulate average proportion of each clade per subject
 ```{r}
+#with uncharacterized G. vaginalis category
 cladeAverages <- gardRelativeAbundance1 %>%
   data.frame(stringsAsFactors=FALSE) %>%
   group_by(Clade, SubjectID) %>%
@@ -565,7 +481,11 @@ cladeAverages <- gardRelativeAbundance1 %>%
   mutate(Clade=case_when(Clade=="Uncharacterized"~"Clade uncharacterized",
                          Clade!="Uncharacterized"~Clade)) %>%
   select(SubjectID, Clade, cladeAvg, gardAvg, TermPre, Cohort, GWdell) %>%
-  unique.data.frame() 
+  unique.data.frame()
+
+#without uncharacterized G. vaginalis category
+cladeAverages1 <- cladeAverages %>%
+  filter(Clade!="Clade uncharacterized")
 ```
 
 Bar plot of average clade proportion per subject.
@@ -578,8 +498,8 @@ ggplot(mapping=aes(x=reorder(reorder(SubjectID, -cladeAvg, FUN=sum, na.rm=TRUE),
   geom_point(aes(y=-.03, color=TermPre, fill=TermPre), shape="square", size=5.5, show.legend = FALSE) +
   geom_point(aes(y=-.04, color=TermPre, fill=TermPre), shape="square", size=5.5, show.legend = FALSE) +
   geom_point(aes(y=-.05, color=TermPre, fill=TermPre), shape="square", size=5.5, show.legend = FALSE) +
-  scale_color_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#A9A9A9", "#000000", "#FFFFFF"), labels=c("Clade 1", "Clade 2", "Clade 3", "Clade 4", "Clade 5", "Clade 6", "Clade uncharacterized", "Preterm", "Term")) +
-  scale_fill_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#A9A9A9", "#000000", "#FFFFFF"), labels=c("Clade 1", "Clade 2", "Clade 3", "Clade 4", "Clade 5", "Clade 6", "Clade uncharacterized", "Preterm", "Term")) +
+  scale_color_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#A9A9A9", "#000000", "#FFFFFF"), labels=c("Clade C1", "Clade C2", "Clade C3", "Clade C4", "Clade C5", "Clade C6", "Clade uncharacterized", "Preterm", "Term")) +
+  scale_fill_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#A9A9A9", "#000000", "#FFFFFF"), labels=c("Clade C1", "Clade C2", "Clade C3", "Clade C4", "Clade C5", "Clade C6", "Clade uncharacterized", "Preterm", "Term")) +
   facet_wrap(~Cohort, scales = "free_x") +
   theme_classic() +
   theme(axis.text.x = element_text(angle = 90),
@@ -587,11 +507,11 @@ ggplot(mapping=aes(x=reorder(reorder(SubjectID, -cladeAvg, FUN=sum, na.rm=TRUE),
         axis.line.x = element_blank())
 ```
   
-  Average proportion of each clade in the entire community vs. preterm/term:
+  Average relative abundance of each clade through gestation vs. preterm/term:
 ```{r}
-ggplot(data=cladeAverages, aes(x=TermPre, y=cladeAvg, color=TermPre)) +
+ggplot(data=cladeAverages1, aes(x=TermPre, y=cladeAvg, color=TermPre)) +
   geom_jitter() +
-  geom_boxplot(alpha=0)+
+  geom_boxplot(alpha=0, outlier.alpha = 0)+
   scale_x_discrete(labels=c("Preterm", "Term")) +
   scale_y_log10(limits=c(1e-03, 1e03)) +
   binaryColors +
@@ -602,7 +522,7 @@ ggplot(data=cladeAverages, aes(x=TermPre, y=cladeAvg, color=TermPre)) +
   May not be any differences in PTB risk by proportion of each clade in the entire community. Perhaps presence is a better predictor than proportion... 
   If the clade was present at any time in the subject:
 ```{r}
-ggplot(cladeAverages, aes(x=(cladeAvg==0), fill=TermPre)) +
+ggplot(cladeAverages1, aes(x=(cladeAvg==0), fill=TermPre)) +
   geom_bar(position="dodge") +
   scale_fill_manual(values=c("#D55E00", "#56B4E9"), labels=c("Preterm", "Term")) +
   facet_grid(Cohort~Clade) +
@@ -610,25 +530,28 @@ ggplot(cladeAverages, aes(x=(cladeAvg==0), fill=TermPre)) +
   scale_x_discrete(labels=c("Present", "Absent")) +
   theme(axis.text.x = element_text(angle=90))
 ```
-  Could clade 1 or 2 presence increase risk for PTB?
+  Could clade C1 or C2 presence increase risk for PTB?
   It appears that all subjects in the UAB cohort had *Gardnerella* clades 1, 2, and 4. 
-
-  Subject average clade proportion vs other gard proportion
+  
+  Subject average proportion of other *Gardnerella* clades in the community vs. proportion of each clade
 ```{r}
 ggplot(data=cladeAverages, aes(x=cladeAvg, y=gardAvg-cladeAvg)) +
   geom_point() +
-  facet_grid(Cohort~Clade)
+  cladeColorsN +
+  labs(x="Proportion of Gardnerella clade in community", y="Proportion of other Gardnerella clades in the community", color="Clade") + 
+  facet_grid(Cohort~Clade) +
+  theme(axis.text.x = element_text(angle=45))
 ```
 
-# Dominant *Gardnerella* clade over time
+## Dominant *Gardnerella* clade over time
 Look at the dominant *Gardnerella* clade in each sample (of those that have *Gardnerella*)
 ```{r}
-gardRelativeAbundance2 <- gardRelativeAbundance1 %>%
+gardMax <- gardRelativeAbundance1 %>%
   group_by(SampleID) %>%
   filter(propClade==max(propClade)) %>%
   ungroup()
 
-ggplot(gardRelativeAbundance2) +
+ggplot(gardMax) +
   geom_point(aes(x=floor(GWcoll), y=reorder(SubjectID, GWdell), color=Clade)) +
   geom_point(aes(y=SubjectID, x=GWdell+.5), shape=4, color="black") +
   #geom_point(aes(x=0, y=SubjectID, color=Cohort)) +
@@ -640,9 +563,8 @@ ggplot(gardRelativeAbundance2) +
 
   I think we need to test for clade 1 and/or 2 presence (especially clade 1) and total proportion of *Gardnerella* in the sample and also PTB risk. Without doing any statistics  yet, it seems that presence of clade 1 predicts total proportion of *Gardnerella*. My initial hunch is that when you have this "BV-like" microbiome, abundance in *Gardnerella*, it is likely that these "pathogenic" strains are present, but you also may have these "non-pathogenic" strains in the community as well, and they may be more abundant than the "pathogenic" strains. The genomics information will be very interesting. Metatranscriptomic data would also be *very* interesting if it is true that these strains can reshape the community even if they are not the dominant strain of *Gardnerella* in the community!!
 
-# Add other taxa to analyses
-## Start with Lactos
-### Proportion Gard clade vs. proportion Lacto
+# G. vaginalis clades vs. Lactobacillus spp.
+## Proportion Gard clade vs. proportion Lacto
 ```{r}
 LGabundance <- gardRelativeAbundance1 %>%
   left_join(mDF[,c("SampleID", "Lactobacillus_crispatus", "Lactobacillus_iners", "Lactobacillus_jensenii", "Lactobacillus_gasseri")], by="SampleID") %>%
@@ -652,9 +574,11 @@ LGabundance <- gardRelativeAbundance1 %>%
                                  Lactobacillus=="Lactobacillus_gasseri"~"L. gasseri", 
                                  Lactobacillus=="Lactobacillus_iners"~"L. iners", 
                                  Lactobacillus=="Lactobacillus_jensenii"~"L. jensenii"))
-head(LGabundance)
 
-LGabundance %>%
+LGabundanceNoUnch <- LGabundance %>%
+  filter(Clade!="Uncharacterized")  
+
+LGabundanceNoUnch %>%
   filter(Cohort=="Stanford") %>%
 ggplot(aes(x=propCladeCommunity, y=LAbundance, color=Lactobacillus)) +
   geom_point() +
@@ -664,7 +588,7 @@ ggplot(aes(x=propCladeCommunity, y=LAbundance, color=Lactobacillus)) +
   labs(title="Stanford", x="Proportion Gardnerella clade", y="Proportion Lactobacillus")  
 #ggsave("/Users/hlberman/Desktop/test1.pdf", height = 8, width=15)
 
-LGabundance %>%
+LGabundanceNoUnch %>%
   filter(Cohort=="UAB") %>%
 ggplot(aes(x=propCladeCommunity, y=LAbundance, color=Lactobacillus)) +
   geom_point() +
@@ -677,9 +601,9 @@ ggplot(aes(x=propCladeCommunity, y=LAbundance, color=Lactobacillus)) +
   
 Mainly only see *L. iners* in UAB samples, as we have seen previously. Clear inverse relationship between most clades and *Lactobacillus* species, except clade 4 and *L. gasseri* in Stanford, and clades 1 and 3 and *L. iners* in UAB cohort.
 
-### Ratio Gard clade to Lactos
+## Ratio Gard clade to Lactos
 ```{r}
-LGabundance %>%
+LGabundanceNoUnch %>%
   filter(Cohort=="UAB") %>%
 ggplot(aes(x=Clade, y=propCladeCommunity/LAbundance, color=Lactobacillus)) +
   geom_boxplot(outlier.alpha = 0) +
@@ -690,7 +614,7 @@ ggplot(aes(x=Clade, y=propCladeCommunity/LAbundance, color=Lactobacillus)) +
   labs(title="UAB", y="G. vaginalis : Lactobacillus sp.")  
 #ggsave("/Users/hlberman/Desktop/test1.pdf", height = 8, width=15)
 
-LGabundance %>%
+LGabundanceNoUnch %>%
   filter(Cohort=="Stanford") %>%
 ggplot(aes(x=Clade, y=propCladeCommunity/LAbundance, color=Lactobacillus)) +
   geom_boxplot(outlier.alpha = 0) +
@@ -704,7 +628,7 @@ ggplot(aes(x=Clade, y=propCladeCommunity/LAbundance, color=Lactobacillus)) +
 
 Ratio Gard clades to Lcjg
 ```{r}
-LGabundance %>%
+LGabundanceNoUnch %>%
   spread(Lactobacillus, LAbundance) %>%
   mutate(Lcjg=`L. crispatus`+`L. gasseri`+`L. jensenii`) %>%
  ggplot(aes(x=Clade, y=propCladeCommunity/Lcjg)) +
@@ -714,9 +638,9 @@ LGabundance %>%
   scale_y_log10()
 ```
 
-### Gard clade presence vs proportion Lacto
+## Gard clade presence vs proportion Lactobacillus spp.
 ```{r}
-LGabundance %>%
+LGabundanceNoUnch %>%
   filter(Cohort=="Stanford") %>%
 ggplot(aes(x=(propCladeCommunity == 0), y=LAbundance, color=(propCladeCommunity==0))) +
   geom_jitter() +
@@ -729,7 +653,7 @@ ggplot(aes(x=(propCladeCommunity == 0), y=LAbundance, color=(propCladeCommunity=
   theme(legend.position = "none",
         axis.text.x = element_text(angle=90))
 
-LGabundance %>%
+LGabundanceNoUnch %>%
   filter(Cohort=="UAB") %>%
 ggplot(aes(x=(propCladeCommunity == 0), y=LAbundance, color=(propCladeCommunity==0))) +
   geom_jitter() +
@@ -745,9 +669,9 @@ ggplot(aes(x=(propCladeCommunity == 0), y=LAbundance, color=(propCladeCommunity=
   
 Difficult to make any conclusions in the UAB cohort, because most samples do not have species other than *L. iners*. In the Stanford cohort, *L. crispatus* relative abundance may be greater without any *Gardnerella* clade. May not be a difference between *L. iners* relative abundance with and without *Gardnerlla* clades. 
 
-### Gard presence vs. all lactos
+## Gard presence vs. all Lactobacillus
 ```{r}
-LGabundance %>%
+LGabundanceNoUnch %>%
   group_by(SampleID, Clade) %>%
   mutate(TLAbundance=sum(LAbundance)) %>%
   ungroup %>%
@@ -761,7 +685,7 @@ ggplot(aes(x=(propCladeCommunity == 0), y=TLAbundance, color=(propCladeCommunity
   #scale_y_log10() +
   theme(legend.position = "none")
 
-LGabundance %>%
+LGabundanceNoUnch %>%
   spread(Lactobacillus, LAbundance) %>%
   mutate(Lcjg=`L. crispatus`+`L. gasseri`+`L. jensenii`) %>%
 ggplot(aes(x=(propCladeCommunity == 0), y=Lcjg, color=(propCladeCommunity==0))) +
@@ -774,7 +698,7 @@ ggplot(aes(x=(propCladeCommunity == 0), y=Lcjg, color=(propCladeCommunity==0))) 
   scale_y_log10() +
   theme(legend.position = "none")
 
-LGabundance %>%
+LGabundanceNoUnch %>%
   spread(Lactobacillus, LAbundance) %>%
 ggplot(aes(x=(propCladeCommunity == 0), y=`L. iners`, color=(propCladeCommunity==0))) +
   geom_jitter() +
@@ -786,14 +710,14 @@ ggplot(aes(x=(propCladeCommunity == 0), y=`L. iners`, color=(propCladeCommunity=
   scale_y_log10() +
   theme(legend.position = "none")
 
-Gv <- LGabundance %>%
+Gv <- LGabundanceNoUnch %>%
   filter(Cohort=="Stanford") %>%
   select(SampleID, Gardnerella_vaginalis, Clade, propCladeCommunity) %>%
   dplyr::rename(Proportion=Gardnerella_vaginalis) %>%
   mutate(Taxon="Gardnerella vaginalis") %>%
   unique.data.frame()
 
-LGabundance %>%
+LGabundanceNoUnch %>%
   spread(Lactobacillus, LAbundance) %>%
   mutate(Proportion=`L. crispatus`+`L. gasseri`+`L. jensenii`) %>%
   filter(Cohort=="Stanford") %>%
@@ -813,20 +737,16 @@ ggplot(aes(x=(propCladeCommunity == 0), y=Proportion, color=(propCladeCommunity=
 #ggsave("/Users/hlberman/Desktop/cladevlacto.png", width=7, height = 3)  
 ```
   
-Gard clade : lactos vs gard clade + lactos
+  Ratio of *G. vaginalis* clades to *L. crispatus*, *L. jensenii*, and *L. gasseri* vs. the sum of *G. vaginalis* and these *Lactobacillus* spp.
 ```{r, fig.height = 2, fig.width=6}
-ratioFreqTable <- LGabundance %>%
-  spread(Lactobacillus, LAbundance)
-
-GardAb0 <- ratioFreqTable %>%
-  select(-Clade, -propCladeCommunity, -propClade, -n) %>%
-  unique.data.frame() %>%
-  dplyr::rename(propCladeCommunity=Gardnerella_vaginalis) %>%
-  mutate(Clade="Total Gardnerella")
+ratioFreqTable <- LGabundanceNoUnch %>%
+  select(-n, -propClade) %>%
+  spread(Lactobacillus, LAbundance) %>%
+  spread(Clade, propCladeCommunity) %>%
+  dplyr::rename(`Total Gardnerella`=Gardnerella_vaginalis) %>%
+  gather("Clade", "propCladeCommunity", c(`Total Gardnerella`, C1, C2, C3, C4, C5, C6))
 
 ratioFreqTable %>%
-  select(-Gardnerella_vaginalis, -propClade, -n) %>%
-  full_join(GardAb0) %>%
   mutate(Y=propCladeCommunity/(`L. crispatus`+`L. jensenii`+`L. gasseri`),
          X=propCladeCommunity+`L. crispatus`+`L. jensenii`+`L. gasseri`,
          Clade=factor(Clade, levels=cladeLevelsT)) %>%
@@ -834,72 +754,63 @@ ratioFreqTable %>%
     geom_point() +
     facet_grid(Cohort~Clade) +
     scale_y_log10(limits=c(1e-04, 1e04), breaks=c(1e-04, 1e-02, 1, 1e02, 1e04), labels= c(expression(1:10^4), expression(1:10^2), "1:1", expression(10^2:1), expression(10^4:1))) +
-    cladeColorsNTotal+  
+    cladeColorsTotal+  
     labs(x=bquote(italic(Gardnerella)~'+'~italic(L.)~italic(crisp.)~italic(jens.)~italic(gas.)~'(Frequency)'), y=bquote(italic(Gardnerella)~':'~italic(L.)~italic(crisp.)~italic(jens.)~italic(gas.)~'(Ratio)')) +
     theme(axis.text.x = element_text(angle=45, size=2))
 #ggsave("/Users/hlberman/Desktop/test.jpg", height = 3, width=6)
 ```
-
+  Ratios vs. sum of these relationships by individual *Lactobacillus* sp.
+  *L. crispatus*:
 ```{r, fig.height = 2, fig.width=6}
 ratioFreqTable %>%
-  select(-Gardnerella_vaginalis, -propClade, -n) %>%
-  full_join(GardAb0) %>%
   mutate(Clade=factor(Clade, levels=cladeLevelsT)) %>%
  ggplot(aes(y=(propCladeCommunity/`L. crispatus`), x=(propCladeCommunity+`L. crispatus`), color=Clade)) +
     geom_point() +
     facet_grid(Cohort~Clade) +
     scale_y_log10(limits=c(1e-04, 1e04), breaks=c(1e-04, 1e-02, 1, 1e02, 1e04), labels=c(expression(1:10^4), expression(1:10^2), "1:1", expression(10^2:1), expression(10^4:1))) +
-    cladeColorsNTotal +
+    cladeColorsTotal +
     labs(x=bquote(italic(Gardnerella)~'+'~italic(L.)~italic(crispatus)~'(Frequency)'), y=bquote(italic(Gardnerella)~':'~italic(L.)~italic(crispatus)~'(Ratio)')) +
     theme(axis.text.x = element_text(angle=45))
 ```
-
+  *L. jensenii*:
 ```{r, fig.height = 2, fig.width=6}
 ratioFreqTable %>%
-  select(-Gardnerella_vaginalis, -propClade, -n) %>%
-  full_join(GardAb0) %>%
   mutate(Clade=factor(Clade, levels=cladeLevelsT)) %>%
  ggplot(aes(y=(propCladeCommunity/`L. jensenii`), x=(propCladeCommunity+`L. jensenii`), color=Clade)) +
     geom_point() +
     facet_grid(Cohort~Clade) +
     scale_y_log10(limits=c(1e-04, 1e04), breaks=c(1e-04, 1e-02, 1, 1e02, 1e04), labels=c(expression(1:10^4), expression(1:10^2), "1:1", expression(10^2:1), expression(10^4:1))) +
     cladeColorsNTotal +  
-  #scale_color_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#000000"), labels=c("C1", "C2", "C3", "C4", "C5", "C6", bquote('Total'~italic(Gardnerella)))) +
     labs(x=bquote(italic(Gardnerella)~'+'~italic(L.)~italic(jensenii)~'(Frequency)'), y=bquote(italic(Gardnerella)~':'~italic(L.)~italic(jensenii)~'(Ratio)')) +
     theme(axis.text.x = element_text(angle=45))
 ```
-
+  *L. gasseri*:
 ```{r, fig.height = 2, fig.width=6}
 ratioFreqTable %>%
-  select(-Gardnerella_vaginalis, -propClade, -n) %>%
-  full_join(GardAb0) %>%
   mutate(Clade=factor(Clade, levels=cladeLevelsT)) %>%
  ggplot(aes(y=(propCladeCommunity/`L. gasseri`), x=(propCladeCommunity+`L. gasseri`), color=Clade)) +
     geom_point() +
     facet_grid(Cohort~Clade) +
     scale_y_log10(limits=c(1e-04, 1e04), breaks=c(1e-04, 1e-02, 1, 1e02, 1e04), labels=c(expression(1:10^4), expression(1:10^2), "1:1", expression(10^2:1), expression(10^4:1))) +
-    cladeColorsNTotal +  
-  #scale_color_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#000000"), labels=c("C1", "C2", "C3", "C4", "C5", "C6", bquote('Total'~ italic(Gardnerella)))) +
+    cladeColorsTotal +  
     labs(x=bquote(italic(Gardnerella)~'+'~italic(L.)~italic(gasseri)~'(Frequency)'), y=bquote(italic(Gardnerella)~':'~italic(L.)~italic(gasseri)~'(Ratio)')) +
     theme(axis.text.x = element_text(angle=45))
 ```
-
+  *L. iners*:
 ```{r, fig.height = 2, fig.width=6}
 ratioFreqTable %>%
-  select(-Gardnerella_vaginalis, -propClade, -n) %>%
-  full_join(GardAb0) %>%
   mutate(Clade=factor(Clade, levels=cladeLevelsT)) %>%
  ggplot(aes(y=(propCladeCommunity/`L. iners`), x=(propCladeCommunity+`L. iners`), color=Clade)) +
     geom_point() +
     facet_grid(Cohort~Clade) +
     scale_y_log10(limits=c(1e-04, 1e04), breaks=c(1e-04, 1e-02, 1, 1e02, 1e04), labels=c(expression(1:10^4), expression(1:10^2), "1:1", expression(10^2:1), expression(10^4:1))) +
-    cladeColorsNTotal +
-    #scale_color_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#000000"), labels=c("C1", "C2", "C3", "C4", "C5", "C6", bquote(Total ~ italic(Gardnerella)))) +
+    cladeColorsTotal +
     labs(x=bquote(italic(Gardnerella)~'+'~italic(L.)~italic(iners)~'(Frequency)'), y=bquote(italic(Gardnerella)~':'~italic(L.)~italic(iners)~'(Ratio)'))
     theme(axis.text.x = element_text(angle=45))
 ```
 
-### Bar plot****
+## Bar plot
+  With Term/Preterm
 ```{r}
 LGabundance0 <- LGabundance %>%
   select(-n,-propClade) %>%
@@ -947,70 +858,8 @@ ggplot(aes(x=reorder(reorder(SampleID, -Abundance, FUN=sum, na.rm=TRUE), TermPre
         axis.line.x = element_blank()) 
 ```
 
-LITWACK FIGURE
-```{r}
-vtypeDF <- read_tsv("/Users/hlberman/Documents/GitHub/pregnancy_metagenome/vagitypesCladeCounts.tsv") %>%
-  mutate(SampleID=as.character(SampleID))
-
-LGabundanceX <- LGabundance %>%
-  select(-n,-propClade) %>%
-  spread(Clade, propCladeCommunity) %>%
-  spread(Lactobacillus, LAbundance) %>%
-  left_join(mDF[,c("SampleID", "Atopobium_vaginae", "Prevotella_bivia")], by="SampleID") %>%
-  gather("Taxon", "Abundance", `C1`, `C2`, `C3`, `C4`, `C5`, `C6`, `Uncharacterized`, `L. crispatus`, `L. gasseri`, `L. iners`, `L. jensenii`, `Atopobium_vaginae`, `Prevotella_bivia`) %>%
-  left_join(vtypeDF[,c("SampleID", "Vagitype")], by="SampleID") %>%
-  filter(!is.na(Abundance)) %>%
-  mutate(vTypeOrder=case_when(Vagitype=="A. vaginae"~1,
-                              Vagitype=="G. vaginalis C1"~2,
-                              Vagitype=="G. vaginalis C2"~3,
-                              Vagitype=="G. vaginalis C3"~4,
-                              Vagitype=="G. vaginalis C4"~5,
-                              Vagitype=="G. vaginalis C5"~6,
-                              Vagitype=="G. vaginalis C6"~7,
-                              Vagitype=="L. crispatus"~8,
-                              Vagitype=="L. gasseri"~9,
-                              Vagitype=="L. iners"~10,
-                              Vagitype=="L. jensenii"~11,
-                              Vagitype=="P. bivia"~12,
-                              Vagitype=="No type"~13),
-         Taxon=case_when(Taxon=="Uncharacterized"~"Clade uncharacterized",
-                         Taxon!="Uncharacterized"~Taxon))
-
-LGabundanceX$Vagitype <- factor(LGabundanceX$Vagitype, levels=c("A. vaginae", "G. vaginalis C1", "G. vaginalis C2", "G. vaginalis C3", "G. vaginalis C4", "G. vaginalis C5", "G. vaginalis C6", "L. crispatus", "L. gasseri", "L. jensenii", "L. iners", "P. bivia", "No type"))
-
-LGabundanceX %>%
-  filter(Cohort=="Stanford") %>%
-ggplot(aes(x=reorder(reorder(SampleID, Abundance, FUN=sum, na.rm=TRUE), vTypeOrder, FUN=min), y=Abundance, fill=Taxon, color=Taxon, order=Vagitype)) +
-  geom_bar(stat="identity") +
-  labs(x="Sample", y="Proportion of community", color="Taxon", fill="Taxon") +
-  taxColorsN+
-  #scale_color_manual(values=c("mediumpurple4", "#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73","darkgreen", "khaki1", "darkblue", "darkred", "darkseagreen4"), labels=c("A. vaginae", "G. vaginalis C1", "G. vaginalis C2", "G. vaginalis C3", "G. vaginalis C4", "G. vaginalis C5", "G. vaginalis C6", "L. crispatus", "L. gasseri", "L. iners", "L. jensenii", "P. bivia")) +
-  #scale_fill_manual(values=c("mediumpurple4", "#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73","darkgreen", "khaki1", "darkblue", "darkred", "darkseagreen4"), labels=c("A. vaginae", "G. vaginalis C1", "G. vaginalis C2", "G. vaginalis C3", "G. vaginalis C4", "G. vaginalis C5", "G. vaginalis C6", "L. crispatus", "L. gasseri", "L. iners", "L. jensenii", "P. bivia")) +
-  facet_wrap(~Cohort, scales="free_x") +
-  theme_grey() +
-  theme(axis.text.x = element_blank(),
-        axis.ticks.x = element_blank(),
-        axis.line.x = element_blank()) 
-
-
-LGabundanceX %>%
-  filter(Cohort=="UAB") %>%
-ggplot(aes(x=reorder(reorder(SampleID, Abundance, FUN=sum, na.rm=TRUE), vTypeOrder, FUN=min), y=Abundance, fill=Taxon, color=Taxon, order=Vagitype)) +
-  geom_bar(stat="identity") +
-  labs(main="UAB", x="Sample", y="Proportion of community", color="Taxon", fill="Taxon") +
-  taxColorsN +
-  #scale_color_manual(values=c("mediumpurple4", "#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73","darkgreen", "khaki1", "darkblue", "darkred", "darkseagreen4"), labels=c("A. vaginae", "G. vaginalis C1", "G. vaginalis C2", "G. vaginalis C3", "G. vaginalis C4", "G. vaginalis C5", "G. vaginalis C6", "L. crispatus", "L. gasseri", "L. iners", "L. jensenii", "P. bivia")) +
-  #scale_fill_manual(values=c("mediumpurple4", "#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73","darkgreen", "khaki1", "darkblue", "darkred", "darkseagreen4"), labels=c("A. vaginae", "G. vaginalis C1", "G. vaginalis C2", "G. vaginalis C3", "G. vaginalis C4", "G. vaginalis C5", "G. vaginalis C6", "L. crispatus", "L. gasseri", "L. iners", "L. jensenii", "P. bivia")) +  
-  facet_wrap(~Cohort) +
-  theme_grey() +
-  theme(axis.text.x = element_blank(),
-        axis.ticks.x = element_blank(),
-        axis.line.x = element_blank())
-        #legend.position = "bottom") 
-```
-
-# Subject averages
-Caclulate average proportion of each clade per subject
+## Subject averages
+  Caclulate average proportion of each clade per subject
 ```{r}
 taxAverages <- LGabundance0 %>%
   data.frame(stringsAsFactors=FALSE) %>%
@@ -1022,7 +871,7 @@ taxAverages <- LGabundance0 %>%
   mutate(Taxon=factor(Taxon, levels = c("C1", "C2", "C3", "C4", "C5", "C6", "Clade uncharacterized", "L. crispatus", "L. gasseri", "L. iners", "L. jensenii")))
 ```
 
-Bar plot of average clade proportion per subject.
+  Bar plot of average clade proportion per subject.
 ```{r}
 taxAverages %>%
     mutate(taxAvg=na_if(taxAvg, 0)) %>%
@@ -1057,98 +906,9 @@ ggplot(mapping=aes(x=reorder(reorder(SubjectID, -taxAvg, FUN=sum, na.rm=TRUE), T
         axis.line.x = element_blank())
 ```
   
-Ratio of gard clades to Lactos
-```{r}
-#Ratio of each clade to each lacto in term pre
-taxAverages %>%
-  spread(Taxon, taxAvg) %>%
-  gather("gardClade", "gardAvg", c(`C1`,`C2`,`C3`,`C4`,`C5`,`C6`, `Clade uncharacterized`)) %>%
-  gather("lacto", "lactoAvg", c(`L. crispatus`, `L. gasseri`, `L. iners`, `L. jensenii`)) %>%
-  mutate(ratio=gardAvg/lactoAvg,
-         ratioLab=paste(gardClade, "/", lacto)) %>%
-  filter(ratio!="Inf", 
-         ratio!="Nan",
-         ratio!=0) %>%
-  ggplot(aes(x=TermPre, y=ratio)) +
-    geom_point() +
-    geom_boxplot(alpha=0) +
-    facet_grid(Cohort~ratioLab) +
-    scale_y_log10()
-
-#Ratio of each clade to all Lactos in Term pre
-taxAverages %>%
-  spread(Taxon, taxAvg) %>%
-  gather("gardClade", "gardAvg", c(`C1`,`C2`,`C3`,`C4`,`C5`,`C6`, `Clade uncharacterized`)) %>%
-  mutate(lactoSum=`L. crispatus`+`L. gasseri`+`L. jensenii`,
-    ratio=gardAvg/lactoSum) %>%
-  ggplot(aes(x=TermPre, y=ratio)) +
-    geom_jitter() +
-    geom_boxplot(alpha=0) +
-    facet_grid(Cohort~gardClade) +
-    scale_y_log10() +
-    labs(x="Preterm vs. Term", y="Ratio clade to Lc + Lg + Lj")
-```
-
-# add even more 
-```{r}
-top20 <- mDF %>%
-  select(-SampleID) %>%
-  colSums() %>%
-  .[order(-dense_rank(.))] %>%
-  .[1:20] %>%
-  names() 
-
-top19 <- top20 %>% # list without Gard for later
-  .[!str_detect(., "Gardnerella_vaginalis")]
-
-```
-
-```{r}
-top20abundance <- gardRelativeAbundance1 %>%
-  select(-Gardnerella_vaginalis) %>%
-  left_join(mDF[,c("SampleID", top20)], by="SampleID") %>%
-  select(-n, -propClade, -Gardnerella_vaginalis) %>%
-  spread(Clade, propCladeCommunity) %>%
-  gather("Taxon", "Abundance", c(`C1`, `C2`, `C3`, `C4`, `C5`, `C6`, Uncharacterized,  top19)) %>%
-  mutate(Taxon=case_when(Taxon=="Uncharacterized"~"G. vaginalis uncharacterized",
-                         Taxon!="Uncharacterized"~Taxon))
-
-top20abundance %>%
-  filter(Cohort=="Stanford") %>%
-ggplot(aes(x=reorder(reorder(SampleID, -Abundance, FUN=sum, na.rm=TRUE), TermPre=="T", na.rm=TRUE), y=Abundance, fill=Taxon, color=Taxon)) +
-  geom_bar(stat="identity") +
-  labs(x="Sample", y="Proportion of community", color="Legend", fill="Legend") +
-  geom_point(aes(y=-.03, color=TermPre, fill=TermPre), shape="square", show.legend = FALSE) +
-  geom_point(aes(y=-.04, color=TermPre, fill=TermPre), shape="square", show.legend = FALSE) +
-  geom_point(aes(y=-.05, color=TermPre, fill=TermPre), shape="square", show.legend = FALSE) +
-  #scale_color_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "darkgreen", "#F0E442", "darkblue", "darkred", "#000000", "#999999"), labels=c("Gardnerella clade 1", "Gardnerella clade2", "Gardnerella clade 3", "Gardnerella clade 4", "Gardnerella clade 5", "Gardnerella clade 6", "Lactobacillus crispatus", "Lactobacillus gasseri", "Lactobacillus iners", "Lactobacillus jensenii", "Preterm", "Term")) +
- #scale_fill_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "darkgreen", "#F0E442", "darkblue", "darkred", "#000000", "#999999"), labels=c("Gardnerella clade 1", "Gardnerella clade2", "Gardnerella clade 3", "Gardnerella clade 4", "Gardnerella clade 5", "Gardnerella clade 6", "Lactobacillus crispatus", "Lactobacillus gasseri", "Lactobacillus iners", "Lactobacillus jensenii", "Preterm", "Term")) +
-  ggtitle("Stanford") +
-  theme_classic() +
-  theme(axis.text.x = element_blank(),
-        axis.ticks.x = element_blank(),
-        axis.line.x = element_blank()) 
-
-top20abundance %>%
-  filter(Cohort=="UAB") %>%
-ggplot(aes(x=reorder(reorder(SampleID, -Abundance, FUN=sum, na.rm=TRUE), TermPre=="T", na.rm=TRUE), y=Abundance, fill=Taxon, color=Taxon)) +
-  geom_bar(stat="identity") +
-  labs(x="Sample", y="Proportion of community", color="Legend", fill="Legend") +
-  geom_point(aes(y=-.03, color=TermPre, fill=TermPre), shape="square", show.legend = FALSE) +
-  geom_point(aes(y=-.04, color=TermPre, fill=TermPre), shape="square", show.legend = FALSE) +
-  geom_point(aes(y=-.05, color=TermPre, fill=TermPre), shape="square", show.legend = FALSE) +
-  #scale_color_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "darkgreen", "#F0E442", "darkblue", "darkred", "#000000", "#999999"), labels=c("Gardnerella clade 1", "Gardnerella clade2", "Gardnerella clade 3", "Gardnerella clade 4", "Gardnerella clade 5", "Gardnerella clade 6", "Lactobacillus crispatus", "Lactobacillus gasseri", "Lactobacillus iners", "Lactobacillus jensenii", "Preterm", "Term")) +
- #scale_fill_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "darkgreen", "#F0E442", "darkblue", "darkred", "#000000", "#999999"), labels=c("Gardnerella clade 1", "Gardnerella clade2", "Gardnerella clade 3", "Gardnerella clade 4", "Gardnerella clade 5", "Gardnerella clade 6", "Lactobacillus crispatus", "Lactobacillus gasseri", "Lactobacillus iners", "Lactobacillus jensenii", "Preterm", "Term")) +
-  ggtitle("UAB") +
-  theme_classic() +
-  theme(axis.text.x = element_blank(),
-        axis.ticks.x = element_blank(),
-        axis.line.x = element_blank()) 
-```
-
-
-# Vagitypes
-Set up dataframes for vagitype classification (max taxon. If maximum taxon is <30%, then vagitype is "no type")
+# Key Taxa Barplot
+## Create vagitype df for ordering barplot
+  Set up dataframes for vagitype classification (max taxon. If maximum taxon is <30%, then vagitype is "no type")
 ```{r}
 gard4metaphlan <- gardRelativeAbundance1 %>%
   select(SampleID, Clade, propCladeCommunity) %>%
@@ -1242,8 +1002,52 @@ ggplot(data=gardTypeDF, aes(x=gardType)) +
   theme(axis.text.x = element_text(angle=45, hjust=1))
 ```
 
-# Save Vagitype Dataframe
-New dataframe not saved on 5/12/2020
+## Key taxa barplot figure
+```{r}
+LGabundanceX <- LGabundance %>%
+  select(-n,-propClade) %>%
+  spread(Clade, propCladeCommunity) %>%
+  spread(Lactobacillus, LAbundance) %>%
+  left_join(mDF[,c("SampleID", "Atopobium_vaginae", "Prevotella_bivia")], by="SampleID") %>%
+  gather("Taxon", "Abundance", `C1`, `C2`, `C3`, `C4`, `C5`, `C6`, `Uncharacterized`, `L. crispatus`, `L. gasseri`, `L. iners`, `L. jensenii`, `Atopobium_vaginae`, `Prevotella_bivia`) %>%
+  left_join(vtypeDF[,c("SampleID", "Vagitype")], by="SampleID") %>%
+  filter(!is.na(Abundance)) %>%
+  mutate(vTypeOrder=case_when(Vagitype=="A. vaginae"~1,
+                              Vagitype=="G. vaginalis C1"~2,
+                              Vagitype=="G. vaginalis C2"~3,
+                              Vagitype=="G. vaginalis C3"~4,
+                              Vagitype=="G. vaginalis C4"~5,
+                              Vagitype=="G. vaginalis C5"~6,
+                              Vagitype=="G. vaginalis C6"~7,
+                              Vagitype=="L. crispatus"~8,
+                              Vagitype=="L. gasseri"~9,
+                              Vagitype=="L. iners"~10,
+                              Vagitype=="L. jensenii"~11,
+                              Vagitype=="P. bivia"~12,
+                              Vagitype=="No type"~13),
+         Taxon=case_when(Taxon=="Uncharacterized"~"Clade uncharacterized",
+                         Taxon!="Uncharacterized"~Taxon))
+
+LGabundanceX$Vagitype <- factor(LGabundanceX$Vagitype, levels=c("A. vaginae", "G. vaginalis C1", "G. vaginalis C2", "G. vaginalis C3", "G. vaginalis C4", "G. vaginalis C5", "G. vaginalis C6", "L. crispatus", "L. gasseri", "L. jensenii", "L. iners", "P. bivia", "No type"))
+
+LGabundanceX %>%
+ggplot(aes(x=reorder(reorder(SampleID, Abundance, FUN=sum, na.rm=TRUE), vTypeOrder, FUN=min), y=Abundance, fill=Taxon, color=Taxon, order=Vagitype)) +
+  geom_bar(stat="identity") +
+  labs(x="Sample", y="Proportion of community", color="Taxon", fill="Taxon") +
+  taxColorsN+
+  #scale_color_manual(values=c("mediumpurple4", "#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73","darkgreen", "khaki1", "darkblue", "darkred", "darkseagreen4"), labels=c("A. vaginae", "G. vaginalis C1", "G. vaginalis C2", "G. vaginalis C3", "G. vaginalis C4", "G. vaginalis C5", "G. vaginalis C6", "L. crispatus", "L. gasseri", "L. iners", "L. jensenii", "P. bivia")) +
+  #scale_fill_manual(values=c("mediumpurple4", "#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73","darkgreen", "khaki1", "darkblue", "darkred", "darkseagreen4"), labels=c("A. vaginae", "G. vaginalis C1", "G. vaginalis C2", "G. vaginalis C3", "G. vaginalis C4", "G. vaginalis C5", "G. vaginalis C6", "L. crispatus", "L. gasseri", "L. iners", "L. jensenii", "P. bivia")) +
+  facet_wrap(~Cohort, scales="free_x") +
+  theme_grey() +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.line.x = element_blank(),
+        aspect.ratio = 1/1.5,
+        legend.position = "bottom")
+```
+
+# Save Files
+  Vagitype Dataframe
 ```{r}
 vTypesClades <- vtypeDF %>%
   left_join(cladeCounts, by="SampleID") %>%
@@ -1251,7 +1055,7 @@ vTypesClades <- vtypeDF %>%
 #write_tsv(vTypesClades, "../../vagitypesCladeCounts.tsv")
 ```
 
-# save Rdata of Metaphlan relative abundances
+  save Rdata of Metaphlan relative abundances
 ```{r}
 gardAb <- gardRelativeAbundance1 %>%
   select(SampleID, Clade, n, propClade, propCladeCommunity, Gardnerella_vaginalis) %>%
