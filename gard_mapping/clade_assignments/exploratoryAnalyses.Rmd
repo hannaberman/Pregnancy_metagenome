@@ -151,6 +151,9 @@ gardRelativeAbundance1 <- gardRelativeAbundance %>%
 ## reads vs. metaphlan proportion
 ```{r}
 gardRelativeAbundance %>%
+  select(SampleID, n) %>%
+  full_join(sgDF[c("SampleID")], by="SampleID") %>% # add samples with zero gard reads by mapping method
+  replace_na(list(n=0)) %>%
   group_by(SampleID) %>%
   summarise(n=sum(n)) %>%
   ungroup %>%
@@ -158,14 +161,10 @@ gardRelativeAbundance %>%
   left_join(mDF[,c("SampleID", "Gardnerella_vaginalis")], by="SampleID") %>%
   rename(Metaphlan=Gardnerella_vaginalis) %>%
   mutate(Mapping=n/bbmapFiltered_pairs) %>%
-  gather("method","value", Metaphlan, Mapping) %>%
-  ggplot(aes(x=SampleID, y=value, group=method, color=method)) +
-    geom_line() +
-    theme(axis.text.x = element_blank()) +
-    scale_y_log10() +
-    labs(y="Fraction of Sample", x="Sample")
+  ggplot(aes(x=Mapping, y=Metaphlan)) +
+    geom_point()
 ```
-
+  Some agreement between mapping and metaphlan methods.
 
 ## number of RNAlater samples with multiple clades
 ```{r}
@@ -206,7 +205,7 @@ sgDF0 <- sgDF %>%
 sgDF0 %>%
    ggplot(aes(x=nClade)) +
     geom_histogram(stat="count", binwidth = 1) +
-    scale_x_continuous(breaks = c(-1,0,1,2,3,4,5,6), labels = c("NA", 0, 1, 2, 3, 4, 5, 6)) +
+    scale_x_continuous(breaks = c(-1,0,1,2,3,4,5,6), labels = c("Unch.", 0, 1, 2, 3, 4, 5, 6)) +
     facet_wrap(~Cohort)+
     labs(x="Clades per sample")
 ## Positive only
