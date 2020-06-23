@@ -22,8 +22,17 @@ Steps:
    `./metadataAndDescriptives.Rmd` - general assessment of Humann2 outputs
 
 Notes: 
-Humann2 was run in April 2019 with paired output of uploaded reads and re-run in October 2019 with paired output of bbmap filtered reads (reads have been filtered with both bowtie2 and bbmap).
+HUManN2 v0.11.2 was run in April 2019 with paired output of uploaded reads and re-run in October 2019 with paired output of bbmap filtered reads (reads have been filtered with both bowtie2 and bbmap). 
+HUManN2 calls MetaPhlAn2 v2.7.7  
+(Used python v2.7.12 as Strainphlan was tried and that only uses python 2.7)
 
+Analyses contents:
+`gardCladeGeneContent.Rmd`: first attempts at understanding genes within each clade. Unsuccessful.
+`gardGeneDeconSim.Rmd` : Testing decononvolution under samples simutated with Gardnerella WGS data
+`gardnerellaGeneContentPTB.Rmd`: Gardnerella gene content by PTB
+`metadataAndDescriptives.Rmd`: Descriptives on metadata
+`metadataAssociations.Rmd`: Data exploration
+`vagitypeAnalyses.Rmd`: define vagitypes for each sample.
 
 II) HUMANN2 with Gardnerella clade-specific pangenome databases
 Steps: 
