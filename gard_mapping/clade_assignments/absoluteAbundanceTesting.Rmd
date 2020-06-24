@@ -93,13 +93,24 @@ taxaOfInterestAbbr <- c("G_vaginalis",
 
 GvaginalisN <- c("C1", "C2", "C3", "C4","C5", "C6", "Gv_uncharacterized", "G_vaginalis")
 Gvaginalis <- c("C1", "C2", "C3", "C4","C5", "C6", "G_vaginalis")
+```
 
-
+## ggplot colors
+```{r}
 cladeColorsN <- list(scale_color_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#A9A9A9", "#000000"), labels=c("C1", "C2", "C3", "C4", "C5", "C6", "Uncharacterized", bquote('Total'~italic(Gardnerella)))),
                      scale_fill_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#A9A9A9", "#000000"), labels=c("C1", "C2", "C3", "C4", "C5", "C6", "Uncharacterized", bquote('Total'~italic(Gardnerella)))))
 
 cladeColors <- list(scale_color_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#000000"), labels=c("C1", "C2", "C3", "C4", "C5", "C6", bquote('Total'~italic(Gardnerella)))),
                      scale_fill_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#000000"), labels=c("C1", "C2", "C3", "C4", "C5", "C6", bquote('Total'~italic(Gardnerella)))))
+
+taxColorsN <-   list(scale_color_manual(values=c("mediumpurple4", "#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#A9A9A9", "darkgreen", "khaki1", "darkblue", "darkred", "darkseagreen4"), labels=c("A. vaginae", "G. vaginalis C1", "G. vaginalis C2", "G. vaginalis C3", "G. vaginalis C4", "G. vaginalis C5", "G. vaginalis C6", "G. vaginalis uncharacterized", "L. crispatus", "L. gasseri", "L. iners", "L. jensenii", "P. bivia")),
+  scale_fill_manual(values=c("mediumpurple4", "#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#A9A9A9", "darkgreen", "khaki1", "darkblue", "darkred", "darkseagreen4"), labels=c("A. vaginae", "G. vaginalis C1", "G. vaginalis C2", "G. vaginalis C3", "G. vaginalis C4", "G. vaginalis C5", "G. vaginalis C6", "G. vaginalis uncharacterized", "L. crispatus", "L. gasseri", "L. iners", "L. jensenii", "P. bivia")))
+
+taxColors <-   list(scale_color_manual(values=c("mediumpurple4", "#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73","darkgreen", "khaki1", "darkblue", "darkred", "darkseagreen4"), labels=c("A. vaginae", "G. vaginalis C1", "G. vaginalis C2", "G. vaginalis C3", "G. vaginalis C4", "G. vaginalis C5", "G. vaginalis C6", "L. crispatus", "L. gasseri", "L. iners", "L. jensenii", "P. bivia")),
+  scale_fill_manual(values=c("mediumpurple4", "#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73","darkgreen", "khaki1", "darkblue", "darkred", "darkseagreen4"), labels=c("A. vaginae", "G. vaginalis C1", "G. vaginalis C2", "G. vaginalis C3", "G. vaginalis C4", "G. vaginalis C5", "G. vaginalis C6", "L. crispatus", "L. gasseri", "L. iners", "L. jensenii", "P. bivia")))
+
+binaryColors <- list(scale_color_manual(values=c("#56B4E9", "#D55E00")),
+                     scale_fill_manual(values=c("#56B4E9", "#D55E00")))
 ```
 
 ## Set up metaphlan table
@@ -587,13 +598,18 @@ PresAbsVsAbundance <- function(df, name){
   #   select(Cohort, Taxon, method, alternative, statistic, p.value, BH) # re-order columns for easier reading
 
   plot <- df0 %>%
-    ggplot(aes(x=presAbs, y=totalAbundance)) +
+    ggplot(aes(x=presAbs, y=totalAbundance, color=presAbs)) +
+      #geom_violin(alpha=0.5) +
       geom_boxplot(outlier.alpha = 0) +
       geom_jitter() +
       facet_grid(Cohort~Taxon) +
       scale_x_discrete(drop=FALSE) +
+      binaryColors +
+      #taxColors +
       scale_y_log10() +
-      theme(axis.text.x = element_text(angle=90)) +
+      theme(axis.text.x = element_text(angle=90),
+            aspect.ratio = 3/1,
+            legend.position = "none") +
       labs(x=element_blank(), y="Bacterial Load", title="Presence-Absence vs. Abundance", subtitle = name)
   outputList <- list(Figure=plot) #`Wilcox Results`=wilcoxResults,
 }
