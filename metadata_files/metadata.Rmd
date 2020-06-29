@@ -30,7 +30,7 @@ set.seed(7334)
 #                 TotalPairs=`Total pairs`,
 #                 Sickle100_pe=`Sickle_100 (pe)`,
 #                 Sickle_pairs=Sickle_pe,
-#                 Human_pairs=Human_pe,
+#                 Human_pairs=Human_pe,    #number of human pairs from DAG, not final number human pairs.
 #                 PctTrim=`Pct Trim`,
 #                 PctHuman=`Pct Human`) %>%
 #   mutate(SampleID=as.character(SampleID),
