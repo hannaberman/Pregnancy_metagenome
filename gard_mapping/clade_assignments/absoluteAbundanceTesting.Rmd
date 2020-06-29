@@ -16,6 +16,7 @@ library(phyloseq)
 library(Biostrings)
 library(broom)
 `%!in%` <- Negate(`%in%`)
+library(formattable)
 ```
 
 ## Paths and values
@@ -203,7 +204,7 @@ mDF %>%
   summary
 ```
 
-# Make absolute abundance 
+# Make absolute abundance
 ```{r}
 # Total Gardnerella 
 mDFaa <- mDF %>%
@@ -255,11 +256,59 @@ totalAbundances <- sgDF %>%
 subsetSamples <- read_lines(file.path("..", "..", "sampleSubset.txt"))
 ```
 
+## Assess Distiribution of bacterial load
+```{r}
+totalAbundances %>%
+  ggplot(aes(x=totalAbundance)) + 
+  geom_histogram()
+```
+
+  Outliers
+```{r}
+quants <- quantile(totalAbundances$totalAbundance)
+quants
+
+IQR(totalAbundances$totalAbundance)
+
+lowerCutoff <- quants["25%"] - (1.5*IQR(totalAbundances$totalAbundance))
+names(lowerCutoff) <- "Lower Cutoff"
+lowerCutoff
+
+upperCutoff <- quants["75%"] + (1.5*IQR(totalAbundances$totalAbundance))
+names(upperCutoff) <- "Upper Cutoff"
+upperCutoff
+
+totalAbundancesNoOut <- totalAbundances %>%
+  filter(totalAbundance > lowerCutoff,
+         totalAbundance < upperCutoff)
+
+#histogram
+totalAbundancesNoOut %>%
+  ggplot(aes(x=totalAbundance)) +
+  geom_histogram() +
+  geom_density()
+```
+
+  Number of samples filtered out
+```{r}
+#what samples are these, what cohorts are they in
+totalAbundances %>%
+  filter(totalAbundance > upperCutoff) %>%
+  left_join(sgDF[, c("SampleID", "SubjectID", "Cohort")], by="SampleID") %>%
+  select(SampleID, SubjectID, Cohort, totalAbundance) %>%
+  formattable()
+
+#get sample ID's 
+nonOutlierSamps <- totalAbundancesNoOut %>%
+  .$SampleID
+head(nonOutlierSamps)
+```
+  6 Samples were filtered out, two in the Stanford cohort, one in the 
 
 ## Distribution of each clade and total *G. vaginalis*
 ```{r}
 aaCladesPlot <- DF %>%
-  left_join(totalAbundances, by="SampleID") %>%
+  right_join(totalAbundancesNoOut, by="SampleID") %>%  # change to filter outliers
   gather("Clade", "Abundance", c(G_vaginalis, C1, C2, C3, C4, C5, C6, Gv_uncharacterized)) %>%
   mutate(Clade=factor(Clade, levels=GvaginalisN)) %>%
   ggplot(aes(x=Clade, y=Abundance, color=Clade)) +
@@ -272,8 +321,7 @@ aaCladesPlot <- DF %>%
     labs(y="Absolute Abundance")
 
 aaCladesPlot
-aaCladesPlot +
-  ylim(0,1)
+
 aaCladesPlot +
   scale_y_log10() +
   theme(axis.text.x = element_text(angle=45, hjust=1))
@@ -283,6 +331,7 @@ aaCladesPlot +
 ### View Distributions
 ```{r}
 distDF <- DF %>%
+  filter(SampleID %in% nonOutlierSamps) %>%  # change to filter outliers
   select(-GDcoll, -SubjectID, -Gv_uncharacterized) %>%
   gather("Taxon", "Abundance", taxaOfInterestAbbr) %>%
   mutate(logAbundance=log10(Abundance),
@@ -307,20 +356,12 @@ ggplot(distDF, aes(x=sqrtAbundance)) +
 ```
   Square root transformation still leaves a sqewed distribution. 
 
-Try cube root
-```{r}
-distDF <- distDF %>%
-  mutate(cubert=(Abundance)^(1/3))
-
-ggplot(distDF, aes(x=cubert)) +
-  geom_histogram()
-```
-
 ### Data frames
 #### Raw absolute abundance
 ```{r, fig.height=8, fig.width=8, warning=FALSE}
 #Taxon 1 vs. Taxon 2
 DFtaxtax <- DF %>%
+  filter(SampleID %in% nonOutlierSamps) %>%  # change to filter outliers
   select(-Gv_uncharacterized) %>% # remove Gv uncharacterized 
   mutate(xC1=C1, 
          xC2=C2,
@@ -356,8 +397,6 @@ DFtaxtax <- DF %>%
                           Taxon2=="xM_hominis"~"M_hominis"))
 ```
 
-
-
 #### Transformed absolute abundance
 Transform absolute abundance data as it is positively skewed
 ```{r}
@@ -386,39 +425,41 @@ DFtaxtax %>%
     geom_smooth(method="lm", se=FALSE, linetype=1, color="blue") +
     geom_point() +
     facet_grid(Taxon1~Taxon2) +
-    coord_fixed() +
-    scale_y_log10() +
-    scale_x_log10() +
+    ylim(0,0.2) +
+    xlim(0,0.2) +
+    #coord_fixed() +
+    #scale_y_log10() +
+    #scale_x_log10() +
     theme(axis.text.x = element_text(angle=90)) +
     labs(title=paste(unique(.x$Cohort), "Cohort"), x="Absolute abundance: Taxon 1", y="Absolute abundance: Taxon 2"))
 
-DFloglogNZ %>%
-  split(.$Cohort) %>%
-  #map(~filter_at(.x, vars(Taxon1, Taxon2), ~.x!="G_vaginalis")) %>% # remove G. vaginalis from list
-  map(~ggplot(.x, aes(x=absoluteAbundanceTax1, y=absoluteAbundanceTax2)) +
-    #geom_abline(intercept = 0, slope = 1, color="grey", linetype=2) +
-    geom_smooth(method="lm", se=FALSE, linetype=1, color="blue") +
-    geom_point() +
-    facet_grid(Taxon1~Taxon2) +
-    coord_fixed() +
-    #scale_y_log10() +
-    #scale_x_log10() +
-    theme(axis.text.x = element_text(angle=90)) +
-    labs(title=paste(unique(.x$Cohort), "Cohort"), x="Log10 Absolute abundance: Taxon 1 (Nno zeros)", y="Log10 Absolute abundance: Taxon 2 (no zeros)"))
-
-DFloglog %>%
-  split(.$Cohort) %>%
-  #map(~filter_at(.x, vars(Taxon1, Taxon2), ~.x!="G_vaginalis")) %>% # remove G. vaginalis from list
-  map(~ggplot(.x, aes(x=absoluteAbundanceTax1, y=absoluteAbundanceTax2)) +
-    #geom_abline(intercept = 0, slope = 1, color="grey", linetype=2) +
-    geom_smooth(method="lm", se=FALSE, linetype=1, color="blue") +
-    geom_point() +
-    facet_grid(Taxon1~Taxon2) +
-    coord_fixed() +
-    #scale_y_log10() +
-    #scale_x_log10() +
-    theme(axis.text.x = element_text(angle=90)) +
-    labs(title=paste(unique(.x$Cohort), "Cohort"), x="Log10 Absolute abundance: Taxon 1", y="Log10 Absolute abundance: Taxon 2"))
+# DFloglogNZ %>%
+#   split(.$Cohort) %>%
+#   #map(~filter_at(.x, vars(Taxon1, Taxon2), ~.x!="G_vaginalis")) %>% # remove G. vaginalis from list
+#   map(~ggplot(.x, aes(x=absoluteAbundanceTax1, y=absoluteAbundanceTax2)) +
+#     #geom_abline(intercept = 0, slope = 1, color="grey", linetype=2) +
+#     geom_smooth(method="lm", se=FALSE, linetype=1, color="blue") +
+#     geom_point() +
+#     facet_grid(Taxon1~Taxon2) +
+#     coord_fixed() +
+#     #scale_y_log10() +
+#     #scale_x_log10() +
+#     theme(axis.text.x = element_text(angle=90)) +
+#     labs(title=paste(unique(.x$Cohort), "Cohort"), x="Log10 Absolute abundance: Taxon 1 (Nno zeros)", y="Log10 Absolute abundance: Taxon 2 (no zeros)"))
+# 
+# DFloglog %>%
+#   split(.$Cohort) %>%
+#   #map(~filter_at(.x, vars(Taxon1, Taxon2), ~.x!="G_vaginalis")) %>% # remove G. vaginalis from list
+#   map(~ggplot(.x, aes(x=absoluteAbundanceTax1, y=absoluteAbundanceTax2)) +
+#     #geom_abline(intercept = 0, slope = 1, color="grey", linetype=2) +
+#     geom_smooth(method="lm", se=FALSE, linetype=1, color="blue") +
+#     geom_point() +
+#     facet_grid(Taxon1~Taxon2) +
+#     coord_fixed() +
+#     #scale_y_log10() +
+#     #scale_x_log10() +
+#     theme(axis.text.x = element_text(angle=90)) +
+#     labs(title=paste(unique(.x$Cohort), "Cohort"), x="Log10 Absolute abundance: Taxon 1", y="Log10 Absolute abundance: Taxon 2"))
     
 DFsqrt %>%
   split(.$Cohort) %>%
@@ -428,7 +469,9 @@ DFsqrt %>%
     geom_smooth(method="lm", se=FALSE, linetype=1, color="blue") +
     geom_point() +
     facet_grid(Taxon1~Taxon2) +
-    coord_fixed() +
+    ylim(0,0.4) +
+    xlim(0,0.4) +
+    #coord_fixed() +
     #scale_y_log10() +
     #scale_x_log10() +
     theme(axis.text.x = element_text(angle=90)) +
@@ -499,8 +542,10 @@ corTestFig <- function(df, test, name){
 #### Absolute Abundance
 ````{r}
 corTestFig(DFtaxtax, "spearman", "Absolute Abundance: Raw")
-corTestFig(DFloglog, "pearson", "Absolute Abundance: Log10")
-corTestFig(DFloglogNZ, "pearson", "Absolute Abundance: Log10, no zeros")
+#corTestFig(DFtaxtax, "pearson", "Absolute Abundance: Raw")
+#corTestFig(DFsqrt, "pearson", "Absolute Abundance: Sqrt")
+#corTestFig(DFloglog, "pearson", "Absolute Abundance: Log10")
+#corTestFig(DFloglogNZ, "pearson", "Absolute Abundance: Log10, no zeros")
 ```
   
   Spearman correlation coefficients largely follow previously described relationships. Clades Lactobacilli may be associated (except *L. iners*) and may be negatively correlated with BV/CST IV-type taxa. C1/C2 appear most strongly negatively associated with *L. crispatus*, where as C6 may be the least negatively associated with *L. crispatus*. With Pearson coefficients, we see stronger positive correlations than negative. Some relationships appear different using this method. 
@@ -581,6 +626,7 @@ corTestFig(DFloglogNZ, "pearson", "Absolute Abundance: Log10, no zeros")
 PresAbsVsAbundance <- function(df, name){
  df0 <- df %>%
     left_join(totalAbundances, by="SampleID") %>%
+    filter(SampleID %in% nonOutlierSamps) %>%  # change to filter outliers
     gather("Taxon", "presAbs", c(G_vaginalis, C1, C2, C3, C4, C5, C6, A_vaginae, L_crispatus, L_gasseri, L_iners, L_jensenii, P_bivia, U_parvum, M_hominis)) %>%
     mutate(presAbs=case_when(presAbs>0~"present",
                              presAbs==0~"absent"),
@@ -599,9 +645,9 @@ PresAbsVsAbundance <- function(df, name){
 
   plot <- df0 %>%
     ggplot(aes(x=presAbs, y=totalAbundance, color=presAbs)) +
-      #geom_violin(alpha=0.5) +
-      geom_boxplot(outlier.alpha = 0) +
-      geom_jitter() +
+      geom_violin(alpha=0.5) +
+      #geom_boxplot(outlier.alpha = 0) +
+      #geom_jitter() +
       facet_grid(Cohort~Taxon) +
       scale_x_discrete(drop=FALSE) +
       binaryColors +
