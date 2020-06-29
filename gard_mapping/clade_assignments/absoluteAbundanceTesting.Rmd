@@ -644,7 +644,7 @@ PresAbsVsAbundance <- function(df, name){
   #   select(Cohort, Taxon, method, alternative, statistic, p.value, BH) # re-order columns for easier reading
 
   plot <- df0 %>%
-    ggplot(aes(x=presAbs, y=totalAbundance, color=presAbs)) +
+    ggplot(aes(x=presAbs, y=totalAbundance, color=presAbs, fill=presAbs)) +
       geom_violin(alpha=0.5) +
       #geom_boxplot(outlier.alpha = 0) +
       #geom_jitter() +
