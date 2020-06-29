@@ -1046,6 +1046,18 @@ ggplot(aes(x=reorder(reorder(SampleID, Abundance, FUN=sum, na.rm=TRUE), vTypeOrd
         legend.position = "bottom")
 ```
 
+# Top 10 taxa
+```{r}
+mDF %>%
+  gather("Taxon", "Abundance", contains("_")) %>%
+  group_by(Taxon) %>%
+  summarise(abSum=sum(Abundance)) %>%
+  ungroup() %>%
+  mutate(ranks=dense_rank(abSum)) %>%
+  filter(ranks>(max(ranks)-15)) %>%
+  View
+```
+
 # Save Files
   Vagitype Dataframe
 ```{r}
