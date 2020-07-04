@@ -17,6 +17,7 @@ library(Biostrings)
 library(broom)
 `%!in%` <- Negate(`%in%`)
 library(formattable)
+library(rlist)
 ```
 
 ## Paths and values
@@ -96,8 +97,12 @@ GvaginalisN <- c("C1", "C2", "C3", "C4","C5", "C6", "Gv_uncharacterized", "G_vag
 Gvaginalis <- c("C1", "C2", "C3", "C4","C5", "C6", "G_vaginalis")
 ```
 
-## ggplot colors
+## ggplot themes
 ```{r}
+theme_set(theme_bw() +
+          theme(panel.grid.major = element_blank(),
+                panel.grid.minor=element_blank()))
+
 cladeColorsN <- list(scale_color_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#A9A9A9", "#000000"), labels=c("C1", "C2", "C3", "C4", "C5", "C6", "Uncharacterized", bquote('Total'~italic(Gardnerella)))),
                      scale_fill_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#A9A9A9", "#000000"), labels=c("C1", "C2", "C3", "C4", "C5", "C6", "Uncharacterized", bquote('Total'~italic(Gardnerella)))))
 
@@ -261,39 +266,31 @@ subsetSamples <- read_lines(file.path("..", "..", "sampleSubset.txt"))
 totalAbundances %>%
   ggplot(aes(x=totalAbundance)) + 
   geom_histogram()
-```
 
-  Outliers
-```{r}
-quants <- quantile(totalAbundances$totalAbundance)
-quants
-
-IQR(totalAbundances$totalAbundance)
-
-lowerCutoff <- quants["25%"] - (1.5*IQR(totalAbundances$totalAbundance))
-names(lowerCutoff) <- "Lower Cutoff"
-lowerCutoff
-
-upperCutoff <- quants["75%"] + (1.5*IQR(totalAbundances$totalAbundance))
-names(upperCutoff) <- "Upper Cutoff"
-upperCutoff
-
-totalAbundancesNoOut <- totalAbundances %>%
-  filter(totalAbundance > lowerCutoff,
-         totalAbundance < upperCutoff)
-
-#histogram
-totalAbundancesNoOut %>%
+totalAbundances %>%
   ggplot(aes(x=totalAbundance)) +
   geom_histogram() +
-  geom_density()
-```
+  xlim(0,10)
 
-  Number of samples filtered out
+totalAbundances %>%
+  mutate(ranks=dense_rank(totalAbundance)) %>%
+  filter(ranks>(max(ranks)-5))  %>%
+  arrange(desc(ranks)) %>%
+  select(-ranks) %>%
+  formattable()
+```
+  Two clear outliers. One ~6 and one ~150. Remove these:
+
 ```{r}
+totalAbundancesNoOut <- totalAbundances %>%
+  mutate(ranks=dense_rank(totalAbundance)) %>%
+  filter(ranks<(max(ranks)-1))  %>%
+  select(-ranks)
+
 #what samples are these, what cohorts are they in
 totalAbundances %>%
-  filter(totalAbundance > upperCutoff) %>%
+  mutate(ranks=dense_rank(totalAbundance)) %>%
+  filter(ranks>(max(ranks)-2))  %>%
   left_join(sgDF[, c("SampleID", "SubjectID", "Cohort")], by="SampleID") %>%
   select(SampleID, SubjectID, Cohort, totalAbundance) %>%
   formattable()
@@ -302,13 +299,20 @@ totalAbundances %>%
 nonOutlierSamps <- totalAbundancesNoOut %>%
   .$SampleID
 head(nonOutlierSamps)
+length(nonOutlierSamps)
+
+# n per cohort
+sgDF %>%
+  filter(SampleID %in% nonOutlierSamps) %>%
+  group_by(Cohort) %>%
+  summarize(n())
 ```
-  6 Samples were filtered out, two in the Stanford cohort, one in the 
+  2 Samples were filtered out, one in each cohort
 
 ## Distribution of each clade and total *G. vaginalis*
 ```{r}
 aaCladesPlot <- DF %>%
-  right_join(totalAbundancesNoOut, by="SampleID") %>%  # change to filter outliers
+  right_join(totalAbundancesNoOut, by="SampleID") %>%  # filter outliers
   gather("Clade", "Abundance", c(G_vaginalis, C1, C2, C3, C4, C5, C6, Gv_uncharacterized)) %>%
   mutate(Clade=factor(Clade, levels=GvaginalisN)) %>%
   ggplot(aes(x=Clade, y=Abundance, color=Clade)) +
@@ -394,7 +398,27 @@ DFtaxtax <- DF %>%
                           Taxon2=="xL_jensenii"~"L_jensenii", 
                           Taxon2=="xP_bivia"~"P_bivia", 
                           Taxon2=="xU_parvum"~"U_parvum", 
-                          Taxon2=="xM_hominis"~"M_hominis"))
+                          Taxon2=="xM_hominis"~"M_hominis")) %>%
+      filter(Taxon1!=Taxon2, # filter the diagonal
+             Taxon1 == "G_vaginalis" & Taxon2 %!in% Gvaginalis|
+             Taxon1 %in% c("C1", "C2", "C3", "C4", "C5", "C6", "L_crispatus", "L_gasseri","L_jensenii", "L_iners", "A_vaginae", "M_hominis", "P_bivia", "U_parvum"),
+             Taxon2 == "G_vaginalis" & Taxon1 %!in% Gvaginalis|
+             Taxon2 %in% c("C1", "C2", "C3", "C4", "C5", "C6", "L_crispatus", "L_gasseri","L_jensenii", "L_iners", "A_vaginae", "M_hominis", "P_bivia", "U_parvum"),
+             Taxon1 == "G_vaginalis" & Taxon2 %in% c("L_crispatus", "L_gasseri","L_jensenii", "L_iners", "A_vaginae", "M_hominis", "P_bivia", "U_parvum") |
+             Taxon1 == "C1" & Taxon2 %in% taxaOfInterestAbbr |
+             Taxon1 == "C2" & Taxon2 %in% c("C3","C4","C5","C6","L_crispatus", "L_gasseri","L_jensenii", "L_iners", "A_vaginae", "M_hominis", "P_bivia", "U_parvum") |
+             Taxon1 == "C3" & Taxon2 %in% c("C4","C5","C6","L_crispatus", "L_gasseri","L_jensenii", "L_iners", "A_vaginae", "M_hominis", "P_bivia", "U_parvum") |
+             Taxon1 == "C4" & Taxon2 %in% c("C5","C6","L_crispatus", "L_gasseri","L_jensenii", "L_iners", "A_vaginae", "M_hominis", "P_bivia", "U_parvum")|
+             Taxon1 == "C5" & Taxon2 %in% c("C6",                                                                       "L_crispatus", "L_gasseri","L_jensenii", "L_iners", "A_vaginae", "M_hominis", "P_bivia", "U_parvum")|
+             Taxon1 == "C6" & Taxon2 %in% c("L_crispatus", "L_gasseri","L_jensenii", "L_iners", "A_vaginae", "M_hominis", "P_bivia", "U_parvum")|
+             Taxon1 == "L_crispatus" & Taxon2 %in% c("L_gasseri","L_jensenii", "L_iners", "A_vaginae", "M_hominis", "P_bivia", "U_parvum")|
+             Taxon1 == "L_gasseri" & Taxon2 %in% c("L_jensenii", "L_iners", "A_vaginae", "M_hominis", "P_bivia", "U_parvum")|
+             Taxon1 == "L_jensenii" & Taxon2 %in% c("L_iners", "A_vaginae", "M_hominis", "P_bivia", "U_parvum")|
+             Taxon1 == "L_iners" & Taxon2 %in% c("A_vaginae", "M_hominis", "P_bivia", "U_parvum")|
+             Taxon1 == "A_vaginae" & Taxon2 %in% c("M_hominis", "P_bivia", "U_parvum")|
+             Taxon1 == "M_hominis" & Taxon2 %in% c("P_bivia", "U_parvum")|
+             Taxon1 == "P_bivia" & Taxon2 == "U_parvum") %>%
+  select(-GDcoll, -SubjectID)
 ```
 
 #### Transformed absolute abundance
@@ -418,13 +442,15 @@ DFsqrt <- DFtaxtax %>%
 ### Scatterplots
 ```{r, fig.height=8, fig.width=8}  
 DFtaxtax %>%
+  mutate(Taxon1=factor(Taxon1, levels=taxaOfInterestAbbr),
+         Taxon2=factor(Taxon2, levels = taxaOfInterestAbbr)) %>%
   split(.$Cohort) %>%
   #map(~filter_at(.x, vars(Taxon1, Taxon2), ~.x!="G_vaginalis")) %>% # remove G. vaginalis from list
   map(~ggplot(.x, aes(x=absoluteAbundanceTax1, y=absoluteAbundanceTax2)) +
     #geom_abline(intercept = 0, slope = 1, color="grey", linetype=2) +
     geom_smooth(method="lm", se=FALSE, linetype=1, color="blue") +
     geom_point() +
-    facet_grid(Taxon1~Taxon2) +
+    facet_grid(Taxon2~Taxon1, drop = FALSE) +
     ylim(0,0.2) +
     xlim(0,0.2) +
     #coord_fixed() +
@@ -433,14 +459,14 @@ DFtaxtax %>%
     theme(axis.text.x = element_text(angle=90)) +
     labs(title=paste(unique(.x$Cohort), "Cohort"), x="Absolute abundance: Taxon 1", y="Absolute abundance: Taxon 2"))
 
-# DFloglogNZ %>%
+  # DFloglogNZ %>%
 #   split(.$Cohort) %>%
 #   #map(~filter_at(.x, vars(Taxon1, Taxon2), ~.x!="G_vaginalis")) %>% # remove G. vaginalis from list
 #   map(~ggplot(.x, aes(x=absoluteAbundanceTax1, y=absoluteAbundanceTax2)) +
 #     #geom_abline(intercept = 0, slope = 1, color="grey", linetype=2) +
 #     geom_smooth(method="lm", se=FALSE, linetype=1, color="blue") +
 #     geom_point() +
-#     facet_grid(Taxon1~Taxon2) +
+#     facet_grid(Taxon2~Taxon1, drop = FALSE) +
 #     coord_fixed() +
 #     #scale_y_log10() +
 #     #scale_x_log10() +
@@ -454,36 +480,109 @@ DFtaxtax %>%
 #     #geom_abline(intercept = 0, slope = 1, color="grey", linetype=2) +
 #     geom_smooth(method="lm", se=FALSE, linetype=1, color="blue") +
 #     geom_point() +
-#     facet_grid(Taxon1~Taxon2) +
+#     facet_grid(Taxon2~Taxon1, drop = FALSE) +
 #     coord_fixed() +
 #     #scale_y_log10() +
 #     #scale_x_log10() +
 #     theme(axis.text.x = element_text(angle=90)) +
 #     labs(title=paste(unique(.x$Cohort), "Cohort"), x="Log10 Absolute abundance: Taxon 1", y="Log10 Absolute abundance: Taxon 2"))
     
-DFsqrt %>%
-  split(.$Cohort) %>%
-  #map(~filter_at(.x, vars(Taxon1, Taxon2), ~.x!="G_vaginalis")) %>% # remove G. vaginalis from list
-  map(~ggplot(.x, aes(x=absoluteAbundanceTax1, y=absoluteAbundanceTax2)) +
-    #geom_abline(intercept = 0, slope = 1, color="grey", linetype=2) +
-    geom_smooth(method="lm", se=FALSE, linetype=1, color="blue") +
-    geom_point() +
-    facet_grid(Taxon1~Taxon2) +
-    ylim(0,0.4) +
-    xlim(0,0.4) +
-    #coord_fixed() +
-    #scale_y_log10() +
-    #scale_x_log10() +
-    theme(axis.text.x = element_text(angle=90)) +
-    labs(title=paste(unique(.x$Cohort), "Cohort"), x="Sq rt Absolute abundance: Taxon 1", y="Sq rt Absolute abundance: Taxon 2"))    
+# DFsqrt %>%
+#   split(.$Cohort) %>%
+#   #map(~filter_at(.x, vars(Taxon1, Taxon2), ~.x!="G_vaginalis")) %>% # remove G. vaginalis from list
+#   map(~ggplot(.x, aes(x=absoluteAbundanceTax1, y=absoluteAbundanceTax2)) +
+#     #geom_abline(intercept = 0, slope = 1, color="grey", linetype=2) +
+#     geom_smooth(method="lm", se=FALSE, linetype=1, color="blue") +
+#     geom_point() +
+#     facet_grid(Taxon1~Taxon2) +
+#     ylim(0,0.4) +
+#     xlim(0,0.4) +
+#     #coord_fixed() +
+#     #scale_y_log10() +
+#     #scale_x_log10() +
+#     theme(axis.text.x = element_text(angle=90)) +
+#     labs(title=paste(unique(.x$Cohort), "Cohort"), x="Sq rt Absolute abundance: Taxon 1", y="Sq rt Absolute abundance: Taxon 2"))    
 ```
 
+  Of the unique pairs we want to test, how many samples have 2 non-zeros vs. how many have two zeros or one zero:
+```{r}
+# pairDF <- DFtaxtax %>%
+#   filter(Taxon1!=Taxon2, # filter the diagonal
+#              Taxon1 == "G_vaginalis" & Taxon2 %in% c("L_crispatus", "L_gasseri","L_jensenii", "L_iners", "A_vaginae", "M_hominis", "P_bivia", "U_parvum") |
+#              Taxon1 == "C1" & Taxon2 %in% taxaOfInterestAbbr |
+#              Taxon1 == "C2" & Taxon2 %in% c("C3","C4","C5","C6","L_crispatus", "L_gasseri","L_jensenii", "L_iners", "A_vaginae", "M_hominis", "P_bivia", "U_parvum") |
+#              Taxon1 == "C3" & Taxon2 %in% c("C4","C5","C6","L_crispatus", "L_gasseri","L_jensenii", "L_iners", "A_vaginae", "M_hominis", "P_bivia", "U_parvum") |
+#              Taxon1 == "C4" & Taxon2 %in% c("C5","C6","L_crispatus", "L_gasseri","L_jensenii", "L_iners", "A_vaginae", "M_hominis", "P_bivia", "U_parvum")|
+#              Taxon1 == "C5" & Taxon2 %in% c("C6",                                                                       "L_crispatus", "L_gasseri","L_jensenii", "L_iners", "A_vaginae", "M_hominis", "P_bivia", "U_parvum")|
+#              Taxon1 == "C6" & Taxon2 %in% c("L_crispatus", "L_gasseri","L_jensenii", "L_iners", "A_vaginae", "M_hominis", "P_bivia", "U_parvum")|
+#              Taxon1 == "L_crispatus" & Taxon2 %in% c("L_gasseri","L_jensenii", "L_iners", "A_vaginae", "M_hominis", "P_bivia", "U_parvum")|
+#              Taxon1 == "L_gasseri" & Taxon2 %in% c("L_jensenii", "L_iners", "A_vaginae", "M_hominis", "P_bivia", "U_parvum")|
+#              Taxon1 == "L_jensenii" & Taxon2 %in% c("L_iners", "A_vaginae", "M_hominis", "P_bivia", "U_parvum")|
+#              Taxon1 == "L_iners" & Taxon2 %in% c("A_vaginae", "M_hominis", "P_bivia", "U_parvum")|
+#              Taxon1 == "A_vaginae" & Taxon2 %in% c("M_hominis", "P_bivia", "U_parvum")|
+#              Taxon1 == "M_hominis" & Taxon2 %in% c("P_bivia", "U_parvum")|
+#              Taxon1 == "P_bivia" & Taxon2 == "U_parvum")
+
+nrow(DFtaxtax)
+```
+  
+  Per pair, range and average number of samples
+```{r}
+pairsList <- DFtaxtax %>%
+   group_by(Taxon1, Taxon2, Cohort) %>%
+   summarise(ns=n()) %>%
+   select(-ns)
+
+#one or two zeros
+DFtaxtax %>%
+  filter((absoluteAbundanceTax1==0&absoluteAbundanceTax2==0)|
+          (absoluteAbundanceTax1==0&absoluteAbundanceTax2>0)|
+          (absoluteAbundanceTax1>0&absoluteAbundanceTax2==0)) %>%
+  group_by(Taxon1, Taxon2, Cohort) %>%
+  summarise(ns=n()) %>%
+  right_join(pairsList, by = c("Taxon1", "Taxon2", "Cohort")) %>% 
+  ungroup() %>%
+  group_by(Cohort) %>%
+  summarize(min=min(ns),
+         max=max(ns),
+         mean=mean(ns)) %>%
+  formattable()
+
+# two non-zeros  
+DFtaxtax %>%
+  filter(absoluteAbundanceTax1>0&absoluteAbundanceTax2>0) %>%
+  group_by(Taxon1,Taxon2, Cohort) %>%
+  summarise(ns=n()) %>%
+  right_join(pairsList, by = c("Taxon1", "Taxon2", "Cohort")) %>%
+  replace_na(list(ns=0)) %>%
+  ungroup() %>%
+  group_by(Cohort) %>%
+  summarize(min=min(ns),
+         max=max(ns),
+         mean=mean(ns)) %>%
+  formattable()
+
+# Taxa pairs that never co-occur
+DFtaxtax %>%
+  filter(absoluteAbundanceTax1>0&absoluteAbundanceTax2>0) %>%
+  group_by(Taxon1,Taxon2, Cohort) %>%
+  summarise(ns=n()) %>%
+  right_join(pairsList, by = c("Taxon1", "Taxon2", "Cohort")) %>%
+  replace_na(list(ns=0)) %>%
+  filter(ns==0) %>%
+  arrange(Cohort, Taxon1) %>%
+  select(-ns) %>%
+  formattable()
+```
+  9 pairs, 4 in UAB, 5 in Stanford
+  
 ### Correlations
-```{r, message=FALSE, warning=FALSE, fig.height=3, fig.width=3}
+```{r}
 #function to calcualte spearman's rank correlation coefficients
 corTestFig <- function(df, test, name){
   cor_test_results <- df %>%
     split(list(.$Taxon1, .$Taxon2, .$Cohort)) %>%
+    list.filter(nrow(.)>0) %>%
       map(~cor.test(~absoluteAbundanceTax1+absoluteAbundanceTax2, data=.x, alternative="two.sided", method=test)) %>%
       map(tidy) %>%
       map2(., names(.), ~mutate(.x, Group=.y)) %>%
@@ -491,28 +590,6 @@ corTestFig <- function(df, test, name){
       separate(Group, c("Taxon1", "Taxon2", "Cohort"), sep="\\.") %>%
       select(-p.value)
   plot <- cor_test_results %>%
-# ## Remove diagonal or GvxGv
-#     filter(Taxon1!=Taxon2,
-#            Taxon1 == "G_vaginalis" & Taxon2 %!in% Gvaginalis|
-#            Taxon1 %in% c("C1", "C2", "C3", "C4", "C5", "C6", "L_crispatus", "L_gasseri","L_jensenii", "L_iners", "A_vaginae", "M_hominis", "P_bivia", "U_parvum"),   
-#            Taxon2 == "G_vaginalis" & Taxon1 %!in% Gvaginalis|
-#            Taxon2 %in% c("C1", "C2", "C3", "C4", "C5", "C6", "L_crispatus", "L_gasseri","L_jensenii", "L_iners", "A_vaginae", "M_hominis", "P_bivia", "U_parvum")) %>%
-## Remove other side of diagonal       
-     filter(Taxon1!=Taxon2,
-             Taxon1 == "G_vaginalis" & Taxon2 %in% c("L_crispatus", "L_gasseri","L_jensenii", "L_iners", "A_vaginae", "M_hominis", "P_bivia", "U_parvum") |
-             Taxon1 == "C1" & Taxon2 %in% taxaOfInterestAbbr |
-             Taxon1 == "C2" & Taxon2 %in% c("C3","C4","C5","C6","L_crispatus", "L_gasseri","L_jensenii", "L_iners", "A_vaginae", "M_hominis", "P_bivia", "U_parvum") |
-             Taxon1 == "C3" & Taxon2 %in% c("C4","C5","C6","L_crispatus", "L_gasseri","L_jensenii", "L_iners", "A_vaginae", "M_hominis", "P_bivia", "U_parvum") |
-             Taxon1 == "C4" & Taxon2 %in% c("C5","C6","L_crispatus", "L_gasseri","L_jensenii", "L_iners", "A_vaginae", "M_hominis", "P_bivia", "U_parvum")|
-             Taxon1 == "C5" & Taxon2 %in% c("C6",                                                                       "L_crispatus", "L_gasseri","L_jensenii", "L_iners", "A_vaginae", "M_hominis", "P_bivia", "U_parvum")|
-             Taxon1 == "C6" & Taxon2 %in% c("L_crispatus", "L_gasseri","L_jensenii", "L_iners", "A_vaginae", "M_hominis", "P_bivia", "U_parvum")|
-             Taxon1 == "L_crispatus" & Taxon2 %in% c("L_gasseri","L_jensenii", "L_iners", "A_vaginae", "M_hominis", "P_bivia", "U_parvum")|
-             Taxon1 == "L_gasseri" & Taxon2 %in% c("L_jensenii", "L_iners", "A_vaginae", "M_hominis", "P_bivia", "U_parvum")|
-             Taxon1 == "L_jensenii" & Taxon2 %in% c("L_iners", "A_vaginae", "M_hominis", "P_bivia", "U_parvum")|
-             Taxon1 == "L_iners" & Taxon2 %in% c("A_vaginae", "M_hominis", "P_bivia", "U_parvum")|
-             Taxon1 == "A_vaginae" & Taxon2 %in% c("M_hominis", "P_bivia", "U_parvum")|
-             Taxon1 == "M_hominis" & Taxon2 %in% c("P_bivia", "U_parvum")|
-             Taxon1 == "P_bivia" & Taxon2 == "U_parvum") %>%
        mutate(
     #     # p.value=case_when(p.value>0.01~"",
     #     #                      p.value<=0.01&p.value>0.001~"*",
@@ -521,7 +598,6 @@ corTestFig <- function(df, test, name){
     #     #                      p.value<=0.0001~"****"),
           Taxon1=factor(Taxon1, levels=taxaOfInterestAbbr),
           Taxon2=factor(Taxon2, levels = rev(taxaOfInterestAbbr))) %>%
-    #filter(Cohort=="Stanford") %>%
     ggplot(aes(x=Taxon1, y=Taxon2, fill=estimate)) + #label=p.value
       geom_tile() +
       #geom_text() +
@@ -529,19 +605,21 @@ corTestFig <- function(df, test, name){
       scale_x_discrete(drop=FALSE) +
       scale_y_discrete(drop=FALSE) +
       facet_wrap(~Cohort) +
+      theme_grey() +
       theme(axis.text.x = element_text(angle=90, hjust=1)) +
+            #panel.background = element_rect(fill="gray92"),
+            #panel.grid.major = element_blank(),
+            #panel.grid.minor=element_blank()) +
       labs(x="Taxon 1 ", y="Taxon 2", title = paste("Abundance Correlations:", test), subtitle = name)
   outputList <- list(Results=cor_test_results, Figure=plot)   
     return(outputList)
 }
-
-#list(AllSamples=DF0, SampleSubset=filter(DF0, SampleID %in% subsetSamples)) %>% # full data frame and data frame with only subset samples
-#   map2(c("All Samples", "Sample Subset"), corTestFig) # run function
 ```
 
 #### Absolute Abundance
-````{r}
+````{r, message=FALSE, warning=FALSE}
 corTestFig(DFtaxtax, "spearman", "Absolute Abundance: Raw")
+#corTestFig(filter(DFtaxtax, SampleID %in% subsetSamples), "spearman", "Absolute Abundance: Raw") # sample subset
 #corTestFig(DFtaxtax, "pearson", "Absolute Abundance: Raw")
 #corTestFig(DFsqrt, "pearson", "Absolute Abundance: Sqrt")
 #corTestFig(DFloglog, "pearson", "Absolute Abundance: Log10")
