@@ -16,6 +16,8 @@ bowtie2 \
     --un-conc-gz $out_path/${accession}_%.fastq.gz \
     --un-gz $out_path/${accession}_S.fastq.gz \
 
+note: read counts in file `./fastq_counts.txt`
+
 ## Attempt with BBmap
 1) Download BBmap version 38.44 at `https://sourceforge.net/projects/bbmap/`  unzip/untar file to install
 1) Download GRCh38.p13 reference genome. `ftp://ftp.ncbi.nlm.nih.gov/refseq/H_sapiens/annotation/GRCh38_latest/refseq_identifiers/GRCh38_latest_genomic.fna.gz` Save to `./GRCh38.fna`
@@ -44,3 +46,10 @@ path=$path
     build=1 
     
     note: script  `./scripts/bbmap_cmds.sh` was used to call the `bbmap_filter_human.sh` script for each accession
+    note: read counts in fastq_counts_bbmap.txt, fastq_counts_bbmapX.txt is from a previous run, not used can delete.
+    
+    ## change sam to fastq.gz with samtools 1.9
+
+## Assessment files:
+1)  assessFiltering.Rmd : compare reads with upload, bbmap, and kraken2 outputs
+2) uploadVbbmap.Rmd : 
