@@ -1,0 +1,247 @@
+---
+title: "Assign clades to short reads"
+author: "Hanna Berman"
+date: "4/8/2019"
+output: html_document
+---
+
+# Setup
+##Load packages
+```{r libraries, warning=FALSE}
+library(tidyverse)
+library(Biostrings); packageVersion("Biostrings")
+options(scipen=10000)
+```
+
+## Define file paths
+### Reference genes and usearch output
+```{r}
+# Directories
+repo_dir <- "/Users/hlberman/Documents/GitHub/pregnancy_metagenome/"
+gard_tree_dir <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/Gard WGS"
+output_dir <- file.path(repo_dir, "gard_mapping/clade_assignments/")
+gdrive_path <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/gardMapping/clade_assignments"
+ 
+# Usearch alignments 
+usearchAlns <- "/Users/hlberman/mnt/cluster/home/hlberman/VMMG/gard_map/usearch_alns_bbmap" #path to blast6 tables from usearch alignments
+
+# Gardnerella reference genes
+ref_db <- file.path(repo_dir, "gard_mapping/clade_assignments/ref_genes/refGenes.fasta") %>%
+  readDNAStringSet(); head(ref_db)[1:5]
+
+# reference genes annotations
+refGenesDF <- file.path(repo_dir, "gard_mapping/clade_assignments/ref_genes/refGenesDF.csv") %>%
+  read_csv(); head(refGenesDF)
+
+# Gardnerella reference strains metadata
+refDF <- file.path(repo_dir, "GardnerellaMetadata.csv") %>%
+  read_csv(); head(refDF)
+
+# shotgun metadata
+sgDF <- file.path(repo_dir, "shotgunMetadata.tsv") %>%
+  read_delim(delim="\t") %>%
+  mutate(SampleID=as.character(SampleID), 
+         SubjectID=as.character(SubjectID)); head(sgDF)
+```
+
+# Asses alignments by USEARCH
+
+## set up (load data)
+```{r}
+#alns <- list.files(usearchAlns, all.files = FALSE, full.names = TRUE) %>%
+#  map(read_delim, delim="\t", col_names=c("query", "reference", "pcntid", "length", "mismatch", "gap_open", "qstart", "qend", "rstart", "rend", "evalue", "bitscore")) #read in blast tables
+#names(alns) <-  list.files(usearchAlns, all.files = FALSE, full.names = FALSE) %>%
+   str_extract("[0-9]+")
+#save(alns, file=file.path(repo_dir, "gard_mapping", "clade_assignments", "alnsBBmap.Rdata"))
+load(file.path(repo_dir, "gard_mapping", "clade_assignments", "alnsBBmap.Rdata"))
+```
+
+## Set up (formatting)
+```{r}
+#remove strains where no gard mapped
+nrows <- map(alns, nrow) 
+alns <- alns[nrows>0]
+
+#add annotation info
+refAnnotations <- refGenesDF %>%
+  select(Annotation, refDF$Strain[refDF$In_Directory==TRUE]) %>%
+  gather("strain", "reference", 2:ncol(.))
+alns0 <- alns %>%
+  map2(., names(alns), ~mutate(.x, SampleID=.y)) %>%
+  map(~select(.x, SampleID, query, reference, pcntid)) %>%
+  map(~group_by(.x, query)) %>%
+  map(~filter(.x, pcntid==max(pcntid))) %>% # filter to maximum hit per read
+  map(~ungroup(.x)) %>%
+  map(~left_join(.x, refAnnotations[,c("Annotation", "reference")], by="reference")) %>%
+  map(~mutate(.x, Strain=str_sub(.x$reference, 1L, -7L))) %>% #remove gene identifiers so that only strains appear in Strain column
+  map(~left_join(.x, refDF[,c("Strain", "Clade")], by="Strain")) # add reference gene/strain clade information
+```
+
+## Some descriptives
+```{r}
+HitsPerSample <- alns %>% #count number of hits coming back in each sample 
+  map(~nrow(.x)) %>%
+  as_tibble() %>%
+  t() %>%
+  as_tibble()
+ggplot(data = HitsPerSample, aes(V1)) +
+  geom_histogram() +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(0, 900000, by = 100000)) +
+  scale_y_continuous(breaks = seq(0, 40, by = 5)) +
+  labs(title = "'Hits' per sample", x = "'Hits'")
+#ggsave(file.path(gdrive_path, "cladeAssignmentsOutput", "figures", "hitsPerSample.pdf"))
+
+ReadsPerSample <- alns0 %>%
+  map(~group_by(.x, SampleID)) %>%
+  map(~summarise(.x, readspersample=n_distinct(query))) %>%
+  map(~ungroup(.x)) %>%
+  purrr::reduce(full_join, by=c("SampleID", "readspersample"))
+ggplot(data = ReadsPerSample, aes(readspersample)) +
+  geom_histogram() +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(0, 20000, by = 2000)) +
+  scale_y_continuous(breaks = seq(0, 50, by = 5)) +
+  labs(title = "Reads per sample", x = "# Reads")
+#ggsave(file.path(gdrive_path, "cladeAssignmentsOutput", "figures", "readsPerSample.pdf"))
+
+ggplot(data = ReadsPerSample, aes(readspersample)) +
+  geom_histogram(binwidth = 10) +
+  theme_classic() +
+  xlim(0,400) +
+  scale_y_continuous(breaks = seq(0, 50, by = 5)) +
+  labs(title = "Reads per sample", x = "# Reads")
+#ggsave(file.path(gdrive_path, "cladeAssignmentsOutput", "figures", "readsPerSampleMax2000.pdf"))
+  
+QueriesPerAnnotation <- alns0 %>% #number of reads that map to each annotation
+  map(~group_by(.x, Annotation)) %>%
+  map(~summarize(.x, queriesbyannotation=n_distinct(query))) %>%
+  map(~ungroup(.x)) %>%
+  map2(., names(alns0), ~mutate(.x, sampleID=.y)) %>%  
+  purrr::reduce(full_join, by=c("Annotation", "queriesbyannotation", "sampleID"))
+ggplot(data=QueriesPerAnnotation, aes(x=Annotation, y=queriesbyannotation)) +
+  geom_violin() +
+  labs(title="Reads per annotation", x="Annotation", y="Number of reads aligning") +
+  theme(axis.text.x = element_text(angle=45, hjust=1, size=6))
+#ggsave(file.path(gdrive_path, "cladeAssignmentsOutput", "figures", "queriesPerAnnotation.pdf"), width=10, height=8)
+ 
+ReferencesPerQuery <- alns0 %>%  #number of references that each query maps to
+  map(~group_by(.x, query)) %>%
+  map(~summarize(.x, referencesbyquery=n_distinct(reference))) %>%
+  map(~ungroup(.x)) %>%
+  map2(., names(alns0), ~mutate(.x, sampleID=.y)) %>%
+  purrr:: reduce(full_join, by=c("query", "referencesbyquery", "sampleID"))
+ggplot(data = ReferencesPerQuery, aes(referencesbyquery)) +
+  geom_histogram() +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(0, 80, by = 10)) +
+  scale_y_continuous(breaks = seq(0, 50000, by = 5000)) +
+  labs(title = "Number of reference genes that each query maps to", x = "# Reference Genes") 
+#ggsave(file.path(gdrive_path, "cladeAssignmentsOutput", "figures", "refsPerQuery.pdf")) 
+
+QueriesPerReference <- alns0 %>% #number of queries that map to each reference (per sample)
+  map(~group_by(.x, reference)) %>%
+  map(~summarize(.x, queriesbyreference=n_distinct(query))) %>%
+  map(~ungroup(.x)) %>%
+  map2(., names(alns0), ~mutate(.x, sampleID=.y)) %>%
+  purrr:: reduce(full_join, by=c("reference", "queriesbyreference", "sampleID"))
+ggplot(data = QueriesPerReference, aes(queriesbyreference)) +
+  geom_histogram() +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(0, 1500, by = 150)) +
+  scale_y_continuous(breaks = seq(0, 150000, by = 15000)) +
+  labs(title = "Number of queries(unique reads) that map to each reference (per sample)", x = "# queries (reads)") 
+#ggsave(file.path(gdrive_path, "cladeAssignmentsOutput", "figures", "queriesPerRef.pdf"))
+
+StrainsPerSample <- alns0 %>%  #get count of strains mapped in each sample
+  map_df(~summarise(.x, nSamples=n_distinct(.x$Strain))) %>%
+  mutate(SampleID=names(alns))
+ggplot(data = StrainsPerSample, aes(nSamples)) +
+  geom_histogram() +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(0, 80, by = 5)) +
+  scale_y_continuous(breaks = seq(0, 100, by = 10)) +
+  labs(title = "Number of strains found in each sample", x = "# strains") 
+#ggsave(file.path(gdrive_path, "cladeAssignmentsOutput", "figures", "strainsPerSample.pdf"))
+
+CladesPerSample <- alns0 %>%  #get count of clades mapped in each sample
+  map_df(~summarise(.x, nClades=n_distinct(Clade))) %>%
+  mutate(SampleID=names(alns))
+ggplot(data = CladesPerSample, aes(nClades)) +
+  geom_histogram() +
+  theme_classic() +
+  scale_y_continuous(breaks = seq(0, 100, by = 10)) +
+  labs(title = "Number of clades found in each sample", x = "# clades")  
+#ggsave(file.path(gdrive_path, "cladeAssignmentsOutput", "figures", "cladesPerSample.pdf"))
+ 
+sumStats1 <- sapply(list(Reads_per_sample=ReadsPerSample$readspersample,
+                         Hits_per_sample=HitsPerSample$V1,
+                         Queries_per_annotation=QueriesPerAnnotation$queriesbyannotation,
+                         References_per_query=ReferencesPerQuery$referencesbyquery,
+                         Queries_per_reference=QueriesPerReference$queriesbyreference,
+                         Strains_per_sample=StrainsPerSample$nSamples, 
+                         Clades_per_sample=CladesPerSample$nClades), 
+                     summary) %>%
+  as.data.frame()
+sumStats1
+#write_csv(sumStats1, file.path(gdrive_path, "cladeAssignmentsOutput", "usearchAlignmentSummaryStats1.csv"))
+```
+
+# Assess duplicates
+```{r}
+hitsPerSample99top <- alns0 %>%
+  map(~nrow(.x)) %>%
+  as_tibble() %>%
+  t() %>%
+  as_tibble() %>%
+  mutate(SampleID=names(alns0))
+
+ggplot(data = hitsPerSample99top, aes(V1))+
+  geom_histogram(binwidth = 300) +
+  labs(title="hits per sample >= 99% id (top hit only)", x="hits") +
+  theme_classic()
+summary(hitsPerSample99top$V1)
+```
+Note - many samples have few reads (<300) that map to G. vaginalis after filtering. 
+```{r}
+duplicateReferences99top <- alns0 %>%  # dataframes with multiples only
+  map(~group_by(.x, query)) %>%
+  map(~filter(.x, n()>1)) %>%
+  map(~ungroup(.x))
+
+diffClades99top_100 <- duplicateReferences99top %>%
+  map(~filter(.x, pcntid==100)) %>%
+  map(~select(.x, query, SampleID, Annotation, Clade)) %>%
+  purrr::reduce(full_join, by=c("query", "SampleID", "Annotation", "Clade")) %>%
+  group_by(query) %>%
+  filter(n_distinct(Clade)>1) %>%
+  ungroup()
+ambiguous99top_100 <-table(diffClades99top_100$Annotation, diffClades99top_100$Clade)
+print("ambiguous annotations with 100% id")
+ambiguous99top_100
+# ambiguous99top_100 %>%
+#   unclass() %>%
+#   as.data.frame() %>%
+#   write.csv(file.path(gdrive_path, "cladeAssignmentsOutput", "ambiguousHits99top_100.csv"))
+
+diffClades99top_99 <- duplicateReferences99top %>%
+  map(~filter(.x, pcntid!=100)) %>%
+  map(~select(.x, query, SampleID, Annotation, Clade)) %>%
+  purrr::reduce(full_join, by=c("query", "SampleID", "Annotation", "Clade")) %>%
+  group_by(query) %>%
+  filter(n_distinct(Clade)>1) %>%
+  ungroup()
+ambiguous99top_99 <-table(diffClades99top_99$Annotation, diffClades99top_99$Clade)
+print("ambiguous annotations with ~99% id")
+ambiguous99top_99
+# ambiguous99top_99 %>%
+#   unclass() %>%
+#   as.data.frame() %>%
+#   write.csv(file.path(gdrive_path, "cladeAssignmentsOutput", "ambiguousHits99top_99.csv"))
+```
+Find ambiguity with many genes. 
+
+# Session Info
+```{r}
+sessionInfo()
+```

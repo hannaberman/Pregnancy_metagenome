@@ -1,0 +1,52 @@
+---
+title: "Untitled"
+author: "HLB"
+date: "4/12/2019"
+output: html_document
+---
+
+# Setup
+## Packages
+```{r}
+library(tidyverse)
+```
+
+## File paths
+```{r}
+data_path <- "/Users/hlberman/mnt/cluster/home/hlberman/VMMG/humann2/analysis"
+path_ab_assoc_path <- file.path(data_path, "path_abundance_stats.txt")
+path_cov_assoc_path <- file.path(data_path, "path_coverage_stats.txt")
+gene_fam_assoc_path <- file.path(data_path, "gene_families_stats.txt")
+sgDF_path <- file.path("/Users/hlberman/Documents/GitHub/pregnancy_metagenome/shotgunMetadata.tsv")
+#figures_path
+```
+
+## Load
+```{r}
+path_ab_assoc <- read_delim(path_ab_assoc_path, delim="\t")
+path_cov_assoc <- read_delim(path_cov_assoc_path, delim="\t")
+gene_fam_assoc <- read_delim(gene_fam_assoc_path, delim="\t")
+sgDF <- read_delim(sgDF_path, delim="\t")
+```
+
+Reorganize columns
+```{r}
+path_ab_assoc0 <- path_ab_assoc %>%
+  separate(`Level means (|ed)`, sep="T:", remove=TRUE, into=c("PreMeans", "TermMeans")) %>%
+  mutate(PreMeans=str_extract(PreMeans, "(?<=P:)[0-9]*.[0-9]*"))
+
+path_cov_assoc0 <- path_cov_assoc %>%
+  separate(`Level means (|ed)`, sep="T:", remove=TRUE, into=c("PreMeans", "TermMeans")) %>%
+  mutate(PreMeans=str_extract(PreMeans, "(?<=P:)[0-9]*.[0-9]*"))
+
+gene_fam_assoc0 <- gene_fam_assoc %>%
+  separate(`Level means (|ed)`, sep="T:", remove=TRUE, into=c("PreMeans", "TermMeans")) %>%
+  mutate(PreMeans=str_extract(PreMeans, "(?<=P:)[0-9]*.[0-9]*"))
+```
+
+
+# Session Info
+```{r}
+sessionInfo()
+```
+

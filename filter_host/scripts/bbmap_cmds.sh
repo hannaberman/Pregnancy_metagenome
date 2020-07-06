@@ -1,7 +1,8 @@
 #!/bin/bash
-#SBATCH -o bbmap_cmds_%j.out
+#SBATCH -o /home/hlberman/VMMG/bbmap_human/log/bbmap_cmds_%j.out
 
-declare -a arr=(#1000801248
+declare -a arr=(
+1000801248
 1000801318
 1000801368
 1001301158
@@ -99,18 +100,19 @@ declare -a arr=(#1000801248
 4007535198
 4007535238
 4007535358
-4008434348
 4008435158
+4008435348
 4008435358
 4009035168
 4009035268
 4009035368
 4009835178
 4009835228
-4009835268)
+4009835268
+)
 
 ## now loop through the above array
 for i in "${arr[@]}"
 do
-sbatch --exclude=node4,node5,node6,node7,node8,node9,node10,node11,node12,node13,node14,node15,node16,node17 /home/hlberman/VMMG/bbmap_human/scripts/bbmap_filter_human.sh $i
+sbatch --exclude=node1,node2,node7,node8,node9,node10,node11,node12,node13,node14,node16,node17 /home/hlberman/VMMG/bbmap_human/scripts/bbmap_filter_human.sh $i
 done

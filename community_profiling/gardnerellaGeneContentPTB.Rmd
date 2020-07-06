@@ -1,0 +1,276 @@
+---
+title: "Gardnerella Gene Content"
+author: "Hanna Berman"
+date: "5/7/2019"
+output: html_document
+---
+
+Use output from Humann2 to assess the gene families, pathway abundance, and pathway coverage, assigned to *Gardnerella vaginalis* across samples. 
+
+# Setup
+## Packages
+```{r}
+library(tidyverse)
+library(ggrepel)
+```
+
+## File paths
+```{r}
+gardRelativeAbundance <- read_delim("/Users/hlberman/Documents/GitHub/pregnancy_metagenome/gard_mapping/clade_assignments/gardRelativeAbundance.tsv", delim = "\t") %>%
+  mutate(SampleID=as.character(SampleID),
+         Clade=as.character(Clade))
+sgDF <- read_delim("/Users/hlberman/Documents/GitHub/pregnancy_metagenome/shotgunMetadata.tsv", delim = "\t")%>%
+  mutate(SampleID=as.character(SampleID))
+load("/Users/hlberman/Documents/GitHub/pregnancy_metagenome/methods_comparisons/PS_RData/metaphlan_PS.RData")
+
+# define file paths
+dataDir <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/humann2/out_tables"
+GF_path <- file.path(dataDir, "VM_genefamilies_names_cpm.tsv")
+GFP_path <- file.path(dataDir, "VM_genefamilies_paths_cpm.tsv")
+GOnames_path <- file.path(dataDir, "map_go_name.txt")
+GFGO_path <- file.path(dataDir, "map_go_uniref90.txt")
+PWnames_path <- file.path(dataDir, "map_metacyc-pwy_name.txt") 
+PC_path <- file.path(dataDir, "VM_pathcoverage.tsv")
+PA_path <- file.path(dataDir, "VM_pathabundance_cpm.tsv")
+
+# read in data frames
+GF <- read_delim(GF_path, delim = "\t") # Gene family abundances
+GFP <- read_delim(GFP_path, delim = "\t") # pathways for each gene family
+PWnames <- read_delim(PWnames_path, delim = "\t", col_names = c("Pathway", "pathwayAnnotation"))
+PC <- read_delim(PC_path, delim = "\t") # pathway coverage 
+PA <- read_delim(PA_path, delim = "\t") # pathway abundnance
+GOnames <- read_delim(GOnames_path, delim = "\t", col_names = c("GO", "Function")) # names and annotations of GO categories
+GFGO <- read_lines(GFGO_path) %>% # read in the file as a list
+  str_split("\t")
+```
+
+# Get Gardnerella genes/pathways only
+## Re-format tables for dplyr
+### Paths for gene families
+```{r}
+GFP0 <- GFP %>%
+  select(`# Pathway`) %>% # keep only pathway and gene family names
+  filter(str_detect(`# Pathway`, "Gardnerella")) %>% # keep only Gardnerella
+  separate(`# Pathway`, c("Pathway", "GeneFamily"), sep ="\\|g__Gardnerella.s__Gardnerella_vaginalis\\|", fill = "right") %>% # separate 
+  separate(GeneFamily, c("uniref", "unirefAnnotation"), ": ") %>%
+  filter(uniref != "") # remove empty pathways
+head(GFP0)
+```
+
+### GO categories for gene family
+```{r}
+GOcategories <- map(GFGO, `[[`, 1) %>% # get the GO category labels
+  unlist()
+GFGO0 <- map2(GOcategories, GFGO, ~paste(.x, .y, sep=",")) %>% # paste a separable (important for later making a dataframe) GO category to each gene family in each category
+  unlist() %>% # collapse list
+  as_tibble() %>% # make dataframe
+  separate(1, c("GO", "uniref"), ",") %>% #separate into columns
+  filter(!str_detect(uniref, "GO:[0-9]*$")) # remove rows with GO category label in uniref column
+head(GFGO0)
+```
+
+### Gene Family
+```{r}
+GF0 <- GF %>%
+  filter(str_detect(`# Gene Family`, "Gardnerella")) %>%
+  as.data.frame() 
+rownames(GF0) <- GF0[,1]
+GF1 <- GF0 %>%
+  select(-`# Gene Family`)
+GF2 <- GF1 %>%
+  t() %>%
+  as.data.frame(strinsAsFactors=FALSE) %>%
+  mutate(SampleID=str_extract(colnames(GF1), "[0-9]{10}")) %>%
+  gather("GeneFamily", "Abundance", contains("Gardnerella")) %>%
+  mutate(GeneFamily=str_extract(GeneFamily, ".*(?=.g__Gardnerella)")) %>%
+  separate(GeneFamily, c("uniref", "unirefAnnotation"), ": ", fill = "right") %>%
+  left_join(sgDF[,c("SampleID", "SubjectID", "TermPre", "GWdell", "GWcoll", "Cohort")], by="SampleID")
+head(GF2)
+```
+
+### Pathway Abundance
+```{r}
+PA0 <- PA %>%
+  filter(str_detect(`# Pathway`, "Gardnerella")) %>%
+  as.data.frame() 
+rownames(PA0) <- PA0[,1]
+PA1 <- PA0 %>%
+  select(-`# Pathway`)
+PA2 <- PA1 %>%
+  t() %>%
+  as.data.frame(strinsAsFactors=FALSE) %>%
+  mutate(SampleID=str_extract(colnames(PA1), "[0-9]{10}")) %>%
+  gather("Pathway", "Abundance", contains("Gardnerella")) %>%
+  mutate(Pathway=str_extract(Pathway, ".*(?=.g__Gardnerella)")) %>%
+  left_join(sgDF[,c("SampleID", "SubjectID", "TermPre", "GWdell", "GWcoll", "Cohort")], by="SampleID")
+head(PA2)
+```
+
+### Pathway coverage
+```{r}
+PC0 <- PC %>%
+  filter(str_detect(`# Pathway`, "Gardnerella")) %>%
+  as.data.frame() 
+rownames(PC0) <- PC0[,1]
+PC1 <- PC0 %>%
+  select(-`# Pathway`)
+PC2 <- PC1 %>%
+  t() %>%
+  as.data.frame(strinsAsFactors=FALSE) %>%
+  mutate(SampleID=str_extract(colnames(PC1), "[0-9]{10}")) %>%
+  gather("Pathway", "Coverage", contains("Gardnerella")) %>%
+  mutate(Pathway=str_extract(Pathway, ".*(?=.g__Gardnerella)")) %>%
+  left_join(sgDF[,c("SampleID", "SubjectID", "TermPre", "GWdell", "GWcoll", "Cohort")], by="SampleID")
+head(PC2)
+```
+
+# By Preterm Birth
+## Gene Families
+###Gene Familes present in both TB and PTB
+```{r, fig.width=7, fig.height=8}
+geneFamilies <- unique(paste(GF2$uniref, GF2$unirefAnnotation, sep = ": "))
+GFfoldChange <- GF2 %>%
+  group_by(uniref, unirefAnnotation, TermPre, Cohort) %>%
+  summarise(mean(Abundance)) %>%
+  ungroup() %>%
+  spread(TermPre, `mean(Abundance)`) %>%
+  filter(Cohort=="UAB"|Cohort=="Stanford",
+         `T`>0,
+         P>0) %>%
+  mutate(FoldChange=case_when(P>`T`~P/`T`,
+                              `T`>P~-`T`/P)) #%>%
+#  left_join(GFGO0, by="uniref") %>%  # for adding GO information to the dataframe. removed for now as multiple GO categories were assigned to many uniref 
+#  left_join(GOnames, by= "GO")
+  
+labels1 <- GFfoldChange[order(GFfoldChange$FoldChange),] %>%
+  select(uniref, unirefAnnotation, Cohort, FoldChange)
+labels1 <- labels1[1:20,]
+labels2 <- GFfoldChange[order(-GFfoldChange$FoldChange),] %>%
+  select(uniref, unirefAnnotation, Cohort, FoldChange)
+labels2 <- labels2[1:10,]
+labels <- rbind(labels1, labels2) %>%
+  filter(unirefAnnotation!="NO_NAME")
+
+ggplot(GFfoldChange, aes(x=uniref, y=FoldChange, label = unirefAnnotation)) +
+  geom_point() +
+  theme(axis.text.x = element_blank()) +
+  ggrepel::geom_text_repel(data=labels) +
+  labs(y=element_blank()) +
+  facet_wrap(~Cohort) +
+  annotate("text", label = "greater in PTB", x=550, y = 500) +  
+  annotate("text", label = "greater in TB",  x=500, y = -500)
+```
+<br />
+## Gene Families with Pathway information
+```{r, fig.height = 2, fig.width=6}
+GFfoldChangePath <- GFfoldChange %>%
+  left_join(GFP0, by=c("uniref", "unirefAnnotation")) %>%
+  filter(!is.na(Pathway)) %>%
+  left_join(PWnames, by="Pathway")
+
+ggplot(GFfoldChangePath, aes(x=uniref, y=FoldChange, color = paste(Pathway, pathwayAnnotation))) +
+   geom_point() +
+   theme(axis.text.x = element_blank()) +
+   labs(y=element_blank(), color="Pathway") +
+   facet_wrap(~Cohort) + 
+   annotate("text", label = "greater in PTB", x=7.5, y = 0.5, size = 2) +  
+   annotate("text", label = "greater in TB",  x= 7, y = -0.5, size = 2 )
+```
+<br />Of uniref 90 gene families had pathway annotations, greatest fold increase in PTB is Threonine synthase of the superpathway of L-threonine biosynthesis (5.4 fold) in the UAB cohort and Aspartate carbamoyltransferase of the UMP biosynthesis pathway (2.6 fold) in the Stanford cohort. greatest fold increase in TB, is Dephospho-CoA kinase in the coenzyme A biosynthesis II pathway in both cohorts, with a 19.6 fold increase in the Stanford cohort and 17.901915 fold increase in the UAB cohort. Based on these results, I may need to look at another pathway database (perhaps Kegg) or consider a custom set of references. 
+
+<br />List of greatest fold change uniref gene families (pathways not annotated for greatest fold change uniref genes)
+```{r}
+GFfoldChange %>%
+  filter(FoldChange<=-2000|FoldChange>500) %>%
+  print(n = nrow(.), width = getOption("tibble.width"), n_extra = NULL)
+```
+
+### Gene familes only present
+```{r}
+alternatePresence <- GF2 %>%
+  group_by(uniref, unirefAnnotation, TermPre, Cohort) %>%
+  summarise(mean(Abundance)) %>%
+  ungroup() %>%
+  spread(TermPre, `mean(Abundance)`) %>%
+  filter(Cohort=="UAB"|Cohort=="Stanford",
+         `T`==0|P==0,
+         !(`T`==0&P==0)) %>%
+  mutate(`T`=-`T`) %>%
+  gather("TermPre", "Abundance", c(`T`, P)) %>% #make abundance one column instead of separate T and P columsn
+  filter(Abundance!=0) %>% # get rid of duplicate entries where abundance = 0  
+  left_join(GFP0, by=c("uniref", "unirefAnnotation")) %>%
+  left_join(PWnames, by="Pathway")
+
+ggplot(alternatePresence, aes(x=reorder(uniref, Abundance), y=Abundance))+
+  geom_col() + 
+  theme(axis.text.x = element_blank()) + 
+  labs(x="Uniref90", y="Average reads per million") +
+  facet_wrap(~Cohort) +
+  annotate("text", label = "greater in PTB", x=300, y = 25) +  
+  annotate("text", label = "greater in TB",  x=300, y = -50)
+
+# remove bulk of the figure with little variation
+alternatePresence %>%
+  filter(Abundance>=10|Abundance<=10) %>%
+ggplot(aes(x=reorder(uniref, Abundance), y=Abundance)) +
+  geom_col() + 
+  theme(axis.text.x = element_blank()) + 
+  labs(x="Uniref90", y="Average reads per million") +
+  facet_wrap(~Cohort) + 
+  annotate("text", label = "greater in PTB", x=300, y = 25) +  
+  annotate("text", label = "greater in TB",  x=300, y = -50)
+```
+
+<br />Save list of alternately present genes and show list of greatest differences
+```{r}
+alternatePresence %>%
+  filter(Abundance>=10|Abundance<=-20) %>%
+  arrange(-Abundance) %>%
+  print(n = nrow(.), width = getOption("tibble.width"), n_extra = NULL)
+```
+<br />Need to continure to assess gene function and pathway, and also look at distribution across samples of each of these genes. 
+
+## Pathway Abundance
+Assess reads per million in each annotated pathway (MetaCyc) from *Gardnerella vaginalis* sample across in term versus preterm birth. Cumulative reads in these pathways attributed to *Gardnerella vaginalis* determined by Humann2. 
+```{r warning=FALSE}
+pathways <- unique(PA2$Pathway)
+pathways
+map(pathways, ~filter(PA2, Pathway==.x) %>% 
+  ggplot(., aes(x=TermPre, y=Abundance, color=TermPre)) +
+  geom_jitter() +
+  geom_boxplot(alpha=0) +
+  scale_y_log10() +
+  labs(title=.x, x=element_blank(), y="Abundance (reads per million") + 
+  scale_x_discrete(labels = c("Preterm", "Term")) + 
+  scale_color_manual(values=c("#56B4E9", "#D55E00")) +  
+  theme(legend.position = "none") +
+  facet_wrap(~Cohort))
+```
+<br />Need to find cohort information of samples of unkown cohort. Some differences apparent between Stanford and UAB cohorts. of note is that no PTB samples have reads from the peptidoglycan biosynthesis III pathway in the Stanford cohort and only 3 Stanford term samples had reads from this pathway. 
+
+## Pathway Coverage
+```{r}
+PC3 <- PC2 %>%
+  filter(Pathway!="UNINTEGRATED") # covereage value of "unintegrated" is meaningless
+map(pathways[2:length(pathways)], ~filter(PC3, Pathway==.x) %>% # remove unintegrated from pathways list.
+  ggplot(., aes(x=TermPre, y=Coverage, color=TermPre)) +
+  geom_jitter() +
+  geom_boxplot(alpha=0) +
+  labs(title=.x, x=element_blank()) + 
+  scale_x_discrete(labels = c("Preterm", "Term")) +
+  ylim(0,1) +  
+  scale_color_manual(values=c("#56B4E9", "#D55E00")) +  
+  theme(legend.position = "none") +
+  facet_wrap(~Cohort))
+```
+<br />Coverage values vary from 0 to 1 and are a measure of the certainty that the pathway is present in the sample. Note that all coverage values for PWY-6385: peptidoglycan biosynthesis III (mycobacteria) were 0, jittering is causing it to appear that some values were greater than 0.
+
+# Continuing Goals
+-Try assessing pathway information with KEGG pathways, since most gene families are unable to be mapped to a metacyc pathway (with provided Humann2 database), or consider a curated database.
+-Asses disrtibution across samples of certain gene familes.
+-Compare against strains that are present in each sample!!!
+
+# Session Info
+```{r}
+sessionInfo()
+```

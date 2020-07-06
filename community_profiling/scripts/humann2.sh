@@ -3,8 +3,8 @@
 #SBATCH -c 8
 
 accession=$1
-reads_path=/home/hlberman/VMMG/reads/upload/
-cat_path=/home/hlberman/VMMG/reads/paired_cat
+reads_path=/home/hlberman/VMMG/bbmap_human/filtered_fastq/
+cat_path=/home/hlberman/VMMG//bbmap_human/filtered_paired_cat/
 out_path=/home/hlberman/VMMG/humann2/output
 
 #concatenate paired reads

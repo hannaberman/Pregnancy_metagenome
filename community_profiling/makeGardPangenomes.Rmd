@@ -1,0 +1,105 @@
+---
+title: "Create Gv Gene DB"
+author: "Hanna Berman"
+date: "4/24/2020"
+output: html_document
+---
+
+# Set up
+## Packages
+```{r}
+library(tidyverse)
+library(Biostrings)
+```
+
+## Data
+```{r}
+roaryDF <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/Gard WGS/20200218_reAnnotatedGvRoary95_set1/gene_presence_absence.csv" %>%
+  read_csv
+
+GvDF <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/pregnancy_metagenome/GardnerellaMetadata.csv" %>%
+  read_csv %>%
+  filter(In_Directory==TRUE)
+
+strainFileNames <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/Gard WGS/annotated_genomes_byext/ffn" %>%
+  list.files(pattern=".ffn") %>%
+  str_extract(., ".*(?=.ffn)")
+head(strainFileNames)
+
+gardSeqs <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/Gard WGS/annotated_genomes_byext/ffn" %>%
+  list.files(., full.names = TRUE, pattern=".ffn") %>%
+  map(., readDNAStringSet) 
+gardSeqs <- DNAStringSet(do.call(c, unlist(gardSeqs))) #flatten to one DNAStringSet
+names(gardSeqs) <- str_extract(gardSeqs@ranges@NAMES, ".*\\_[0-9]{5}") # remove annotations from name
+gardSeqs
+
+pangenomeDirectory <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/humann2_gard_clades/gardnerella_pangenomes"
+```
+
+# Create Master Data Frames
+## Label Genes
+```{r}
+cladeGeneDF <- roaryDF %>%
+  gather("Strain", "GeneID", strainFileNames) %>%
+  left_join(GvDF[,c("Strain","Clade")], by="Strain")
+head(cladeGeneDF)
+
+cladeStrainList <- list(C1=GvDF$Strain[GvDF$Clade=="C1"], 
+                        C2=GvDF$Strain[GvDF$Clade=="C2"],
+                        C3=GvDF$Strain[GvDF$Clade=="C3"],
+                        C4=GvDF$Strain[GvDF$Clade=="C4"],
+                        C5=GvDF$Strain[GvDF$Clade=="C5"],
+                        C6=GvDF$Strain[GvDF$Clade=="C6"]
+                        )
+cladeStrainList
+```
+
+# Create Pangenome Files
+
+##  Create Function
+```{r}
+savePangenomeFile <- function(clade){
+  #clade="C5"
+  # get gene IDs
+  cladeGeneIDs <- cladeGeneDF %>%
+    filter(., Clade==clade, is.na(GeneID)==FALSE) %>%
+    .$GeneID %>%
+    paste(., collapse="|")
+  # select unique pangenome genes
+  cladePangenome <- gardSeqs[str_detect(gardSeqs@ranges@NAMES, cladeGeneIDs)] %>%
+    unique
+  # format names
+  cladeGenes <- cladePangenome@ranges@NAMES %>%
+    map_chr(., ~cladeGeneDF$Gene[cladeGeneDF$GeneID==.x & !is.na(cladeGeneDF$GeneID)])
+  cladeAnnoss <- cladePangenome@ranges@NAMES %>%
+    map_chr(., ~cladeGeneDF$Annotation[cladeGeneDF$GeneID==.x & !is.na(cladeGeneDF$GeneID)])
+  
+  newPangenomeNames <- paste0("X|GeneID:", 
+                              cladePangenome@ranges@NAMES,
+                              "|X|X|X|X|g__Gardnerella.s__vaginalis.sp__", 
+                              clade, 
+                              "|",
+                              cladeGenes,
+                              "|",
+                              cladeAnnoss)
+  
+  cladePangenome@ranges@NAMES <- newPangenomeNames
+  
+  #save ffn file
+  filePath <- paste0(pangenomeDirectory, "/g__Gardnerella.s__vaginalis.sp__", clade, ".ffn.gz")
+  writeXStringSet(cladePangenome, filepath = filePath, compress=TRUE, format="fasta")
+  return(cladePangenome)
+}
+```
+
+## Run to create and save files
+```{r}
+c("C1", "C2", "C3", "C4", "C5", "C6") %>%
+  map(savePangenomeFile)
+```
+
+# Session Info
+```{r}
+sessionInfo()
+```
+

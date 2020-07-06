@@ -1,0 +1,435 @@
+---
+title: "Gardnerella Gene Content"
+author: "Hanna Berman"
+date: "5/7/2019"
+output:
+  html_document:
+    toc: TRUE
+    toc_float: TRUE
+---
+
+Use output from Humann2 to assess the gene families, pathway abundance, and pathway coverage, assigned to *Gardnerella vaginalis* across samples. 
+
+# Setup
+## Packages
+```{r}
+library(tidyverse)
+library(ggrepel)
+```
+
+## File paths
+Metadata
+```{r}
+sgDF <- read_delim("/Users/hlberman/Documents/GitHub/pregnancy_metagenome/shotgunMetadata.tsv", delim = "\t")%>%
+  mutate(SampleID=as.character(SampleID))
+```
+<br /> Metaphlan abundances (from humann2 output)
+```{r}
+#load("/Users/hlberman/Documents/GitHub/pregnancy_metagenome/methods_comparisons/PS_RData/metaphlan_PS.RData") #this one was from first pass methods comparison
+mDF0 <- read_tsv("/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/humann2/out_tables/mergedMetaphlanAbundance.tsv") %>%
+  filter(str_detect(ID, "s__"), !str_detect(ID, "t__")) %>%
+  mutate(Species = str_extract(ID, "(?<=s__)\\w+$")) %>%
+  select(Species, everything(), -ID) %>%
+  as.data.frame()
+
+#make col and row names
+samps <- colnames(mDF0[2:ncol(mDF0)]) %>%
+  str_extract("[0-9]{10}")
+samps
+colnames(mDF0) <- c("Species", samps)
+rownames(mDF0) <- mDF0$Species
+  
+#Final edits to table
+mDF <- mDF0 %>%
+  select(-Species) %>%
+  t() %>%
+  as.data.frame() %>%
+  mutate(SampleID=samps) %>%
+  select(SampleID, everything())
+mDF[1:6,1:5]
+```
+
+Gardnerella abundance table
+```{r}
+#Clade assignments
+gardRelativeAbundance <- read_delim("/Users/hlberman/Documents/GitHub/pregnancy_metagenome/gard_mapping/clade_assignments/gardRelativeAbundance.tsv", delim = "\t") %>%
+  mutate(SampleID=as.character(SampleID),
+         Clade=as.character(Clade))
+
+SampleIDlist <- rep(unique(sgDF$SampleID), 6) %>%
+  .[order(.)]
+
+cladeFrame <- tibble(SampleID=SampleIDlist,
+                     Clade=rep(c("1","2", "3", "4", "5", "6"), 107),
+                     n=0, 
+                     propClade=0)
+
+gardRelativeAbundance0 <- gardRelativeAbundance %>%
+ full_join(cladeFrame) %>%
+ group_by(SampleID, Clade) %>%
+ filter(n==max(n)) %>%
+ ungroup() %>%
+ select(-n) %>%
+ spread(Clade, propClade) %>%   
+ mutate(Clades=case_when((`1`>0 |`2`>0) & `3`==0 & `4`==0 & `5`==0 & `6`==0 ~ "1_2", 
+                         `1`==0 & `2`==0 & (`3`>0 | `4`>0) & `5`==0 & `6`==0 ~ "3_4",
+                         `1`==0 & `2`==0 & `3`==0 & `4`==0 & (`5`>0 | `6`>0) ~ "5_6",
+                         `1` > 0 | `2` > 0 | `3`>0 | `4`>0 | `5`>0 | `6`>0 ~ "mix",
+                         `1`==0 & `2` ==0 & `3`==0 & `4`==0 & `5`==0 & `6`==0 ~"none")) %>%
+ left_join(mDF[,c("SampleID", "Gardnerella_vaginalis")], by="SampleID") %>%
+ left_join(unique.data.frame(sgDF[,c("SampleID", "SubjectID", "TermPre", "GWdell", "Cohort", "GWcoll")])) %>%
+ mutate(SubjectID=as.character(SubjectID)) 
+```
+
+Humann2 Output tables
+````{r}
+#humann2 outs
+dataDir <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/humann2/out_tables"
+GF_path <- file.path(dataDir, "VM_genefamilies_names_cpm.tsv")
+GFP_path <- file.path(dataDir, "VM_genefamilies_paths_cpm.tsv")
+GOnames_path <- file.path(dataDir, "map_go_name.txt")
+GFGO_path <- file.path(dataDir, "map_go_uniref90.txt")
+PWnames_path <- file.path(dataDir, "map_metacyc-pwy_name.txt") 
+PC_path <- file.path(dataDir, "VM_pathcoverage.tsv")
+PA_path <- file.path(dataDir, "VM_pathabundance_cpm.tsv")
+
+# read in data frames
+GF <- read_delim(GF_path, delim = "\t") # Gene family abundances
+GFP <- read_delim(GFP_path, delim = "\t") # pathways for each gene family
+PWnames <- read_delim(PWnames_path, delim = "\t", col_names = c("Pathway", "pathwayAnnotation"))
+PC <- read_delim(PC_path, delim = "\t") # pathway coverage 
+PA <- read_delim(PA_path, delim = "\t") # pathway abundnance
+GOnames <- read_delim(GOnames_path, delim = "\t", col_names = c("GO", "Function")) # names and annotations of GO categories
+GFGO <- read_lines(GFGO_path) %>% # read in the file as a list
+  str_split("\t")
+```
+
+# Get Gardnerella genes/pathways only
+## Re-format tables for dplyr
+### Paths for gene families
+```{r}
+GFP0 <- GFP %>%
+  select(`# Pathway`) %>% # keep only pathway and gene family names
+  filter(str_detect(`# Pathway`, "Gardnerella")) %>% # keep only Gardnerella
+  separate(`# Pathway`, c("Pathway", "GeneFamily"), sep ="\\|g__Gardnerella.s__Gardnerella_vaginalis\\|", fill = "right") %>% # separate 
+  separate(GeneFamily, c("uniref", "unirefAnnotation"), ": ") %>%
+  filter(uniref != "") # remove empty pathways
+head(GFP0)
+```
+
+### GO categories for gene family
+```{r}
+GOcategories <- map(GFGO, `[[`, 1) %>% # get the GO category labels
+  unlist()
+GFGO0 <- map2(GOcategories, GFGO, ~paste(.x, .y, sep=",")) %>% # paste a separable (important for later making a dataframe) GO category to each gene family in each category
+  unlist() %>% # collapse list
+  as_tibble() %>% # make dataframe
+  separate(1, c("GO", "uniref"), ",") %>% #separate into columns
+  filter(!str_detect(uniref, "GO:[0-9]*$")) # remove rows with GO category label in uniref column
+head(GFGO0)
+```
+
+### Gene Family
+```{r}
+GF0 <- GF %>%
+  filter(str_detect(`# Gene Family`, "Gardnerella")) %>%
+  as.data.frame() 
+rownames(GF0) <- GF0[,1]
+GF1 <- GF0 %>%
+  select(-`# Gene Family`)
+GF2 <- GF1 %>%
+  t() %>%
+  as.data.frame(strinsAsFactors=FALSE) %>%
+  mutate(SampleID=str_extract(colnames(GF1), "[0-9]{10}")) %>%
+  gather("GeneFamily", "Abundance", contains("Gardnerella")) %>%
+  mutate(GeneFamily=str_extract(GeneFamily, ".*(?=.g__Gardnerella)")) %>%
+  separate(GeneFamily, c("uniref", "unirefAnnotation"), ": ", fill = "right") %>%
+  left_join(gardRelativeAbundance0[,c("SampleID", "SubjectID", "TermPre", "GWdell", "GWcoll", "Cohort", "Clades")], by="SampleID")
+head(GF2)
+```
+
+### Pathway Abundance
+```{r}
+PA0 <- PA %>%
+  filter(str_detect(`# Pathway`, "Gardnerella")) %>%
+  as.data.frame() 
+rownames(PA0) <- PA0[,1]
+PA1 <- PA0 %>%
+  select(-`# Pathway`)
+PA2 <- PA1 %>%
+  t() %>%
+  as.data.frame(strinsAsFactors=FALSE) %>%
+  mutate(SampleID=str_extract(colnames(PA1), "[0-9]{10}")) %>%
+  gather("Pathway", "Abundance", contains("Gardnerella")) %>%
+  mutate(Pathway=str_extract(Pathway, ".*(?=.g__Gardnerella)")) %>%
+  left_join(gardRelativeAbundance0[,c("SampleID", "SubjectID", "TermPre", "GWdell", "GWcoll", "Cohort", "Clades")], by="SampleID")
+head(PA2)
+```
+
+### Pathway coverage
+```{r}
+PC0 <- PC %>%
+  filter(str_detect(`# Pathway`, "Gardnerella")) %>%
+  as.data.frame() 
+rownames(PC0) <- PC0[,1]
+PC1 <- PC0 %>%
+  select(-`# Pathway`)
+PC2 <- PC1 %>%
+  t() %>%
+  as.data.frame(strinsAsFactors=FALSE) %>%
+  mutate(SampleID=str_extract(colnames(PC1), "[0-9]{10}")) %>%
+  gather("Pathway", "Coverage", contains("Gardnerella")) %>%
+  mutate(Pathway=str_extract(Pathway, ".*(?=.g__Gardnerella)")) %>%
+  left_join(gardRelativeAbundance0[,c("SampleID", "SubjectID", "TermPre", "GWdell", "GWcoll", "Cohort", "Clades")], by="SampleID")
+head(PC2)
+```
+
+# By Gard Clade
+## Gene Families
+###Gene Familes present in both TB and PTB
+```{r}
+geneFamilies <- unique(paste(GF2$uniref, GF2$unirefAnnotation, sep = ": "))
+GFfoldChange <- GF2 %>%
+  filter(Clades=="1_2"|Clades=="3_4") %>%
+  group_by(uniref, unirefAnnotation, Clades, Cohort) %>%
+  summarise(mean(Abundance)) %>%
+  ungroup() %>%
+  spread(Clades, `mean(Abundance)`) %>%
+  filter(Cohort=="UAB"|Cohort=="Stanford",
+          `1_2`>0,
+          `3_4`>0) %>%
+  mutate(FoldChange=case_when(`1_2`>`3_4`~`1_2`/`3_4`,
+                              `3_4`>`1_2`~-`3_4`/`1_2`)) #%>%
+#  left_join(GFGO0, by="uniref") %>%  # for adding GO information to the dataframe. removed for now as multiple GO categories were assigned to many uniref 
+#  left_join(GOnames, by= "GO")
+  
+labels1 <- GFfoldChange[order(GFfoldChange$FoldChange),] %>%
+  select(uniref, unirefAnnotation, Cohort, FoldChange)
+labels1 <- labels1[1:10,]
+labels2 <- GFfoldChange[order(-GFfoldChange$FoldChange),] %>%
+  select(uniref, unirefAnnotation, Cohort, FoldChange)
+labels2 <- labels2[1:10,]
+labels <- rbind(labels1, labels2) %>%
+  filter(unirefAnnotation!="NO_NAME")
+
+ggplot(GFfoldChange, aes(x=uniref, y=FoldChange, label = unirefAnnotation)) +
+  geom_point() +
+  theme(axis.text.x = element_blank()) +
+  ggrepel::geom_text_repel(data=labels) +
+  labs(y="Fold change") +
+  facet_wrap(~Cohort) +
+  annotate("text", label = "Positive=greater in 1/2", x=200, y = 6000) 
+```
+<br />Positive is greater reads per million total reads in samples with clades 1 and 2, negative is greater reads per million total reads in samples with clades 3 and 4. Y axis represents fold change
+
+<br />List of greatest fold change uniref gene families (pathways not annotated for greatest fold change uniref genes)
+```{r}
+GFfoldChange %>%
+  filter(FoldChange>=2000|FoldChange<=-1000) %>%
+  print(n = nrow(.), width = getOption("tibble.width"), n_extra = NULL)
+```
+
+## Gene Families with Pathway information
+Counts per million reads of uniref gene families that had pathway annotations, colored by pathway.
+```{r, fig.height = 2, fig.width=6}
+GFfoldChangePath <- GFfoldChange %>%
+  left_join(GFP0, by=c("uniref", "unirefAnnotation")) %>%
+  filter(!is.na(Pathway)) %>%
+  left_join(PWnames, by="Pathway")
+
+ggplot(GFfoldChangePath, aes(x=uniref, y=FoldChange, color = paste(Pathway, pathwayAnnotation), label=unirefAnnotation)) +
+   geom_text(size=2) +
+   theme(axis.text.x = element_blank()) +
+   labs(y="Fold change", color="Pathway") +
+   facet_wrap(~Cohort)+
+   annotate("text", label = "Positive=greater in 1/2", x=5, y = 150, size = 2) 
+```
+<br />Positive is greater reads per million total reads in samples with clades 1 and 2, negative is greater reads per million total reads in samples with clades 3 and 4
+
+<br />List of greatest fold change uniref gene families (pathways not annotated for greatest fold change uniref genes)
+```{r}
+GFfoldChangePath %>%
+  filter(FoldChange>=50|FoldChange<=-500) %>%
+  print(n = nrow(.), width = getOption("tibble.width"), n_extra = NULL)
+```
+
+
+### Gene familes only present
+```{r}
+alternatePresence <- GF2 %>%
+  group_by(uniref, unirefAnnotation, Clades, Cohort) %>%
+  summarise(mean(Abundance)) %>%
+  ungroup() %>%
+  spread(Clades, `mean(Abundance)`) %>%
+  filter(Cohort=="UAB"|Cohort=="Stanford",
+         `1_2`==0|`3_4`==0,
+         !(`1_2`==0&`3_4`==0)) %>%
+  mutate(`3_4`=-`3_4`) %>%
+  gather("Clades", "Abundance", c(`1_2`, `3_4`)) %>% #make abundance one column instead of separate T and P columsn
+  filter(Abundance!=0) %>% # get rid of duplicate entries where abundance = 0  
+  left_join(GFP0, by=c("uniref", "unirefAnnotation")) %>%
+  left_join(PWnames, by="Pathway")
+
+ggplot(alternatePresence, aes(x=reorder(uniref, Abundance), y=Abundance))+
+  geom_col() + 
+  theme(axis.text.x = element_blank()) + 
+  labs(x="Uniref90", y="Average reads per million") +
+  facet_wrap(~Cohort) +
+  annotate("text", label = "Positive=greater in 1/2", x=300, y = 400)
+
+# remove bulk of the figure with little variation
+alternatePresence %>%
+  filter(Abundance>=80|Abundance<=-30) %>%
+ggplot(aes(x=reorder(uniref, Abundance), y=Abundance, label=unirefAnnotation)) +
+  geom_col() + 
+  #geom_text(angle=45, hjust=0) +
+  theme(axis.text.x = element_blank()) + 
+  labs(x="Uniref90", y="Average reads per million") +
+  facet_wrap(~Cohort) + 
+  annotate("text", label = "Positive=greater in 1/2", x=4, y = 400) 
+```
+<br />None of these uniref genes are named. Need to perform a search on COG database or others. 
+
+<br />Save list of alternately present genes and show list of greatest differences
+```{r}
+alternatePresence %>%
+  filter(Abundance>=800|Abundance<=-30) %>%
+  arrange(-Abundance) %>%
+  print(n = nrow(.), width = getOption("tibble.width"), n_extra = NULL)
+```
+<br />Need to continure to assess gene function and pathway, and also look at distribution across samples of each of these genes. 
+
+## Pathway Abundance
+Assess reads per million in each annotated pathway (MetaCyc) from *Gardnerella vaginalis* sample across in term versus preterm birth. Cumulative reads in these pathways attributed to *Gardnerella vaginalis* determined by Humann2. 
+```{r warning=FALSE}
+pathways <- unique(PA2$Pathway)
+pathways
+map(pathways, ~filter(PA2, Pathway==.x) %>% 
+  ggplot(., aes(x=Clades, y=Abundance, color=Clades)) +
+  geom_jitter() +
+  geom_boxplot(alpha=0) +
+  scale_y_log10() +
+  labs(title=.x, x=element_blank(), y="Abundance (reads per million") + 
+  #scale_x_discrete(labels = c("Preterm", "Term")) + 
+  #scale_color_manual(values=c("#56B4E9", "#D55E00")) +  
+  theme(legend.position = "none") +
+  facet_wrap(~Cohort))
+```
+<br />Need to find cohort information of samples of unkown cohort. Some differences apparent between Stanford and UAB cohorts. of note is that no PTB samples have reads from the peptidoglycan biosynthesis III pathway in the Stanford cohort and only 3 Stanford term samples had reads from this pathway. "None" category indicates that *Gardnerella* was not found by clade analysis, but genes attributed to *Gardnerella* were found in 
+
+## Pathway Coverage
+```{r}
+PC3 <- PC2 %>%
+  filter(Pathway!="UNINTEGRATED") # covereage value of "unintegrated" is meaningless
+map(pathways[2:length(pathways)], ~filter(PC3, Pathway==.x) %>% # remove unintegrated from pathways list.
+  ggplot(., aes(x=Clades, y=Coverage, color=Clades)) +
+  geom_jitter() +
+  geom_boxplot(alpha=0) +
+  labs(title=.x, x=element_blank()) + 
+  #scale_x_discrete(labels = c("Preterm", "Term")) +
+  ylim(0,1) +  
+  #scale_color_manual(values=c("#56B4E9", "#D55E00")) +  
+  theme(legend.position = "none") +
+  facet_wrap(~Cohort))
+```
+<br />**Functions of these pathways from biocyc.org:**
+<br />PWY-5686 UMP biosynthsis: Pyrimidine nucleotide biosynthesis
+<br />PWY-6387 UDP-N-acetylmuramoyl-pentapeptide biosynthesis I: Cell wall biosynthesis
+<br />PWY-7219 adenosine ribonucleotides de novo biosynthesis: Purine nucleotide biosynthesis
+<br />PWY-6122 5-aminoimidazole ribonucleotide biosynthesis II: Purine nucleotide biosynthesis
+<br />PWY-6386 UDP-N-acetylmuramoyl-pentapeptide biosynthesis II: Cell wall biosynthesis
+<br />PWY-5100 pyruvate fermentation to acetate and lactate II: Fermentation to acetate/lactate/short-chain fatty acids
+<br />PEPTIDOGLYCAN-PWY peptidoglycan biosynthesis I: Cell wall biosynthesis
+<br />PWY-6385 peptidoglycan biosynthesis III: Cell wall biosynthesis
+<br />PWY-7221 guanosine ribonucleotides de novo biosynthesis: Purine nucleotide biosynthesis
+<br />COA-PWY-1 coenzyme A biosynthesis II: Coenzyme A is a cofactor in many reactions/pathways such as the TCA clycle.
+<br />PENTOSE-P-PWY pentose phosphate pathway: Alternative way of oxidizing glucose
+<br />NONOXIPENT-PWY pentose phosphate pathway (non-oxidative branch): Alternate way of oxidizing glucose
+<br />PWY-6277 superpathway of 5-amninoimidazole ribonucleotide biosynthesis: Purine nucleotide biosynthesis
+<br />PWY-6151 S-adenosyl-L-methionine cycle I: L-methionine biosynthesis
+<br />THRESYN-PWY superpathway of L-threonine biosynthesis: L-throenine biosynthesis
+
+# Gardnerella absent by clade analyses vs gardnerella absent by Metaphlan
+```{r}
+gardRelativeAbundance0 %>%
+  mutate(absentByMapping=case_when((`1`+`2`+`3`+`4`+`5`+`6`)==0~TRUE,
+                                   (`1`+`2`+`3`+`4`+`5`+`6`)!=0~FALSE),
+         absentByMetaphlan=case_when(Gardnerella_vaginalis==0~TRUE,
+                                     Gardnerella_vaginalis>0~FALSE)) %>%
+  filter(absentByMapping!=absentByMetaphlan) %>%
+  select(SubjectID, `1`, `2`, `3`, `4`, `5`, `6`, Gardnerella_vaginalis, absentByMapping, absentByMetaphlan)
+```
+
+<br />No samples in the UAB cohort have only clades 3/4 so these comparisons are difficult to make in this cohort. 
+
+Abundance of each clade vs abundance of 
+```{r}
+sampleLabels <- colnames(PA0) %>%
+  str_extract(., "[0-9]{10}") %>%
+  .[!is.na(.)]
+sampleLabels
+length(sampleLabels)
+
+gardPathwayByClade <- PA0 %>%
+  select(-`# Pathway`) %>%
+  t() %>%
+  as.data.frame() %>%
+  mutate(SampleID=sampleLabels) %>%
+  gather("Pathway", "pathAbundance", c(1:(ncol(.)-1))) %>%
+  left_join(gardRelativeAbundance0[,c("SampleID", "SubjectID", "Cohort", "TermPre", "GWcoll", "1", "2", "3", "4", "5", "6")], by="SampleID") %>%
+  mutate(`Total G. vaginalis`=`1`+`2`+`3`+`4`+`5`+`6`) %>%
+  gather("Clade", "cladeAbundance", c(`1`, `2`, `3`, `4`, `5`, `6`, `Total G. vaginalis`)) %>%
+  select(SampleID, SubjectID, Cohort, TermPre, GWcoll, Clade, cladeAbundance, everything()) %>%
+  mutate(Clade=case_when(Clade=="1"~"G. vaginalis C1", 
+                         Clade=="2"~"G. vaginalis C2",
+                         Clade=="3"~"G. vaginalis C3",
+                         Clade=="4"~"G. vaginalis C4",
+                         Clade=="5"~"G. vaginalis C5",
+                         Clade=="6"~"G. vaginalis C6", 
+                         Clade=="Total G. vaginalis"~ "Total G. vaginalis"))
+
+View(gardPathwayByClade)
+```
+
+Plot
+```{r, fig.height=10, fig.width=10}
+ggplot(gardPathwayByClade, aes(x=cladeAbundance, y=pathAbundance, color=Clade)) +
+  geom_point() +
+  scale_y_log10() +
+  facet_grid(Cohort~Pathway)
+
+
+```
+
+
+```{r}
+sampleLabels <- colnames(PA0) %>%
+  str_extract(., "[0-9]{10}") %>%
+  .[!is.na(.)]
+sampleLabels
+length(sampleLabels)
+
+gardPathwayByClade <- PA0 %>%
+  select(-`# Pathway`) %>%
+  t() %>%
+  as.data.frame() %>%
+  mutate(SampleID=sampleLabels) %>%
+  gather("Pathway", "pathAbundance", c(1:(ncol(.)-1))) %>%
+  left_join(gardRelativeAbundance0[,c("SampleID", "SubjectID", "Cohort", "TermPre", "GWcoll", "1", "2", "3", "4", "5", "6")], by="SampleID") %>%
+  mutate(`Total G. vaginalis`=`1`+`2`+`3`+`4`+`5`+`6`) %>%
+  gather("Clade", "cladeAbundance", c(`1`, `2`, `3`, `4`, `5`, `6`, `Total G. vaginalis`)) %>%
+  select(SampleID, SubjectID, Cohort, TermPre, GWcoll, Clade, cladeAbundance, everything()) %>%
+  mutate(Clade=case_when(Clade=="1"~"G. vaginalis C1", 
+                         Clade=="2"~"G. vaginalis C2",
+                         Clade=="3"~"G. vaginalis C3",
+                         Clade=="4"~"G. vaginalis C4",
+                         Clade=="5"~"G. vaginalis C5",
+                         Clade=="6"~"G. vaginalis C6", 
+                         Clade=="Total G. vaginalis"~ "Total G. vaginalis"))
+```
+
+
+# Session Info
+```{r}
+sessionInfo()
+```

@@ -6,98 +6,47 @@ output: html_document
 ---
 # Setup
 
-##Load packages
-```{r libraries, warning=FALSE}
+## Load packages
+```{r}
 library(tidyverse);packageVersion("tidyverse")
-library(phyloseq);packageVersion("phyloseq")
-library(readr);packageVersion("readr")
-#library(ape);packageVersion("ape")
-#library(metaphlanr);packageVersion("metaphlanr")
 ```
 
-## Define file paths
+## Load data
 ```{r}
-
-readCounts_path <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/merged_braken_KrakenReads_pe.tsv"
+krakenTable <- "/Users/hlberman/mnt/cluster/home/hlberman/VMMG/kraken2_bracken/upload_bracken_out/merged_braken_KrakenReads_pe.tsv" %>%
+  read_tsv() 
+rownames(krakenTable) <- krakenTable$name
 output_dir <- getwd()
-df <- "/Users/hlberman/Documents/GitHub/pregnancy_metagenome/shotgunMetadata.tsv"
+sgDF <- "/Users/hlberman/Documents/GitHub/pregnancy_metagenome/shotgunMetadata.tsv" %>%
+  read_tsv()
 ```
 
-## Load DF
+# Kraken human reads 
 ```{r}
-DF <- df %>%
-  read_delim(df, delim="\t")
-```
-
-#import table with read counts
-```{r}
-krakenTable <-readr::read_tsv(readCounts_path) %>%
-  as.data.frame()  
-rownames(krakenTable) <- krakenTable$name 
-
 #make separate reads number and abundance tables
-get_num_cols <- function(x){
-  grepl("_num", x)
-}
-get_ab_cols <- function(x){
-  grepl("_frac", x)
-}
-k.num.cols <- unlist(lapply(colnames(krakenTable), get_num_cols))
-KnumTable <- krakenTable[,k.num.cols] #table with reads numbers
-k.ab.cols <- unlist(lapply(colnames(krakenTable), get_ab_cols))
-KabTable <- krakenTable[,k.ab.cols] #table with abundance values
+knumTable <- krakenTable %>%
+  select(name, contains("_num")) %>%
+  rename_if(is.numeric, ~substr(.x, 1, 10))
 
-#rename colnames of the two tables
-colnames(KnumTable) <- substr(colnames((KnumTable)), 1, 10)
-colnames(KabTable) <- substr(colnames((KabTable)), 1, 10)
+KabTable <- krakenTable %>%
+  select(name, contains("_frac")) %>%
+  rename_if(is.numeric, ~substr(.x, 1, 10)) 
 
-sapply(list(KnumTable=colSums(KnumTable), kabTable=colSums(KabTable)), summary)
+sapply(list(KnumTable=colSums(knumTable[,2:ncol(knumTable)]), kabTable=colSums(KabTable[2:ncol(knumTable)])), summary)
 ```
 
 ## Assess Human DNA Contamination and compare to previous human contamination results
 ```{r}
-humanTable <- data.frame(cbind(krakenHuReads=unlist(c(KnumTable["Homo sapiens",])),
-                               krakenHuAbundance=unlist(c(KabTable["Homo sapiens",]))
-                               )
-                         )
-humanTable$SampleID <- as.numeric(rownames(humanTable))
-
-humanTable0 <- DF %>%
-  select(c(SampleID, SubjectID, GW_Coll, Total_reads, Total_pairs, Human_pe, Human_sngl, Pct_Human)) %>%
-  mutate(Human_bot_reads=Human_pe+Human_sngl)
-
-
-humanTable1 <- left_join(humanTable0, humanTable, by = "SampleID")
-humanTable1$SampleID <- as.character(humanTable1$SampleID)
-sumTable <- humanTable1 %>%
-  select(c(Total_reads, Pct_Human, Human_bot_reads, krakenHuReads, krakenHuAbundance))
-summary(sumTable)
-
-write_delim(humanTable1, file.path(output_dir, "krakenHumanReads.tsv"), delim = "\t")
-
-ggplot(humanTable1) +
-  geom_line(aes(x=SampleID, y=Human_bot_reads, group=1), color = "black", show.legend = TRUE) +
-  geom_line(aes(x=SampleID, y=krakenHuReads,group=1), color="blue",show.legend = TRUE) +
-  theme(axis.text.x = element_blank())+
-  labs(title="Bowtie and Bowtie + Kraken: Reads", x="Sample", y="Reads") 
-
-ggplot(humanTable1) +
-  geom_point(aes(x=GW_Coll, y=Human_bot_reads, group=1), color = "black", show.legend = TRUE) +
-  geom_point(aes(x=GW_Coll, y=krakenHuReads,group=1), color="blue", show.legend = TRUE) +
-  labs(title="Bowtie and Bowtie + Kraken: Reads by Subject", x="GW Coll", y="Reads") +
-  facet_wrap(~SubjectID)
-
-ggplot(humanTable1) +
-  geom_line(aes(x=SampleID, y=Pct_Human, group=1), color = "black", show.legend = TRUE) +
-  geom_line(aes(x=SampleID, y=krakenHuAbundance,group=1), color="blue", show.legend = TRUE) +
-  theme(axis.text.x = element_blank())+
-  labs(title="Bowtie and Bowtie + Kraken: Abundance", x="Sample", y="Abundance") 
-
-ggplot(humanTable1) +
-  geom_point(aes(x=GW_Coll, y=Pct_Human, group=1), color = "black", show.legend = TRUE) +
-  geom_point(aes(x=GW_Coll, y=krakenHuAbundance,group=1), color="blue", show.legend = TRUE) +
-  labs(title="Bowtie and Bowtie + Kraken: Abundance by Subject", x="GW Coll", y="Abundance") +
-  facet_wrap(~SubjectID)
+humanTable <- krakenTable %>%
+  filter(name=="Homo sapiens") %>%
+  select(-name, -taxonomy_id, -taxonomy_lvl) %>%
+  gather("SampleID", "temp", everything()) %>%
+  mutate(Ab_frac=case_when(str_detect(SampleID, "num")~"krakenHuReads_pe",
+                           str_detect(SampleID, "frac")~"krakenHuAbundance_pe"),
+         SampleID=substr(SampleID, 1,10)) %>%
+  spread(Ab_frac, temp)
+  
+write_delim(humanTable, file.path(output_dir, "krakenHumanReads.tsv"), delim = "\t")
 ```
 
 
