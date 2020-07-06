@@ -1,7 +1,7 @@
 ---
 title: "Simulation of Gardnerella Gene Content Deconvolution"
 author: "Hanna Berman"
-date: "8/28/2019"
+date: "1/31 /2019"
 output: html_document
 ---
 
@@ -10,10 +10,11 @@ output: html_document
 ```{r}
 library(tidyverse)
 library(broom)
+library(glmnet)
 #library(nnls)
 #library(glmnet)
 #library(formattable)
-set.seed(100)
+set.seed(999)
 ```
 
 ## File paths
@@ -92,44 +93,81 @@ print(gvDF)
 ```  
 values for read counts: 10,000 (~1st q) 400,000 (~max)
 
-# Basic Simulation with Gene Presence Absence
-First simulate with gene presence absence information
-## Create Samples
+# Genes for testing
 ```{r}
-sampleCreate <- function(genePA){
-  x <- sample(c(1:6), 1)
-  if(x==1){
-    Sample <- genePA %>%
-    dplyr::select(Gene, sample(c(3:ncol(.)), 1, replace=FALSE))}
-  if(x==2){
-    Sample <- genePA %>%
-    select(Gene, sample(c(3:ncol(.)), 2, replace=FALSE))}
-  if(x==3){
-    Sample <- genePA %>%
-    select(Gene, sample(c(3:ncol(.)), 3, replace=FALSE))}
-  if(x==4){
-    Sample <- genePA %>%
-    select(Gene, sample(c(3:ncol(.)), 4, replace=FALSE))}
-  if(x==5){
-    Sample <- genePA %>%
-    select(Gene, sample(c(3:ncol(.)), 5, replace=FALSE))}
-  if(x==6){
-    Sample <- genePA %>%
-    select(Gene, sample(c(3:ncol(.)), 6, replace=FALSE))}
-  return(Sample)
-}
+#Test genes:
+#make a table of the genes for testing
+exampleGenes <- tribble(
+  ~mech, ~gene, ~name, 
+  "AMR", "HMPREF0421_20446", "Methicillin resistance protein",
+  "AMR", "HMPREF0421_20507", "Aminoglycoside phosphotransferase",
+  "Biofilm formation", "HMPREF0421_20407", "Family 2 glycosyltransferase HMPREF0421_20407",
+  "Biofilm formation", "HMPREF0421_20405", "Family 2 glycosyltransferase HMPREF0421_20405",
+  "Biofilm formation", "HMPREF0421_20412", "Family 2 glycosyltransferase HMPREF0421_20412",
+  "Biofilm formation", "HMPREF0421_20413", "Family 2 glycosyltransferase HMPREF0421_20413",
+  "Biofilm formation", "HMPREF0424_1180", "Family 2 glycosyltransferase HMPREF0424_1180",
+  "Biofilm formation", "HMPREF0424_1189", "Family 2 glycosyltransferase HMPREF0424_1189",
+  "Biofilm formation", "HMPREF0424_1181", "Family 1 glycosyltransferase HMPREF0424_1181",
+  "Epithelial adhesion", "HMPREF0424_1026", "Type-I fimbrial major subunit precursor",
+  "Mucin Degredation", "Sialidase$", "Sialidase",
+  "Mucin Degredation", "HMPREF0421_20101", "a-L-fucosidase",
+  "Mucin Degredation", "Sialidase A$", "Sialidase A",
+  "Virulence", "HMPREF0424_1186", "LicD protein",
+)
+head(exampleGenes)
+```
 
+
+```{r}
+#names of genes from example genes
+geneNames <- exampleGenes$gene %>%
+  map(~filter(geneAnnos, str_detect(Annotation, .x))) %>%
+  map(~.$Gene)
+geneNames
+```
+
+# Create Samples
+**1)** Randomly sample 0 or 1 strains per clade for 100 samples.
+**2)** Multiply each strain by an integer to simulate read counts
+```{r}
+# add clade information to gene presence absence dataframe. 
+geneCladesPA <- GvRoary %>%
+  gather("Strain", "Reads", 3:ncol(.)) %>%
+  left_join(gvDF[,c("Strain", "Clade")], by="Strain")
+
+sampleCreate <- function(genePA){
+  nClades <- sample(1:6, 1, replace = FALSE) # determine the number of clades to sample 
+  whichClades <- sample(c("C1", "C2", "C3", "C4", "C5", "C6"), nClades, replace=FALSE) # determine which clades to sample
+  SAMPLE <- genePA %>%
+  filter(Clade %in% whichClades) %>%
+  split(.$Clade) %>% #split by clade
+  map(., ~filter(.x, Strain==sample(unique(.x$Strain), 1))) %>% # select one strain per clade
+  purrr::reduce(full_join, by = c("Gene", "Annotation", "Strain", "Reads", "Clade")) # collapse data frames
+  return(SAMPLE)
+}
 #subset reference strains
-sampleStrains <- rerun(100, sampleCreate(GvRoary))
-sampleStrains[1]
+sampleStrains <- rerun(100, sampleCreate(geneCladesPA))
+sampleStrains[[1]]
 
 #assign abundnaces of each strain and its genes by multiplying all of the genes of each strain by a constant
 sampleGeneReads <- sampleStrains %>%
-  map(., ~mutate_if(.x, is.numeric, ~.x*round(runif(1, 2000, 70000))))
-sampleGeneReads[1]
+  map(., ~split(.x, .x$Strain)) %>% #separate by strain
+  map(~map(.x, ~mutate(.x, Reads=Reads*round(runif(1, 2000, 70000))))) %>% #multiply each strain
+  map(~purrr::reduce(.x, full_join, by = c("Gene", "Annotation", "Strain", "Reads", "Clade"))) # regroup
+sampleGeneReads[[1]]
 ```
 
-## Estimate relative abundance with core genes
+# Testing
+## Basic Simulation with Gene Presence Absence
+First simulate with gene presence absence information
+
+Steps:
+1) Estimate abundances with core genes
+2) Compute G inverse for normalizing reads
+  a) Normalize to the number of secY genes in the sample and the number of secY copies
+3) Select genes, normalize, and compute glm
+
+### 1) Estimate relative abundance with core genes
 ```{r}
 # Get core genes
 coreGenes <- GvRoaryCore %>%
@@ -142,57 +180,27 @@ coreGenes <- GvRoaryCore %>%
 coreGenes
 
 #calculate relative abundance of each strain using marker genes
-strainAb <- sampleGeneReads %>%
-  map(~filter(.x, is.element(Gene, coreGenes))) %>%
-  map(~summarise_if(.x, is.numeric, sum))
-strainAb[1]
-samCoreTot <- sampleGeneReads %>%
-  map(~filter(.x, is.element(Gene, coreGenes))) %>%
-  map(~summarise_if(.x, is.numeric, sum)) %>%
-  map(~summarise(.x, sums=rowSums(.x))) %>%
-  map(~.x$sums) %>%
-  unlist
-samCoreTot[1]
-
-strainAbundances <- strainAb0 %>%
-  map2(., samCoreTot, ~mutate(.x, Totals=.y)) %>%
-  map(., ~mutate_all(.x, ~.x/Totals)) %>%
-  map(., ~select(.x, -Totals)) %>%
-  map(., ~gather(.x, "Strain", "Abundance"))
-strainAbundances[1]
-
-#turn strain abundances into clade abundances and reduce to one table
-cladeAbundances <- strainAbundances %>%
-  map(., ~left_join(.x, gvDF[,c("Strain", "Clade")], by="Strain")) %>%
-  map(., ~group_by(.x, Clade)) %>%
-  map(., ~summarise(.x, Abundance=sum(Abundance))) %>%
-  map(., ~ungroup(.x)) %>%
-  map2(., c(1:100), ~mutate(.x, Sample=.y)) %>% # add sample labels
-  map(., ~select(.x, Sample, Clade, Abundance)) %>%
-  purrr::reduce(dplyr::full_join, by=c("Clade", "Abundance", "Sample")) %>% # reduce table
-  spread(Clade, Abundance) %>%
-  replace_na(list(C1=0, C2=0, C3=0, C4=0, C5=0, C6=0))
-cladeAbundances
+#Total number of core genes per strain
+cladeAbundances <- sampleGeneReads %>%
+  map(~filter(.x, Gene %in% coreGenes)) %>%
+  map(~group_by(.x, Clade)) %>%
+  map(~summarise(.x, strainCoreTotals=sum(Reads))) %>%
+  map(~mutate(.x, sampleCoreTotals=sum(strainCoreTotals))) %>%
+  map(~mutate(.x, cladeAbundance=strainCoreTotals/sampleCoreTotals)) %>%
+  map2(., c(1:100), ~mutate(.x, Sample=.y)) %>%
+  purrr::reduce(full_join, by=c("Clade", "strainCoreTotals", "sampleCoreTotals", "cladeAbundance", "Sample"))
+head(cladeAbundances)
 
 #Create unlabeled gene reads for testing
 testSamples <- sampleGeneReads %>%
-  map(., ~gather(.x, "Strain", "Reads", 2:ncol(.x))) %>%
   map(., ~group_by(.x, Gene)) %>%
-  map(., ~summarise(.x, Reads=sum(Reads)))
+  map(., ~summarise(.x, Reads=sum(Reads))) %>%
+  map2(., c(1:100), ~mutate(.x, Sample=.y))
 testSamples[1]
 ```
 
-Steps:
-1) Compute G inverse
-  a) get the total number of reads in each sample
-  b) get the number of secY genes
-4) bind the G column and normalize read counts
-3) Get gene name
-4) Compute glm
-
-**1)** Compute G inverse
-  a) get the total number of reads in each sample
-  b) get the number of secY genes
+### 2) Compute G inverse for normalizing reads
+Normalize to the number of secY genes in the sample and the number of secY copies
 ```{r}
 #G inverse (copy number/SecY reads):
 #get the number of secY (universal single copy) reads  
@@ -207,128 +215,77 @@ Gs <- testSamples %>%
   select(Sample, secYreads, G, Ginv) # samTots
 Gs
 ```
-
-**3)** Get gene names
-```{r}
-#Test genes:
-#make a table of the genes for testing
-exampleGenes <- tribble(
-  ~mech, ~gene, ~name, 
-  "AMR", "HMPREF0421_20446", "Methicillin resistance protein",
-  "AMR", "HMPREF0421_20507", "Aminoglycoside phosphotransferase",
-  "Biofilm formation", "HMPREF0421_20407", "Family 2 glycosyltransferase",
-  "Biofilm formation", "HMPREF0421_20405", "Family 2 glycosyltransferase",
-  "Biofilm formation", "HMPREF0421_20412", "Family 2 glycosyltransferase",
-  "Biofilm formation", "HMPREF0421_20413", "Family 2 glycosyltransferase",
-  "Biofilm formation", "HMPREF0424_1180", "Family 2 glycosyltransferase",
-  "Biofilm formation", "HMPREF0424_1189", "Family 2 glycosyltransferase",
-  "Biofilm formation", "HMPREF0424_1181", "Family 1 glycosyltransferase",
-  "Epithelial adhesion", "HMPREF0424_1026", "Type-I fimbrial major subunit precursor",
-  "Mucin Degredation", "Sialidase$", "Sialidase",
-  "Mucin Degredation", "HMPREF0421_20101", "a-L-fucosidase",
-  "Mucin Degredation", "Sialidase A$", "Sialidase A",
-  "Virulence", "HMPREF0424_1186", "LicD protein",
-)
-head(exampleGenes)
-```
-
-```{r}
-#names of genes from example genes
-geneNames <- exampleGenes$gene %>%
-  map(~filter(geneAnnos, str_detect(Annotation, .x))) %>%
-  map(~.$Gene)
-geneNames
-```
-
-**4** Compute glm
+### Select genes, normalize, and compute glm
 ```{r}
 #bind G column and normalize read counts
 computeGLM <- function(g, n){
-  testSamples %>%
+ lm <- testSamples %>%
     map(., ~filter(.x, Gene %in% g)) %>%
-    map2(., c(1:100), ~mutate(.x, Sample=.y)) %>%
     purrr::reduce(full_join, by=c("Gene", "Reads", "Sample")) %>%
-    group_by(Sample) %>%
-    summarise(Reads=sum(Reads)) %>%
-    mutate(Gene=n) %>%
-    select(Gene, Sample, Reads) %>%
-    left_join(cladeAbundances, by="Sample") %>%
+    group_by(Sample) %>% 
+    summarise(Reads=sum(Reads)) %>% # collapse when copies have multiple names
+    select(Sample, Reads) %>%
+    left_join(cladeAbundances[,c("Clade", "cladeAbundance", "Sample")], by="Sample") %>%
+    spread(Clade, cladeAbundance) %>%
+    mutate_at(vars(C1, C2, C3, C4, C5, C6), ~replace_na(.x, 0)) %>% #create a column per gene
     left_join(Gs[,c("Sample", "G", "Ginv")], by="Sample") %>%
-    #mutate(GReads=Reads*G) %>%
-  glm(data = ., Reads~C1*Ginv+C2*Ginv+C3*Ginv+C4*Ginv+C5*Ginv+C6*Ginv) %>%
-  tidy -> x
-  return(x)
+    mutate(GReads=Reads*G) %>%
+    glm(data=., GReads~C1+C2+C3+C4+C5+C6)
+  coefs <- tidy(lm) %>%
+    mutate(Gene=n)
+  confints <- confint.default(lm) %>%
+    data.frame() %>%  
+    rownames_to_column(var="term") %>%
+      mutate(Gene=n)
+   out <-  coefs %>%
+      full_join(confints, by=c("term", "Gene"))
+    return(out)
 }
 
-map2(geneNames, exampleGenes$name, ~computeGLM(.x, .y))
+estimates <- map2(geneNames, exampleGenes$name, ~computeGLM(.x, .y)) %>%
+  purrr::reduce(full_join, by = c("term", "estimate", "std.error", "statistic", "p.value", "Gene", "X2.5..", "X97.5..")) %>%
+  dplyr::rename(`2.5pct`=`X2.5..`, `97.7pct`=`X97.5..`)
+View(estimates)
 ```
 
-# Assess actual average copy number by clades in sample set 
+## Assess actual average copy number by clades in sample set 
 ```{r}
-calculateCopies <- function(g) {
-mC <- sampleStrains %>%
-  map(., ~filter(.x, Gene %in% g)) %>% # select genes
-  map(., ~gather(.x, "Strain", "Reads", 2:ncol(.x))) %>%
-  map2(., c(1:100), ~mutate(.x, Sample=.y)) %>%
-  purrr::reduce(full_join, by=c("Gene", "Sample", "Strain", "Reads")) %>% 
-  group_by(Sample, Strain) %>%
-  summarise(Copies=sum(Reads)) %>%
-  left_join(gvDF[,c("Strain", "Clade")], by="Strain") %>%
-  group_by(Clade) %>%
-  summarise(avgCopies=mean(Copies))
+calculateCopies <- function(g, n) {
+  mC <- sampleStrains %>%
+    map(., ~filter(.x, Gene %in% g)) %>% # select genes
+    map2(., c(1:100), ~mutate(.x, Sample=.y)) %>%
+    purrr::reduce(full_join, by=c("Gene", "Annotation", "Strain", "Reads", "Clade", "Sample")) %>% 
+    group_by(Clade, Sample) %>%
+    summarise(Reads=sum(Reads)) %>% #collapse 
+    group_by(Clade) %>%
+    summarise(avgCopies=mean(Reads)) %>%
+    mutate(Gene=n)
 return(mC)
 }
 
-map(geneNames, ~calculateCopies(.x)) %>%
-  map2(exampleGenes$name, ~mutate(.x, gene=.y))
+averageCopies <- map2(geneNames, exampleGenes$name, ~calculateCopies(.x, .y)) %>%
+  purrr::reduce(full_join, by=c("Clade", "avgCopies", "Gene")) %>%
+  dplyr::rename(term=Clade)
 ```
-The glm predicted 1.68 copies per strain in clade 2, in the sample set, there were an average of 1.24 sialidase copies per strain in clade 2. 
 
-## Actual coefficients
-Calculated by actual read counts  
-Total reads = Clade1 reads + Clade2 reads + Clade3 reads + Clade4 reads + Clade5 reads + Clade6 reads
-```{r}
-#reads of gene per clade
-calcGenesPerClade <- function(g) {
-  x <- sampleGeneReads %>% 
-    map(., ~filter(.x, Gene %in% g)) %>%
-    map(., ~gather(.x, "Strain", "Reads", 2:ncol(.x))) %>%
-    map2(., c(1:100), ~mutate(.x, Sample=.y)) %>%
-    purrr::reduce(full_join, by=c("Gene", "Strain", "Reads", "Sample")) %>%
-    left_join(gvDF[,c("Strain", "Clade")], by="Strain") %>%
-    group_by(Clade, Sample) %>%
-    summarise(cladeReads=sum(Reads))
-  return(x)
-}
 
-#reads of gene per sample
-calcGenesPerSample <- function(g){
-  y <- sampleGeneReads %>%
-    map(., ~filter(.x, Gene %in% g)) %>%
-    map(., ~gather(.x, "Strain", "Reads", 2:ncol(.x))) %>%
-    map2(., c(1:100), ~mutate(.x, Sample=.y)) %>%
-    purrr::reduce(full_join, by=c("Gene", "Strain", "Reads", "Sample")) %>%
-    left_join(gvDF[,c("Strain", "Clade")], by="Strain") %>%
-    group_by(Sample) %>%
-    summarise(sampleReads=sum(Reads))
-  return(y)
-}
+## Compare the results
+```{r, fig.height=6, fig.width=7}
+compare <- estimates %>%
+  left_join(averageCopies, by=c("Gene", "term")) %>%
+  select(Gene, term, avgCopies, estimate, `2.5pct`, `97.7pct`, std.error, statistic, p.value)
+head(compare)
 
-# Compute exact glm
-computeGLMexact <- function(x,y){
-  z <- x %>%
-    left_join(y, by="Sample") %>%
-    spread(Clade, cladeReads) %>%
-    replace_na(list(C1=0, C2=0, C3=0, C4=0, C5=0, C6=0)) %>%
-  glm(data=., sampleReads~C1+C2+C3+C4+C5+C6) %>%
-    tidy
-return(z)
-}
-
-step1 <- map(geneNames, ~calcGenesPerClade(.x))
-step2 <- map(geneNames, ~calcGenesPerSample(.x))
-map2(step1, step2, ~computeGLMexact(.x, .y))
+compare %>%
+  filter(term!="(Intercept)") %>%
+  ggplot(aes(x=avgCopies, y=estimate, color=term, shape=(p.value<0.05))) +
+  geom_point() +
+  facet_wrap(~Gene) +
+  xlim(0,1.5) +
+  ylim(0,1.5) +
+  labs(x="Average Copies Per Clade", y="Estimate", color="Clade")
 ```
+
 
 Session Info
 ```{r}
