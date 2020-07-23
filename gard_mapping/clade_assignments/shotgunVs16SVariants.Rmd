@@ -202,13 +202,11 @@ All samples
 ```{r}
 gardVarDF %>%
   filter(RNAlater=="No",
-         SubjectID=="10508",
          PaperCohort==2017)%>%
 ggplot(aes(x=GWcoll, y=propGard, shape=Method, size=Method, color=Var)) +
   geom_point() +
   scale_size_manual(values=c(1.5, 3)) +
-  #scale_color_manual(values=c("salmon", "indianred", "lightblue", "blue3", "darkorchid2", "yellowgreen", "red", "blue1", "grey48", "darkorchid2", "yellowgreen"), labels=c("Clade C1 (shotgun)", "Clade C2 (shotgun)", "Clade C3 (shotgun)", "Clade C4 (shotgun)", "Clade C5 (shotgun)", "Clade C6 (shotgun)", "G2: Clades 1/2 (V4 amplicon)", "G1: Clades 3/4 (V4 amplicon)", "G3: indeterminant (V4 amplicon)", "G4: Clade 5 (V4 amplicon)", "G5: Clade 6 (V4 amplicon)")) + 
-  scale_color_manual(values=c("indianred", "red", "blue1", "grey48"), labels=c("Clade C2 (shotgun)",  "G2: Clades 1/2 (V4 amplicon)", "G1: Clades 3/4 (V4 amplicon)", "G3: indeterminant (V4 amplicon)")) + 
+  scale_color_manual(values=c("salmon", "indianred", "lightblue", "blue3", "darkorchid2", "yellowgreen", "red", "blue1", "grey48", "darkorchid2", "yellowgreen"), labels=c("Clade C1 (shotgun)", "Clade C2 (shotgun)", "Clade C3 (shotgun)", "Clade C4 (shotgun)", "Clade C5 (shotgun)", "Clade C6 (shotgun)", "G2: Clades 1/2 (V4 amplicon)", "G1: Clades 3/4 (V4 amplicon)", "G3: indeterminant (V4 amplicon)", "G4: Clade 5 (V4 amplicon)", "G5: Clade 6 (V4 amplicon)")) + 
   scale_shape_manual(values = c(16, 1)) +
   facet_wrap(~SubjectID, nrow=2) +
   labs(x="Gestation weeks at collection", y="Proportion of Gardnerella", shape="Method", color="Variant") +

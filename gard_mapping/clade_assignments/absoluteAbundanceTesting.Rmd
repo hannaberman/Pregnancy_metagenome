@@ -451,8 +451,8 @@ DFtaxtax %>%
     geom_smooth(method="lm", se=FALSE, linetype=1, color="blue") +
     geom_point() +
     facet_grid(Taxon2~Taxon1, drop = FALSE) +
-    ylim(0,0.2) +
-    xlim(0,0.2) +
+    ylim(0,0.5) +
+    xlim(0,0.5) +
     #coord_fixed() +
     #scale_y_log10() +
     #scale_x_log10() +
@@ -502,6 +502,44 @@ DFtaxtax %>%
 #     #scale_x_log10() +
 #     theme(axis.text.x = element_text(angle=90)) +
 #     labs(title=paste(unique(.x$Cohort), "Cohort"), x="Sq rt Absolute abundance: Taxon 1", y="Sq rt Absolute abundance: Taxon 2"))    
+```
+  Pull example of linear pair and low co-occurrence pair
+```{r}
+#Linear: G. vaginalis and A. vaginae
+DFtaxtax %>%
+  filter(Taxon1=="G_vaginalis", 
+         Taxon2=="A_vaginae",
+         Cohort=="Stanford") %>%
+  ggplot(aes(x=absoluteAbundanceTax1, y=absoluteAbundanceTax2)) +
+    geom_point() +
+    ylim(0,0.5) +
+    xlim(0,0.5) +
+    #coord_fixed() +
+    #scale_y_log10() +
+    #scale_x_log10() +
+    theme_classic() +
+        theme(axis.text = element_text(size=15),
+          axis.title = element_text(size=17),
+          plot.title = element_text(size=20, hjust=0.5)) +
+  labs(title=bquote(italic("A. vaginae")~"vs."~italic("G. vaginalis")), x=bquote("Absolute abundance"~italic("G. vaginalis")), y=bquote("Absolute abundance"~italic("A. vaginae")))
+
+#Non-Linear: G. vaginalis and L. crispatus
+DFtaxtax %>%
+  filter(Taxon1=="G_vaginalis", 
+         Taxon2=="L_crispatus",
+         Cohort=="Stanford") %>%
+  ggplot(aes(x=absoluteAbundanceTax1, y=absoluteAbundanceTax2)) +
+    geom_point() +
+    ylim(0,0.5) +
+    xlim(0,0.5) +
+    #coord_fixed() +
+    #scale_y_log10() +
+    #scale_x_log10() +
+    theme_classic() +
+    theme(axis.text = element_text(size=15),
+          axis.title = element_text(size=17),
+          plot.title = element_text(size=20, hjust=0.5)) +
+  labs(title=bquote(italic("L. crispatus")~"vs."~italic("G. vaginalis")), x=bquote("Absolute abundance"~italic("G. vaginalis")), y=bquote("Absolute abundance"~italic("L. crispatus")))
 ```
 
   Of the unique pairs we want to test, how many samples have 2 non-zeros vs. how many have two zeros or one zero:
@@ -605,11 +643,11 @@ corTestFig <- function(df, test, name){
       scale_x_discrete(drop=FALSE) +
       scale_y_discrete(drop=FALSE) +
       facet_wrap(~Cohort) +
-      theme_grey() +
-      theme(axis.text.x = element_text(angle=90, hjust=1)) +
-            #panel.background = element_rect(fill="gray92"),
-            #panel.grid.major = element_blank(),
-            #panel.grid.minor=element_blank()) +
+      #theme_grey() +
+      theme(axis.text.x = element_text(angle=90, hjust=1), 
+            panel.background = element_rect(fill="gray92"),
+            panel.grid.major = element_blank(),
+            panel.grid.minor=element_blank()) +
       labs(x="Taxon 1 ", y="Taxon 2", title = paste("Abundance Correlations:", test), subtitle = name)
   outputList <- list(Results=cor_test_results, Figure=plot)   
     return(outputList)
