@@ -208,7 +208,7 @@ sumStats1
 ```{r}
 allHits <- alns0 %>%
   map2(., names(alns), ~mutate(.x, sampleID=.y)) %>%
-  map(~select(.x, sampleID, query, reference, Annotation, Strain, Clade, pcntid, length)) %>%
+  map(~select(.x, sampleID, query, reference, Annotation, Strain, Clade, SpeciesNumber, SpeciesName, pcntid, length)) %>%
   purrr::reduce(full_join, by=c("sampleID", "query", "reference", "Annotation", "Strain", "Clade", "SpeciesNumber", "SpeciesName", "pcntid", "length")) %>%
   mutate(sampleID=as.character(sampleID))
 #reference by annotation
@@ -414,7 +414,7 @@ ggplot(data=alns099_top) +
 ```
 Appear to be more reads that map to clades 3 and 4 than the other clades. Fewer annotations map ambiguously for the ~99% id hits, but the "ambiguity" is across more clades.
 
-## Species
+## Genomopecies
 ```{r}
 diffSpecies99top_100 <- duplicateReferences99top %>%
   map(~filter(.x, pcntid==100)) %>%
@@ -599,7 +599,7 @@ gardRelativeAbundance <-  alignmentsFinal %>%
 
 ## Genomospecies
 ```{r}
-speciesAlignmentsFinal <- alns099_top %>%
+speciesAlignmentsFinal <- alns099_top_Species %>%
   filter(Annotation %!in% duplicateSpeciesAnnos)
 #write_delim(speciesAlignmentsFinal, "./genomospeciesAlingmentsFinal.tsv", delim="\t")
 
@@ -609,6 +609,156 @@ gardSpeciesRelativeAbundance <-  speciesAlignmentsFinal %>%
   mutate(propGenomospecies=(n/sum(n)),
               Genomospecies=as.character(SpeciesNumber))
 #write_delim(gardSpeciesRelativeAbundance, "./gardGenomospeciesRelativeAbundance.tsv", delim="\t")
+```
+
+# Compare reads: clades vs. genomospecies
+```{r}
+duplicateCladeAnnos <- c("30S ribosomal protein S15", "30S ribosomal protein S2", "50S ribosomal protein L31", "Glutamyl-tRNA(Gln) amidotransferase subunit C", "Phosphoglucomutase", "Transketolase", "Pyruvate formate-lyase 1-activating enzyme", "Ribonucleoside-diphosphate reductase subunit beta nrdF2", "Valine--tRNA ligase")
+
+duplicateSpeciesOnly <- setdiff(duplicateSpeciesAnnos, duplicateCladeAnnos)
+
+alignmentsFinal %>%
+  group_by(Annotation, SampleID) %>%
+  summarise(matches=n_distinct(query)) %>%
+  mutate(Resolution=case_when(Annotation %in% duplicateSpeciesOnly~"Resolves to clade only",
+                              Annotation %!in% duplicateSpeciesOnly~"Resolves to clade and species")) %>%
+  ggplot(aes(x=Annotation, y=matches, color=Resolution)) +
+  geom_violin() +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, hjust=1, size=5)) +
+  labs(x="", y="n reads/sample")
+
+alignmentsFinal %>%
+  mutate(Resolution=case_when(Annotation %in% duplicateSpeciesOnly~"Resolves to clade only",
+                              Annotation %!in% duplicateSpeciesOnly~"Resolves to clade and species")) %>%
+  ggplot(aes(x=Annotation, fill=Resolution)) +
+  geom_histogram(stat = "count") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, hjust=1, size=5)) +
+  labs(x="", y="n reads")
+```
+
+```{r}
+alignmentsFinal %>%
+  filter(SampleID %in% c("1062101108", "1062101238", "2050501168")) %>%
+  mutate(Resolution=case_when(Annotation %in% duplicateSpeciesOnly~"Resolves to clade only",
+                              Annotation %!in% duplicateSpeciesOnly~"Resolves to clade and species"), 
+         Resolution=factor(Resolution, levels = c("Resolves to clade only", "Resolves to clade and species"))) %>%
+  
+  ggplot(aes(x=Annotation, fill=Clade, alpha=Resolution)) +
+  geom_histogram(stat = "count") +
+  theme_bw() +
+  scale_fill_manual(values=c("salmon", "indianred",  "blue3")) +
+  scale_alpha_manual(values=c(0.4, 1)) +
+  facet_wrap(~SampleID, nrow=1) +
+  theme(axis.text.x = element_text(angle = 90, hjust=1, size=5)) +
+  labs(x="", y="n reads")
+```
+
+
+## Hits and Reference Gene lengths
+```{r}
+# DNA string set of reference genes
+ refGenes <- "./ref_genes/refGenes.fasta" %>%
+  readDNAStringSet()
+# table of gene IDs, withds, clades, and genomospecies
+refGenesLengths <- refGenes %>%
+  as.data.frame() %>%
+  rownames_to_column("reference") %>%
+  mutate(seqwidth=nchar(x)) %>%
+  select(-x) %>%
+  left_join(refAnnotations, by="reference") %>%
+  dplyr::rename(Strain=strain) %>%
+  left_join(refDF[,c("Strain", "Clade")], by="Strain") %>%
+  left_join(referenceGenomospecies, by="Strain")
+```
+
+  Matches by gene length
+```{r}
+seqWidths <- refGenesLengths %>%
+  group_by(Annotation) %>%
+  summarise(`Mean Gene Length`=mean(seqwidth))
+
+alignmentsFinal %>%
+  group_by(Annotation) %>%
+  summarise(Matches=n_distinct(query)) %>%
+  mutate(Resolution=case_when(Annotation %in% duplicateSpeciesOnly~"Resolves to clade only",
+                                       Annotation %!in% duplicateSpeciesOnly~"Resolves to clade and species")) %>%
+  left_join(seqWidths) %>%
+  ggplot(aes(y=Matches, x=`Mean Gene Length`, color=Resolution)) +
+  geom_point() +
+  theme_bw()
+```
+  
+  Separated by Clade
+```{r}
+seqWidthsClades <- refGenesLengths %>%
+  group_by(Annotation, Clade) %>%
+  summarise(`Mean Gene Length`=mean(seqwidth))
+
+alignmentsFinal %>%
+  group_by(Annotation, Clade) %>%
+  summarise(`Mean Matches`=mean(n_distinct(query))) %>%
+  mutate(Resolution=case_when(Annotation %in% duplicateSpeciesOnly~"Resolves to clade only",
+                              Annotation %!in% duplicateSpeciesOnly~"Resolves to clade and species")) %>%
+  left_join(seqWidths) %>%
+  split(.$Annotation) %>%
+  map(.x, ggplot(aes(y=`Mean Matches`, x=`Mean Gene Length`, shape=Clade)) +
+  geom_point() +
+  theme_bw())
+```
+
+## Summary Stats of Reference Gene Lengths
+```{r}
+refGenelengthsFig <- refGenesLengths %>%
+  group_by(Annotation, Clade) %>%
+  summarise(`Mean Length per Clade`=mean(seqwidth),
+            `SD Length per Clade`=sd(seqwidth), 
+            `Range Length per Clade`=max(seqwidth)-min(seqwidth)) %>%
+  ungroup() %>%
+  mutate(Resolution=case_when(Annotation %in% duplicateCladeAnnos~"Does not resolve to clade or species",
+                              Annotation %in% duplicateSpeciesOnly~"Resolves to clade only",
+                              Annotation %!in% duplicateSpeciesAnnos~"Resolves to clade and species"))
+
+refGenelengthsFig %>%
+  ggplot(aes(x=Annotation, y=`Mean Length per Clade`, color=Resolution)) +
+  geom_boxplot()+
+  theme_bw() +
+  theme(axis.text.x = element_text(angle=90, hjust=1, size=5))
+
+refGenelengthsFig %>%
+  ggplot(aes(x=Annotation, y=`SD Length per Clade`, color=Resolution)) +
+  geom_boxplot() +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle=90, hjust=1, size=5))
+
+refGenelengthsFig %>%
+  ggplot(aes(x=Annotation, y=`Range Length per Clade`, color=Resolution)) +
+  geom_boxplot()+
+  theme_bw() +
+  theme(axis.text.x = element_text(angle=90, hjust=1, size=5))
+  
+refGenelengthsFig %>%
+  group_by(Annotation) %>%
+  summarise(`Range of mean lengths`=max(`Mean Length per Clade`)-min(`Mean Length per Clade`)) %>%
+  ungroup() %>%
+  mutate(Resolution=case_when(Annotation %in% duplicateCladeAnnos~"Does not resolve to clade or species",
+                              Annotation %in% duplicateSpeciesOnly~"Resolves to clade only",
+                              Annotation %!in% duplicateSpeciesAnnos~"Resolves to clade and species")) %>%
+  ggplot(aes(x=Annotation, y=`Range of mean lengths`, color=Resolution)) +
+  geom_point()+
+  theme_bw() +
+  theme(axis.text.x = element_text(angle=90, hjust=1, size=5))
+```
+  
+Gene Lengths per Clade, one graph per gene  
+```{r}
+refGenesLengths %>%
+  split(.$Annotation) %>%
+  map(~ggplot(.x, aes(x=Clade, y=seqwidth,  color=Clade)) +
+   geom_boxplot(outlier.alpha = 0) +
+   geom_point() +
+   facet_wrap(~Annotation, scales = "free"))
 ```
 
 # Session Info

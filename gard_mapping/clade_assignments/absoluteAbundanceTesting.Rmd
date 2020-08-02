@@ -109,11 +109,39 @@ cladeColorsN <- list(scale_color_manual(values=c("#CC79A7", "#D55E00", "#56B4E9"
 cladeColors <- list(scale_color_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#000000"), labels=c("C1", "C2", "C3", "C4", "C5", "C6", bquote('Total'~italic(Gardnerella)))),
                      scale_fill_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#000000"), labels=c("C1", "C2", "C3", "C4", "C5", "C6", bquote('Total'~italic(Gardnerella)))))
 
-taxColorsN <-   list(scale_color_manual(values=c("mediumpurple4", "#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#A9A9A9", "darkgreen", "khaki1", "darkblue", "darkred", "darkseagreen4"), labels=c("A. vaginae", "G. vaginalis C1", "G. vaginalis C2", "G. vaginalis C3", "G. vaginalis C4", "G. vaginalis C5", "G. vaginalis C6", "G. vaginalis uncharacterized", "L. crispatus", "L. gasseri", "L. iners", "L. jensenii", "P. bivia")),
-  scale_fill_manual(values=c("mediumpurple4", "#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#A9A9A9", "darkgreen", "khaki1", "darkblue", "darkred", "darkseagreen4"), labels=c("A. vaginae", "G. vaginalis C1", "G. vaginalis C2", "G. vaginalis C3", "G. vaginalis C4", "G. vaginalis C5", "G. vaginalis C6", "G. vaginalis uncharacterized", "L. crispatus", "L. gasseri", "L. iners", "L. jensenii", "P. bivia")))
+taxColorsN <-   list(scale_color_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#A9A9A9", "#000000", 
+                                                 "darkgreen", "khaki1", "darkred", "darkblue",
+                                                 "mediumpurple4", "#C42104",  "darkseagreen4", "#2004C2"), 
+                                        labels=c("C1", "C2", "C3", "C4", "C5", "C6", bquote('Uncharacterized'~italic(Gardnerella)), bquote('Total'~italic(Gardnerella)),
+                                                 bquote(italic("L. crispatus")), bquote(italic("L. gasseri")), bquote(italic("L. jensenii")), bquote(italic("L.iners")),
+                                                 bquote(italic("A. vaginae")), bquote(italic("M. hominis")), bquote(italic("P. bivia")), bquote(italic("U. parvum"))
+                                        )), 
+                     scale_fill_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#A9A9A9", "#000000", 
+                                                 "darkgreen", "khaki1", "darkred", "darkblue",
+                                                 "mediumpurple4", "#C42104",  "darkseagreen4", "#2004C2"), 
+                                        labels=c("C1", "C2", "C3", "C4", "C5", "C6", bquote('Uncharacterized'~italic(Gardnerella)), bquote('Total'~italic(Gardnerella)),
+                                                 bquote(italic("L. crispatus")), bquote(italic("L. gasseri")), bquote(italic("L. jensenii")), bquote(italic("L.iners")),
+                                                 bquote(italic("A. vaginae")), bquote(italic("M. hominis")), bquote(italic("P. bivia")), bquote(italic("U. parvum"))
+                                        ))
+                                          
+)
 
-taxColors <-   list(scale_color_manual(values=c("mediumpurple4", "#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73","darkgreen", "khaki1", "darkblue", "darkred", "darkseagreen4"), labels=c("A. vaginae", "G. vaginalis C1", "G. vaginalis C2", "G. vaginalis C3", "G. vaginalis C4", "G. vaginalis C5", "G. vaginalis C6", "L. crispatus", "L. gasseri", "L. iners", "L. jensenii", "P. bivia")),
-  scale_fill_manual(values=c("mediumpurple4", "#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73","darkgreen", "khaki1", "darkblue", "darkred", "darkseagreen4"), labels=c("A. vaginae", "G. vaginalis C1", "G. vaginalis C2", "G. vaginalis C3", "G. vaginalis C4", "G. vaginalis C5", "G. vaginalis C6", "L. crispatus", "L. gasseri", "L. iners", "L. jensenii", "P. bivia")))
+taxColors <-   list(scale_color_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#000000", 
+                                                 "darkgreen", "khaki1", "darkred", "darkblue",
+                                                 "mediumpurple4", "#C42104",  "darkseagreen4", "#2004C2"), 
+                                        labels=c("C1", "C2", "C3", "C4", "C5", "C6", bquote('Total'~italic(Gardnerella)),
+                                                 bquote(italic("L. crispatus")), bquote(italic("L. gasseri")), bquote(italic("L. jensenii")), bquote(italic("L.iners")),
+                                                 bquote(italic("A. vaginae")), bquote(italic("M. hominis")), bquote(italic("P. bivia")), bquote(italic("U. parvum"))
+                                        )), 
+                     scale_fill_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#000000", 
+                                                 "darkgreen", "khaki1", "darkred", "darkblue",
+                                                 "mediumpurple4", "#C42104",  "darkseagreen4", "#2004C2"), 
+                                        labels=c("C1", "C2", "C3", "C4", "C5", "C6", bquote('Total'~italic(Gardnerella)),
+                                                 bquote(italic("L. crispatus")), bquote(italic("L. gasseri")), bquote(italic("L. jensenii")), bquote(italic("L.iners")),
+                                                 bquote(italic("A. vaginae")), bquote(italic("M. hominis")), bquote(italic("P. bivia")), bquote(italic("U. parvum"))
+                                        ))
+                                          
+)
 
 binaryColors <- list(scale_color_manual(values=c("#56B4E9", "#D55E00")),
                      scale_fill_manual(values=c("#56B4E9", "#D55E00")))
@@ -319,16 +347,41 @@ aaCladesPlot <- DF %>%
     geom_boxplot(outlier.alpha=0) +
     geom_jitter() +
     cladeColorsN +
-    #scale_color_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#000000"), labels=c("C1", "C2", "C3", "C4", "C5", "C6", "Uncharacterized", bquote('Total'~italic(Gardnerella)))) +
     scale_x_discrete(labels=c("C1", "C2", "C3", "C4", "C5", "C6", "Uncharacterized", bquote('Total'~italic(Gardnerella)))) +
     facet_grid(Cohort~.) +
-    labs(y="Absolute Abundance")
+    labs(y="Absolute Abundance", x="") +
+    theme(axis.text.x = element_text(angle=45, hjust=1),
+          legend.position = "none") 
 
 aaCladesPlot
 
 aaCladesPlot +
-  scale_y_log10() +
-  theme(axis.text.x = element_text(angle=45, hjust=1))
+  scale_y_log10()
+```
+
+
+## Distribution clades and additional key taxa
+```{r}
+aaTaxPlot <- DF %>%
+  right_join(totalAbundancesNoOut, by="SampleID") %>%  # filter outliers
+  gather("Taxon", "Abundance", taxaOfInterestAbbrN) %>%
+  mutate(Taxon=factor(Taxon, levels=taxaOfInterestAbbrN)) %>%
+  ggplot(aes(x=Taxon, y=Abundance, color=Taxon)) +
+    geom_boxplot(outlier.alpha=0) +
+    geom_jitter() +
+    taxColorsN +
+    scale_x_discrete(labels=c("C1", "C2", "C3", "C4", "C5", "C6", bquote('Uncharacterized'~italic(Gardnerella)), bquote('Total'~italic(Gardnerella)),
+                       bquote(italic("L. crispatus")), bquote(italic("L. gasseri")), bquote(italic("L. jensenii")), bquote(italic("L.iners")),
+                       bquote(italic("A. vaginae")), bquote(italic("M. hominis")), bquote(italic("P. bivia")), bquote(italic("U. parvum")))) +
+    facet_grid(Cohort~.) +
+    labs(y="Absolute Abundance", x="") +
+    theme(axis.text.x = element_text(angle=45, hjust=1),
+          legend.position = "none")
+
+aaTaxPlot
+
+aaTaxPlot +
+  scale_y_log10()
 ```
 
 ## Correlation among important taxa

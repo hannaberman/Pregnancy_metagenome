@@ -440,6 +440,7 @@ ggplot(aes(x=GWcoll, y=n, shape=Method, size=Method, color=Var)) +
                               "Genomospecies 12",
                               "Genomospecies 13")) +
   scale_shape_manual(values = c(16, 5)) +
+  scale_y_log10() +
   facet_wrap(~SubjectID, nrow=2, scales = "free_y") +
   labs(x="Gestation weeks at collection", y="Proportion of Gardnerella", shape="Method", color="Variant") +
   guides(color=guide_legend(override.aes=list(shape=15, size=3), ncol=2)) +
