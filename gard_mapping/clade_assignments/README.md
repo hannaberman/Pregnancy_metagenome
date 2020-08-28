@@ -41,9 +41,20 @@ Contents: Analysis
 8) `./absoluteAbundanceTesting.Rmd`: Look at using absolute abundances (normalize 
 
 
+TRYING ONE STRAIN PER CLADE OR GENOMOSPECIES IN THE REFERENCE DATABASE (Ran in August 2020)
+1) Get reference genes with `getRefGenes_oneStrainEach.Rmd`
+2) Perform two step filtering and alingmnet with Bowtie2 v 2.1.0 (with mapq 20) and USEARCH v11.0.667_i86linux32
+3) ONLY ASSESSED ASSIGNMENTS USING 1 STRAIN PER GENOMOSPECIES DATABASE. Asses proportions of clades and genomospecies based on the clade or genomospecies identity of the reference gene that each shotgun reads mapped to. 
+    a) Assign shotgun reads to genomospecies and clades using `./cladeAssignments_1Strain1Genomospecies.Rmd`. `cladeAssignments_1Strain1Clade.Rmd` not used
+    i) alignments saved as `alns_1Strain1Genomospecies.Rdata` and `alns_1Strain1Clade.Rdata`. Second .Rdata file not used.
+    b) Compare proportions of V4 variants, clades, or genomospecies with `shotgun1Strain1GSVs16SVariants.Rmd`
+   
+   
+Test minhash distances with `refGeneDists.Rmd`
+
 Other files: 
 `cladeAssignmentsBBmapUsearch.Rmd`: test results substituting BBmap for Bowtie2 (stick with Bowtie2). 
-``
+
 Notes:
 May 2020: 
 -Add labels and items on figures for samples with Gardnerella that is uncharacterized
