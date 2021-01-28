@@ -1,0 +1,779 @@
+---
+title: "Gardnerella Core Genome Phylogeny"
+author: "HLB"
+date: "October 2020"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+---
+# Set up
+## Packages
+```{r, warning=FALSE}
+library(tidyverse)
+```
+```{r, warning=FALSE, message=FALSE}
+library(ggrepel)
+library(treeio)
+library(ggtree)
+library(ape)
+library(Biostrings)
+library(formattable)
+library(ggdendro)
+`%!in%` <- negate(`%in%`)
+```
+
+## File Paths
+```{r}
+dataPath <- "/Volumes/GoogleDrive/My\ Drive/Callahan\ Lab/metagenome_gardnerella/gardPhylogeny"
+
+# Metadata
+gardDF <- "./GardnerellaMetadata.csv" %>%
+  read_csv() %>%
+  filter(in_phylogeny==TRUE)
+
+# phylogeny outputs
+prokkaStatsDir <- file.path(dataPath, "prokka_annotated_genomes", "txt")
+
+roaryPresAbs <- "./build_phylogeny/20201002_Roary95/gene_presence_absence.csv" %>%
+  read_csv
+
+pangenomeStats <- "./build_phylogeny/20201002_Roary95/summary_statistics.txt" %>%
+  read_delim(delim="\t", col_names = c("gene_type", "definition", "count")) %>%
+  filter(gene_type!="Total genes") %>%
+  mutate(gene_type=factor(gene_type, levels=c("Core genes", "Soft core genes", "Shell genes", "Cloud genes")))
+
+gardTree <- "./build_phylogeny/20201005_ml_phylogeny/RAxML_originalLabelledTree.rootedGardTree"
+rootedGardTree <- "./build_phylogeny/20201005_ml_phylogeny/RAxML_labelledTree.rootedGardTree"
+
+ffnDir <- file.path(dataPath, "prokka_annotated_genomes", "ffn")
+
+# whole genome mash distances
+load(file.path(dataPath, "assembly_quality_control/completeness_quality_dereplication/mashDists.Rdata"))
+assemblyDistDF <- mashDists
+remove(mashDists)
+
+# output paths
+figureOut <- "/Volumes/GoogleDrive/My\ Drive/Callahan\ Lab/metagenome_gardnerella/FIGURES/gard_phyl"
+coreGeneFastasDir <- file.path(dataPath, "core_gene_fastas")
+#dir.create(coreGeneFastasDir)
+assemblyCoreGenesDir <- file.path(dataPath, "assembly_core_genes")
+#dir.create(assemblyCoreGenesDir)
+```
+
+## ggplot
+```{r}
+theme_set(theme_bw()+
+          theme(panel.grid = element_blank()))
+cladeColors <- list(scale_color_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#000000"), labels=c("C1", "C2", "C3", "C4", "C5", "C6", bquote('Total'~italic(Gardnerella)))),
+                     scale_fill_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#000000"), labels=c("C1", "C2", "C3", "C4", "C5", "C6", bquote('Total'~italic(Gardnerella)))))
+
+binaryColors <- list(scale_color_manual(values=c("#0072B2", "#D55E00")),
+                     scale_fill_manual(values=c("#0072B2", "#D55E00")))
+
+okabeIto <- c("#E69F00", "#F0E442", "#0072B2", "#009E73", "#56B4E9", "#D55E00", "#CC79A7", "#000000")
+```
+
+
+# Gardnerella Assembly Summary Stats
+## Genome sizes
+```{r}
+meanGenomeLength <- mean(gardDF$total_length)
+meanGenomeLength
+sd(gardDF$total_length)
+range(gardDF$total_length)
+
+gardDF %>%
+  ggplot(aes(total_length)) +
+  geom_histogram() +
+  geom_vline(xintercept = meanGenomeLength) +
+  labs(x="Genome Length (Mbp)", y="Count")
+#ggsave(file.path(figureOut, "20201009_genomeLengthHist.png"))
+```
+
+## Genes identified by Prokka
+```{r, message=FALSE}
+prokkaStats <- prokkaStatsDir %>%
+  list.files(pattern=".txt", full.names = TRUE) %>%
+  map(~read_delim(.x, delim="\n", col_names = c("category"))) %>%
+  map(~separate(.x, category, into = c("category", "result"), sep=": ")) %>%
+  map(~spread(.x, category, result)) %>%
+  purrr::reduce(full_join) %>%
+  separate(organism, c("Genus", "Species", "Strain"), sep=" ") %>%
+  select(Strain, Genus, bases, contigs, gene, mRNA, CDS, rRNA, tRNA, tmRNA, repeat_region)
+  
+head(prokkaStats)
+```
+
+## Core and Pangenome
+  Total number of genes in the pangenome:
+```{r}
+sum(pangenomeStats$count)
+```
+
+  Representation:
+```{r}
+# Donut chart
+pangenomeStats %>%
+  ggplot(aes(x=2, y=count, label=count)) +
+  geom_bar(aes(fill=gene_type), stat = "identity") +
+  scale_fill_manual(values=okabeIto[1:4], labels=c("Core genes (99% ≤ strains ≤ 100%)",
+                                                   "Soft core genes (95% ≤ strains < 99%)", 
+                                                   "Shell genes (15% ≤ strains < 95%)",
+                                                   "Cloud genes (0% ≤ strains < 15%)")) +
+  coord_polar("y", start=-100, direction = -1) +
+  #geom_label(aes(label = count, x = 2, y = (count/2))) +
+  theme_void() +
+  labs(x="", y="", fill="") +
+  xlim(.2,2.5)
+#ggsave(file.path(figureOut, "20201009_corePanGenesFraction.png"))
+```
+
+# Gardnerella Phylogeny
+```{r}
+tree <- "./build_phylogeny/20201005_ml_phylogeny/RAxML_bipartitionsBranchLabels.bootstrappedGardTree" %>%
+  read.raxml()
+
+root <- "./build_phylogeny/20201005_ml_phylogeny/RAxML_labelledTree.rootedGardTree" %>%
+  treeio::read.newick()
+
+placement <- "./build_phylogeny/20201005_ml_phylogeny/RAxML_portableTree.rootedGardTree.jplace" %>%
+  read.jplace()
+```
+
+```{r, fig.width=7, fig.height=7}
+outgroupRootTree <- root %>%
+  root(outgroup="QUERY___B_longum_51A")
+
+outgroupRootTree %>%
+  ggtree(branch.length = "none") +
+  geom_tiplab() +
+  geom_nodelab(mapping=aes(label=node)) +
+  geom_treescale()  
+
+outgroupRootTree %>%
+  drop.tip("QUERY___B_longum_51A") %>%
+  ggtree() + 
+  geom_tiplab() +
+  geom_nodelab(mapping=aes(label=node)) +
+  geom_treescale()
+```
+# Define Clade and Genomospecies Dataframe
+## Clades
+```{r}
+C1 <- outgroupRootTree %>%
+  tree_subset("JCP7275", levels_back=3) %>%
+  .$tip.label
+C1
+
+C2 <- outgroupRootTree %>%
+   tree_subset("W11", levels_back=3) %>%
+  .$tip.label
+C2
+
+C3 <- outgroupRootTree %>%
+  tree_subset("NR010", levels_back=3) %>%
+  .$tip.label
+C3
+
+C4 <- outgroupRootTree %>%
+  tree_subset("6420B", levels_back=3) %>%
+  .$tip.label
+C4
+
+C5 <- c("KA00735", "CMW7778B")
+
+C6 <- "KA00225"
+```
+
+## Genomospecies
+### Unclear genomospecies NR010? W11? N160?
+  *W11*
+    W11 genomospecies identity is unclear by placement on phylogeny. It was labeled genomospecies 3 by Khan et al., 2020 "A generalist lifestyle allows rare Gardnerella spp. to persist at low levels in the vaginal microbiome" (preprint on *BioRXiV*).
+```{r}
+# closest whole genome mash distance function
+smallestANI <- function(STRAIN){
+  DF <- assemblyDistDF %>%
+    filter(assembly1==gardDF$GenBank_accession[gardDF$Strain==STRAIN]|assembly2==gardDF$GenBank_accession[gardDF$Strain==STRAIN]) %>%
+    filter(distance==min(distance)) %>%
+    mutate(strain1=gardDF$Strain[gardDF$GenBank_accession==assembly1],
+           strain2=gardDF$Strain[gardDF$GenBank_accession==assembly2],
+           ANI=1-distance) %>%
+    select(strain1, strain2, distance, ANI)
+  return(DF)  
+}
+
+smallestANI("W11")
+```
+  Closest by approximate whole genome ANI is 00703C2mash (GS3) at about 98%.
+  
+  *NR010*
+```{r}
+smallestANI("NR010")
+```
+  Smallest approximate ANI is ~90%. Label this genomospecies "X" for now.
+  
+  *N160*
+  N160 appears to be in GS9 based on this phylogeny, by Khan et al. appears to place it in GS10. Unsure their method, but possibly by *cpn60* sequence.
+```{r}
+smallestANI("N160")
+```
+  Closest by whole genome mash distance is strain 6119V5 (GS9) with ~98% ANI. 
+
+### Define genomospecies identities
+```{r}
+GS1 <- outgroupRootTree %>%
+  tree_subset("N165", levels_back=2) %>%
+  .$tip.label
+GS2 <-c("JCP7275", "41V", "55152", "1400E", "JCP8108")
+GS3 <- outgroupRootTree %>%
+  tree_subset("00703C2mash", levels_back=5) %>%
+  .$tip.label
+GS4 <- outgroupRootTree %>%
+  tree_subset("JCP8070", levels_back=2) %>%
+  .$tip.label
+GS5 <- outgroupRootTree %>%
+  tree_subset("6420B", levels_back=2) %>%
+  .$tip.label
+GS6 <- outgroupRootTree %>%
+  tree_subset("UMB0264", levels_back=2) %>%
+  .$tip.label
+GS7 <- c("JCP8481A", "PSS_7772B")
+GS8 <- c("101", "00703Dmash", "UMB1686")
+GS9 <- c("6119V5", "N160")
+GS10 <- "1500E"
+GS11 <- "GED7760B"
+GS12 <- c("KA00735", "CMW7778B")
+GS13 <- "KA00225"
+GSX <- "NR010"
+```
+
+## Clade and genomoospecies dataframe
+```{r}
+cladeGSDF <- gardDF %>%
+  select(Strain) %>%
+  mutate(Genomospecies=case_when(Strain %in% GS1 ~ "GS1",
+                                 Strain %in% GS2 ~ "GS2",
+                                 Strain %in% GS3 ~ "GS3",
+                                 Strain %in% GS4 ~ "GS4",
+                                 Strain %in% GS5 ~ "GS5",
+                                 Strain %in% GS6 ~ "GS6",
+                                 Strain %in% GS7 ~ "GS7",
+                                 Strain %in% GS8 ~ "GS8",
+                                 Strain %in% GS9 ~ "GS9",
+                                 Strain %in% GS10 ~ "GS10",
+                                 Strain %in% GS11 ~ "GS11",
+                                 Strain %in% GS12 ~ "GS12",
+                                 Strain %in% GS13 ~ "GS13",
+                                 Strain %in% GSX ~ "GSX"),
+         Clade=case_when(Strain %in% C1 ~ "C1",
+                         Strain %in% C2 ~ "C2",
+                         Strain %in% C3 ~ "C3",
+                         Strain %in% C4 ~ "C4",
+                         Strain %in% C5 ~ "C5",
+                         Strain %in% C6 ~ "C6"))
+  
+# save clade and genomospecies dataframe
+# write_csv(cladeGSDF, "../refGardnerellaCladesGenomos.csv")
+```
+
+# Single-Copy Core Genes
+```{r}
+coreGenes <- roaryPresAbs %>%
+  filter(`No. isolates`==85)
+
+# check single copy
+coreGenes$`Avg sequences per isolate` %>%
+  table
+```
+
+## Testing core genome annotation counts in pangenome
+  Use strict definition of annotation of gene family appearing only once, to ensure only single-copy core genes are used in the 
+  All replicated annotations:
+```{r}
+replicatedGeneFamilies <- roaryPresAbs %>%
+  group_by(Annotation) %>%
+  summarise(n=n()) %>%
+  filter(n>1) %>%
+  .$Annotation
+
+length(replicatedGeneFamilies)
+```
+
+  Observe core genes with replicated annotations and get single-copy core genes
+```{r}
+replicatedCoreGeneFamilies <- coreGenes$Annotation[coreGenes$Annotation %in% replicatedGeneFamilies]
+replicatedCoreGeneFamilies
+length(replicatedCoreGeneFamilies)
+
+singleCopyCoreGenes <- coreGenes %>%
+  filter(Annotation %!in% replicatedGeneFamilies)
+  
+nrow(singleCopyCoreGenes)
+
+#sanity check
+(nrow(singleCopyCoreGenes)+length(replicatedCoreGeneFamilies)) == length(coreGenes$Annotation)
+```
+
+# Dereplicate sequences within clades/genomospeices
+  Remove replicate sequences within clades or genomospecies by identifying replicate sequences
+## Organize files for M
+## Read in genomes
+```{r}
+refAssemblies <- ffnDir %>%
+  list.files(pattern = ".ffn", full.names = TRUE) %>%
+  map(~readDNAStringSet(.x))
+
+names(refAssemblies) <- ffnDir %>%
+  list.files(pattern = ".ffn") %>%
+  str_extract(".*(?=\\.ffn)")
+
+# take a look at what sequence names look like
+head(names(refAssemblies$`00703Bmash`))
+```
+
+## Make list of single-copy core genes for each reference genome assembly
+```{r}
+strains <- gardDF$Strain
+  
+# Gene ID lists by Strain
+coreGenesByStrain <- singleCopyCoreGenes %>%
+  select(all_of(strains)) %>%
+  as.list() %>%
+  map(~paste(.x, collapse = "|")) %>%
+  .[names(refAssemblies)] # reorder to match order of ffn files
+
+head(coreGenesByStrain)[1:2]
+
+# Gene ID lists by gene family
+coreGenesByFamily <- singleCopyCoreGenes %>%
+  select(Gene, all_of(strains)) %>%
+  column_to_rownames(var = "Gene") %>%
+  t() %>%
+  as.data.frame() %>%
+  as.list()
+
+head(coreGenesByFamily)[1:2]
+length(coreGenesByFamily)
+```
+
+## select only core genomes
+```{r}
+coreGeneSeqs <- refAssemblies %>%
+  map2(coreGenesByStrain, ~.x[str_detect(names(.x), .y)])
+
+# length test
+lengthTest <- map(coreGeneSeqs, length) %>%
+  unlist
+names(lengthTest) <- NULL
+table(lengthTest)
+```
+  70 single-copy core genes for all 85 genome assemblies.
+
+### Save fasta files of core genomes of each assembly
+```{r}
+#map2(coreGeneSeqs, names(refAssemblies), ~writeXStringSet(.x, filepath = file.path(assemblyCoreGenesDir, paste0(.y, ".fasta")), format="fasta"))
+```
+
+# Get core genome : core genome distances
+```{r}
+system("mash -h")
+```
+
+```{r}
+coreGenomeMashList <- assemblyCoreGenesDir %>%
+   list.files(pattern="fasta", full.names = TRUE) %>%
+   combn(., 2) %>%
+   t %>%
+   as.data.frame() %>%
+   as.list()
+coreGenomePath1 <- coreGenomeMashList$V1
+names(coreGenomePath1) <- c(1:length(coreGenomePath1))
+coreGenomePath2 <- coreGenomeMashList$V2
+```
+
+## Run Mash
+```{r}
+# #coreGenomeMashOut <- map2_df(coreGenomePath1, coreGenomePath2, ~system(paste0("mash dist '", .x, "' '", .y, "'"), intern=TRUE))
+# 
+# # make temp clade/genomospecies tables for adding this information to the single-copy core gene distance data frames
+# CGS1 <- cladeGSDF %>%
+#   dplyr::rename(strain1=Strain,
+#                 clade1=Clade,
+#                 genomospecies1=Genomospecies)
+# CGS2 <- cladeGSDF %>%
+#   dplyr::rename(strain2=Strain,
+#                 clade2=Clade,
+#                 genomospecies2=Genomospecies)
+# 
+# coreGenomeDists <- coreGenomeMashOut %>%
+#   t %>%
+#   as.data.frame() %>%
+#   separate(V1, into = c("strain1", "strain2", "distance", "p", "Matching_hashes"), sep="\t") %>%
+#   mutate(strain1=str_extract(strain1, "(?<=assembly_core_genes\\/).*(?=\\.fasta)"),
+#          strain2=str_extract(strain2, "(?<=assembly_core_genes\\/).*(?=\\.fasta)"),
+#          distance=as.numeric(distance)) %>%
+#   left_join(CGS1, by="strain1") %>%
+#   left_join(CGS2, by="strain2") %>%
+#   select(strain1, clade1, genomospecies1, strain2, clade2, genomospecies2, distance, p, Matching_hashes)
+# 
+# head(coreGenomeDists)
+# 
+# # remove those temp data frames
+# remove(CGS1)
+# remove(CGS2)
+# 
+#  save(coreGenomeDists, file="./coreGenomeDists.Rdata")
+ load(file="./coreGenomeDists.Rdata")
+```
+
+## Choose dereplication cutoff and create clusters
+  Plot clusters
+```{r, fig.width=5, fig.height=5}
+genomeClust <- coreGenomeDists %>%
+  select(strain1, strain2, distance) %>%
+  mutate(strain1=factor(strain1, levels=names(refAssemblies)),
+         strain2=factor(strain2, levels=names(refAssemblies))) %>%
+  spread(strain2, distance, drop=FALSE) %>%
+  column_to_rownames(var="strain1") %>%
+  t %>%
+  as.dist %>%
+  hclust()
+
+genomeDend <- genomeClust %>%
+  dendro_data(type="rectangle")
+
+# Create data frames for 
+genomeDendLabel <- genomeDend %>%
+  label %>%
+  mutate(Strain=label) %>%
+  left_join(cladeGSDF, by="Strain") %>%
+  select(-Strain)
+
+ggplot() +
+  geom_segment(data=segment(genomeDend), aes(x=x, y=y, xend=xend, yend=yend)) + 
+  geom_hline(yintercept = 0.01, linetype="dashed", color="dark grey") + 
+  geom_hline(yintercept = 0.02, linetype="dashed", color="dark grey") +
+  geom_text(data=genomeDendLabel, aes(x=x, y=y, label=label, hjust=-0.1, color=Genomospecies), size=3) +
+  geom_point(data=genomeDendLabel, aes(x=x, y=y, shape=Clade)) +
+  coord_flip() + scale_y_reverse(expand=c(0.2, 0), breaks=seq(0, 0.2, 0.01)) + 
+  theme(axis.line.y=element_blank(),
+    axis.ticks.y=element_blank(),
+    axis.text.y=element_blank(),
+    axis.title.y=element_blank(),
+    panel.background=element_rect(fill="white"),
+    panel.grid=element_blank()) +
+  labs(x="", y="Distance")
+```
+Remove N165 and JCP7275
+
+```{r}
+coreGenomeDists0 <- coreGenomeDists %>%
+  filter(strain1 %!in% c("N165", "JCP7275"),
+         strain2 %!in% c("N165", "JCP7275"))
+```
+
+```{r}
+coreGenomeDists0 %>%
+  mutate(withinClade=(clade1==clade2),
+         withinGenomo=(genomospecies1==genomospecies2),
+         comparison=case_when(withinGenomo==TRUE~"within genomospecies", 
+                              withinClade==TRUE&withinGenomo==FALSE~"within clade",
+                                clade1=="C1"&clade2=="C2"~"C1-C2",
+                                clade1=="C2"&clade2=="C1"~"C1-C2", 
+                                clade1=="C3"&clade2=="C4"~"C3-C4",
+                                clade1=="C4"&clade2=="C3"~"C3-C4",
+                                clade1=="C5"&clade2=="C6"~"C5-C6", 
+                                clade1=="C6"&clade2=="C5"~"C5-C6",
+                                clade1=="C1"&clade2=="C3"~"C1/C2-C3/C4",
+                                clade1=="C1"&clade2=="C4"~"C1/C2-C3/C4",
+                                clade1=="C3"&clade2=="C1"~"C1/C2-C3/C4",
+                                clade1=="C4"&clade2=="C1"~"C1/C2-C3/C4",
+                                clade1=="C2"&clade2=="C3"~"C1/C2-C3/C4",
+                                clade1=="C2"&clade2=="C4"~"C1/C2-C3/C4",
+                                clade1=="C3"&clade2=="C2"~"C1/C2-C3/C4",
+                                clade1=="C4"&clade2=="C2"~"C1/C2-C3/C4",
+                                clade1=="C1"&clade2=="C6"~"C1/C2/C3/C4-C6",
+                                clade1=="C2"&clade2=="C6"~"C1/C2/C3/C4-C6",
+                                clade1=="C3"&clade2=="C6"~"C1/C2/C3/C4-C6",
+                                clade1=="C4"&clade2=="C6"~"C1/C2/C3/C4-C6",
+                                clade1=="C6"&clade2=="C1"~"C1/C2/C3/C4-C6",
+                                clade1=="C6"&clade2=="C2"~"C1/C2/C3/C4-C6",
+                                clade1=="C6"&clade2=="C3"~"C1/C2/C3/C4-C6",
+                                clade1=="C6"&clade2=="C4"~"C1/C2/C3/C4-C6",
+                                clade1=="C1"&clade2=="C5"~"C1/C2/C3/C4-C5",
+                                clade1=="C2"&clade2=="C5"~"C1/C2/C3/C4-C5",
+                                clade1=="C3"&clade2=="C5"~"C1/C2/C3/C4-C5",
+                                clade1=="C4"&clade2=="C5"~"C1/C2/C3/C4-C5",
+                                clade1=="C5"&clade2=="C1"~"C1/C2/C3/C4-C5",
+                                clade1=="C5"&clade2=="C2"~"C1/C2/C3/C4-C5",
+                                clade1=="C5"&clade2=="C3"~"C1/C2/C3/C4-C5",
+                                clade1=="C5"&clade2=="C4"~"C1/C2/C3/C4-C5"),
+         comparison=factor(comparison, levels=c("C1/C2/C3/C4-C5", "C1/C2-C3/C4", "C1/C2/C3/C4-C6",  "C1-C2", "C3-C4", "C5-C6", "within clade", "within genomospecies"))) %>%
+  ggplot(aes(x=distance, fill=comparison, color=comparison)) +
+  geom_histogram(binwidth=0.001) +
+  geom_vline(xintercept = 0.019, linetype="dashed", color="dark grey") +
+  scale_color_manual(values=okabeIto) +
+  scale_fill_manual(values=okabeIto) +
+  scale_x_continuous(breaks = seq(0,0.125, 0.005)) +
+  theme(axis.text.x = element_text(angle = 45, hjust=1))
+#ggsave(filename = file.path(figureOut, "20210104_coreGenomeDistHist.png"))
+```
+
+```{r}
+coreGenomeDists0 %>%
+  mutate(withinClade=case_when(clade1==clade2~clade1,
+                               clade1!=clade2~"between clades")) %>%
+  ggplot(aes(x=distance, fill=withinClade, color=withinClade)) +
+  geom_histogram(binwidth = 0.001) +
+  scale_fill_manual(values=rev(okabeIto)[1:6]) +
+  scale_color_manual(values=rev(okabeIto)[1:6]) +
+  scale_x_continuous(breaks = seq(0,0.125, 0.005)) +
+  theme(axis.text.x = element_text(angle = 45, hjust=1)) +
+  labs(x="distance", y="count", fill="within clade", color="within clade")
+#ggsave(filename = file.path(figureOut, "20201104_coreGenomeDistHist_clades.png"))
+```
+
+  Largest within genomospecies distance:
+```{r}
+coreGenomeDists0 %>%
+  filter(genomospecies1==genomospecies2) %>%
+  filter(distance==max(distance))
+```
+  Largest within genomoscpecies distance is 0.022205
+  
+```{r}
+coreGenomeDists0 %>%
+  mutate(withinGenomo=case_when(genomospecies1==genomospecies2~genomospecies1,
+                                genomospecies1!=genomospecies2~"between genomospecies"),
+         withinGenomo=factor(withinGenomo, levels=c("between genomospecies", "GS1", "GS2", "GS3", "GS4", "GS5", "GS6", "GS7", "GS8", "GS9", "GS12"))) %>%
+  ggplot(aes(x=distance, fill=withinGenomo, color=withinGenomo)) +
+  geom_histogram(binwidth=0.001) +
+  geom_vline(xintercept = 0.019, linetype="dashed", color="dark grey") +
+  scale_x_continuous(breaks = seq(0,0.125, 0.005)) +
+  theme(axis.text.x = element_text(angle = 45, hjust=1)) +
+  labs(x="distance", y="count", fill="within genomospecies", color="within genomospecies")
+#ggsave(filename = file.path(figureOut, "20210104_coreGenomeDistHist_genomospecies.png"))
+```
+
+  Define clusters and identify replicate core genomes at distance of 0.019
+```{r}
+strains0 <- setdiff(names(refAssemblies), c("N165", "JCP7275")) # remove assemblies that are not being considered
+
+genomeClust0 <- coreGenomeDists0 %>% # with JCP7275 and N165 removed
+  select(strain1, strain2, distance) %>%
+  mutate(strain1=factor(strain1, levels=strains0),
+         strain2=factor(strain2, levels=strains0)) %>%
+  spread(strain2, distance, drop=FALSE) %>%
+  column_to_rownames(var="strain1") %>%
+  t %>%
+  as.dist %>%
+  hclust()
+
+coreClusters0 <- cutree(genomeClust0, h=0.019) %>% # cluster at 0.019 distance
+  as.data.frame() %>%
+  dplyr::rename(cluster=".") %>%
+  rownames_to_column(var="Strain")
+
+# number of clusters
+n_distinct(coreClusters0$cluster)
+
+# histogram of assemblies per cluster
+coreClusters0 %>%
+  group_by(cluster) %>%
+  summarise(n=n()) %>%
+  ggplot(aes(n)) +
+  geom_histogram(bins=25) +
+  #scale_x_continuous(breaks=seq(1,11,1)) +
+  labs(x="assemblies per cluster")
+
+# summary of number of assemblies per cluster
+coreClusters0 %>%
+  group_by(cluster) %>%
+  summarise(n=n()) %>%
+  .$n %>%
+  summary
+```
+
+### Select highest quality sequence
+```{r}
+names(coreGeneSeqs) <- names(refAssemblies)
+
+coreClusters <- coreGeneSeqs %>%
+  .[names(coreGeneSeqs) %!in% c("N165", "JCP7275")] %>% # remove assemblies we are not using for mapping
+  as.list() %>%
+  map_df(., width) %>% #core genome lengths
+  colSums() %>%
+  as.data.frame() %>%
+  dplyr::rename(core_genome_length=".") %>%
+  rownames_to_column(var="Strain") %>%
+  left_join(coreClusters0, by="Strain") %>%
+  left_join(gardDF[,c("Strain", "assembly_level", "contig_N50", "contig_L50")], by="Strain") %>%
+  replace_na(list(contig_N50=9999999, contig_L50=1)) # replace values in complete assemblies
+
+coreClusters %>%
+  ggplot(aes(core_genome_length)) +
+  geom_histogram(bins = 50)
+
+coreClusters %>%
+  group_by(assembly_level) %>%
+  summarise(mean=mean(core_genome_length),
+            min=min(core_genome_length),
+            firstQ=quantile(core_genome_length, c(0.25)),
+            median=median(core_genome_length),
+            thirdQ=quantile(core_genome_length, c(0.75)),
+            max=max(core_genome_length))
+
+# all sizes
+coreClusters %>%
+  .$core_genome_length %>%
+  summary
+```
+  Use median complete assembly genome core genome length of 77574 as reference length. Is also the median of all core genome lengths
+  
+  Select one core genome per cluster
+```{r}
+includeCoreGenomes <- coreClusters %>%
+  group_by(cluster) %>%
+  filter(contig_N50==max(contig_N50)) %>% # first criterion is assembly quality
+  filter(abs(core_genome_length-77574)==min(abs(core_genome_length-77574))) %>% # second criterion is core genome length
+  filter(Strain!="GV37") %>% # still a duplicate in cluster 6, keep 409-05
+  .$Strain
+```
+
+  Make sure each clade is represented and each genomospecies is represented
+```{r}
+cladeGSDF %>%
+  filter(Strain %in% includeCoreGenomes) %>%
+  group_by(Clade) %>%
+  tally()
+
+cladeGSDF %>%
+  filter(Strain %in% includeCoreGenomes) %>%
+  group_by(Genomospecies) %>%
+  tally()
+```
+
+  Save mapping core genome database
+```{r}
+# Sequences
+coreRefDB <- coreGeneSeqs[names(coreGeneSeqs) %in% includeCoreGenomes] %>%
+  `names<-`(NULL) %>%
+   do.call(c, .)
+# remove annotations from name
+names(coreRefDB) <- str_extract(names(coreRefDB), ".*_[0-9]{5}") 
+
+singleCopyCoreGenes0 <- singleCopyCoreGenes %>%
+  select(Gene, Annotation, strains) %>%
+  gather("Strain", "reference", strains) %>%
+  dplyr::rename(gene=Gene,
+                annotation=Annotation)
+
+# Create reference data frame
+coreRefDB_DF <- coreRefDB %>%
+  names() %>%
+  as.data.frame() %>%
+  dplyr::rename(reference=".") %>%
+  left_join(singleCopyCoreGenes0, by="reference") %>%
+  left_join(cladeGSDF, by="Strain")
+
+# save files
+#writeXStringSet(coreRefDB, filepath = "../clade_assignments/ref_genes/refGenes.fasta") # fasta of sequences
+#write_csv(coreRefDB_DF, "../clade_assignments/ref_genes/refGenesDF.csv") #data frame
+```
+
+# One reference genome per genomospecies
+## Group based on genomospecies and select representative
+```{r}
+names(coreGeneSeqs) <- names(refAssemblies)
+
+coreSelectDF <- coreGeneSeqs %>%
+  .[names(coreGeneSeqs) %!in% c("N165", "JCP7275")] %>% # remove assemblies we are not using for mapping
+  as.list() %>%
+  map_df(., width) %>% #core genome lengths
+  colSums() %>%
+  as.data.frame() %>%
+  dplyr::rename(core_genome_length=".") %>%
+  rownames_to_column(var="Strain") %>%
+  left_join(cladeGSDF, by="Strain") %>%
+  left_join(gardDF[,c("Strain", "assembly_level", "contig_N50", "contig_L50")], by="Strain") %>%
+  replace_na(list(contig_N50=9999999, contig_L50=1)) # replace values in complete assemblies
+
+coreSelectDF %>%
+  ggplot(aes(core_genome_length)) +
+  geom_histogram(bins = 50)
+
+coreSelectDF %>%
+  group_by(assembly_level) %>%
+  summarise(mean=mean(core_genome_length),
+            min=min(core_genome_length),
+            firstQ=quantile(core_genome_length, c(0.25)),
+            median=median(core_genome_length),
+            thirdQ=quantile(core_genome_length, c(0.75)),
+            max=max(core_genome_length))
+
+# all sizes
+coreSelectDF %>%
+  .$core_genome_length %>%
+  summary
+```
+
+
+  Use median complete assembly genome core genome length of 77574 as reference length. Is also the median of all core genome lengths
+  
+  Select one core genome per genomospecies
+```{r}
+includeCoreGenomes <- coreSelectDF %>%
+  group_by(Genomospecies) %>%
+  filter(contig_N50==max(contig_N50)) %>% # first criterion is assembly quality
+  filter(abs(core_genome_length-77574)==min(abs(core_genome_length-77574))) %>% # second criterion is core genome length
+  filter(Strain!="GV37") %>% # still a duplicate in GS 6, keep 409-05
+  .$Strain
+```
+
+  Make sure each clade is represented and each genomospecies is represented
+```{r}
+cladeGSDF %>%
+  filter(Strain %in% includeCoreGenomes) %>%
+  group_by(Clade) %>%
+  tally()
+
+cladeGSDF %>%
+  filter(Strain %in% includeCoreGenomes) %>%
+  group_by(Genomospecies) %>%
+  tally()
+```
+
+  Save mapping core genome database
+```{r}
+# Sequences
+coreRefDB <- coreGeneSeqs[names(coreGeneSeqs) %in% includeCoreGenomes] %>%
+  `names<-`(NULL) %>%
+   do.call(c, .)
+# remove annotations from name
+names(coreRefDB) <- str_extract(names(coreRefDB), ".*_[0-9]{5}") 
+
+singleCopyCoreGenes0 <- singleCopyCoreGenes %>%
+  select(Gene, Annotation, strains) %>%
+  gather("Strain", "reference", strains) %>%
+  dplyr::rename(gene=Gene,
+                annotation=Annotation)
+
+# Create reference data frame
+coreRefDB_DF <- coreRefDB %>%
+  names() %>%
+  as.data.frame() %>%
+  dplyr::rename(reference=".") %>%
+  left_join(singleCopyCoreGenes0, by="reference") %>%
+  left_join(cladeGSDF, by="Strain")
+
+# save files
+#writeXStringSet(coreRefDB, filepath = "../clade_assignments/ref_genes/refGenes.fasta") # fasta of sequences
+#write_csv(coreRefDB_DF, "../clade_assignments/ref_genes/refGenesDF.csv") #data frame
+```
+
+
+# Session Info
+```{r}
+sessionInfo()
+```
