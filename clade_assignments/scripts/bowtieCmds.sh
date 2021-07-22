@@ -108,10 +108,11 @@ declare -a arr=(
 4009035368
 4009835178
 4009835228
-4009835268)
+4009835268
+)
 
 ## now loop through the above array
 for i in "${arr[@]}"
 do
-sbatch --exclude=node1,node2,node3,node4,node5,node6,node7,node8,node9,node10,node11,node12,node16,node17 /home/hlberman/VMMG/gard_map/scripts/bowtieAlign.sh $i
+sbatch --exclude=node1,node2,node3,node4,node5,node6,node8,node9,node10,node11,node12,node13,node14,node15,node16,node17,node60,node61,node62,node63,node64,node65 /home/hlberman/VMMG/gard_map/scripts/bowtieAlign.sh $i
 done

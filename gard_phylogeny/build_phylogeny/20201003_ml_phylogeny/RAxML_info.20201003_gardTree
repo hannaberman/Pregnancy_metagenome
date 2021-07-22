@@ -1,0 +1,74 @@
+
+
+Using BFGS method to optimize GTR rate parameters, to disable this specify "--no-bfgs" 
+
+
+
+This is RAxML version 8.2.12 released by Alexandros Stamatakis on May 2018.
+
+With greatly appreciated code contributions by:
+Andre Aberer      (HITS)
+Simon Berger      (HITS)
+Alexey Kozlov     (HITS)
+Kassian Kobert    (HITS)
+David Dao         (KIT and HITS)
+Sarah Lutteropp   (KIT and HITS)
+Nick Pattengale   (Sandia)
+Wayne Pfeiffer    (SDSC)
+Akifumi S. Tanabe (NRIFS)
+Charlie Taylor    (UF)
+
+
+Alignment has 21241 distinct alignment patterns
+
+Proportion of gaps and completely undetermined characters in this alignment: 3.43%
+
+RAxML rapid hill-climbing mode
+
+Using 1 distinct models/data partitions with joint branch length optimization
+
+
+Executing 1 inferences on the original alignment using 1 distinct randomized MP trees
+
+All free model parameters will be estimated by RAxML
+ML estimate of 25 per site rate categories
+
+Likelihood of final tree will be evaluated and optimized under GAMMA
+
+GAMMA Model parameters will be estimated up to an accuracy of 0.1000000000 Log Likelihood units
+
+Partition: 0
+Alignment Patterns: 21241
+Name: No Name Provided
+DataType: DNA
+Substitution Matrix: GTR
+
+
+
+
+RAxML was called as follows:
+
+raxmlHPC-AVX2 -w /Volumes/GoogleDrive/My Drive/Callahan Lab/metagenome_gardnerella/pregnancy_metagenome/gard_phylogeny/build_phylogeny/20201003_ml_phylogeny -p 732790 -m GTRCAT -s /Volumes/GoogleDrive/My Drive/Callahan Lab/metagenome_gardnerella/pregnancy_metagenome/gard_phylogeny/build_phylogeny/20201002_Roary95/core_gene_alignment.aln -n 20201003_gardTree 
+
+
+Partition: 0 with name: No Name Provided
+Base frequencies: 0.251 0.218 0.258 0.273 
+
+Inference[0]: Time 246.925047 CAT-based likelihood -628681.133939, best rearrangement setting 10
+alpha[0]: 1.000000 rates[0] ac ag at cg ct gt: 1.121286 3.463863 1.208242 0.139914 5.370918 1.000000 
+
+
+Conducting final model optimizations on all 1 trees under GAMMA-based models ....
+
+Inference[0] final GAMMA-based Likelihood: -698528.578157 tree written to file /Volumes/GoogleDrive/My Drive/Callahan Lab/metagenome_gardnerella/pregnancy_metagenome/gard_phylogeny/build_phylogeny/20201003_ml_phylogeny/RAxML_result.20201003_gardTree
+
+
+Starting final GAMMA-based thorough Optimization on tree 0 likelihood -698528.578157 .... 
+
+Final GAMMA-based Score of best tree -698528.578157
+
+Program execution info written to /Volumes/GoogleDrive/My Drive/Callahan Lab/metagenome_gardnerella/pregnancy_metagenome/gard_phylogeny/build_phylogeny/20201003_ml_phylogeny/RAxML_info.20201003_gardTree
+Best-scoring ML tree written to: /Volumes/GoogleDrive/My Drive/Callahan Lab/metagenome_gardnerella/pregnancy_metagenome/gard_phylogeny/build_phylogeny/20201003_ml_phylogeny/RAxML_bestTree.20201003_gardTree
+
+Overall execution time: 641.641503 secs or 0.178234 hours or 0.007426 days
+

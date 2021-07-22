@@ -1,0 +1,676 @@
+---
+title: "Qaulity, Completeness, and Dereplication of *Gardnerella* Genome Assemblies"
+author: "HLB"
+date: "September 2020"
+output:
+  html_document: 
+    toc: true
+    toc_float: true
+---
+  
+  Assess the completeness and quality of 124 *Gardnerella* genome assemblies in GenBank. Determine the number of 40 single-copy core genes from  *Mende et al. 2013: Accurate and universal delineation of prokaryotic species to assess completeness* to assess genome completeness. Observe assembly lengths, ungapped lengths, and number of sequences. Next, use mash v 2.2 to assess genomic distances among *Gardnerella* genome assemblies in GenBank for removing replicate assemblies. Select assemblies for reconstructing a *Gardnerella* phylogeny after removing replicate sequences over a threshold of similarity (a Mash distance of 0.005), and quality metrics of 50 single-copy core genes and an N50 score >= 5000. 
+
+# Set Up
+## Packages
+```{r, warning=FALSE}
+library(tidyverse)
+```
+```{r, warning=FALSE, message=FALSE}
+library(rBLAST)
+library(R.utils)
+library(Biostrings)
+library(formattable)
+library(ggnetwork)
+library(network)
+`%!in%` <- negate(`%in%`)
+```
+
+## File Paths
+```{r}
+repoPath <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/metagenome_gardnerella/pregnancy_metagenome/gard_phylogeny"
+dataPath <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/metagenome_gardnerella/gardPhylogeny"
+
+gardFastasDir <- file.path(dataPath, "_ncbi_downloads/genomes/")
+genomeAssemblyPaths <- gardFastasDir %>%
+  list.files(pattern = ".fna", full.names = TRUE)
+
+figureOut <- file.path(dataPath, "FIGURES/reference_genome_qc")
+blastDB <- "/Users/hlberman/Desktop/Mende40/Mende40"
+gardDF0 <-  file.path(repoPath, "GardnerellaMetadata.csv") %>%
+  read_csv
+
+resultsPath <- file.path(dataPath, "assembly_quality_control/completeness_quality_dereplication")
+
+statsDir <- file.path(dataPath, "_ncbi_downloads/genome_assemblies_asm_stats/ncbi-genomes-2020-09-01")
+
+phylogenyDir <- file.path(repoPath, "build_phylogeny/")
+prokkaOutDir <- file.path(dataPath, "prokka_annotated_genomes/")
+```
+
+## ggplot settings
+```{r}
+theme_set(theme_bw())
+binary_colors <- scale_color_manual(values=c("#0072B2", "#D55E00"))
+RefSeq_colors <- list(scale_color_manual(values=c("#0072B2", "#CC79A7", "#56B4E9",  "#009E73", "#D55E00", "#E69F00", "#F0E442")),scale_fill_manual(values=c("#0072B2", "#CC79A7", "#56B4E9",  "#009E73", "#D55E00", "#E69F00", "#F0E442")))
+```
+
+# Completenes: 40 single-copy core genes per genome assembly
+## Blastn
+  Gardnerella genome assembly fastas
+```{r}
+gardFastaFiles <- gardFastasDir %>%
+  list.files(pattern = ".fna.gz", full.names = TRUE)
+
+gardFastas <- gardFastaFiles %>%
+  map(~readDNAStringSet(.x, format = "fasta"))
+names(gardFastas) <- gardFastaFiles %>%
+  str_extract("GCA_.{11}")
+```
+
+### Create database
+```{r}
+#system(paste0("makeblastdb -in ./Mende40ATCC14019.fasta -dbtype nucl  -out ", blastDB))
+```
+### Run Blastn
+  Create blast object
+```{r}
+#mendeBlast <- blast(db = blastDB, type = "blastn")
+```
+
+  Run blastn
+```{r}
+#mendeBlastResults0 <- gardFastas %>%
+#  map(~predict(mendeBlast, .x, BLAST_args = "-perc_identity 60"))
+
+#mendeBlastResults <- mendeBlastResults0 %>%
+#  map2(names(.), ~mutate(.x, GenBank_accession=.y)) %>%
+#  map(~select(.x, GenBank_accession, everything()))
+
+#save(mendeBlastResults, file=file.path(resultsPath, "mendeBlastResults.Rdata"))
+load(file.path(resultsPath, "mendeBlastResults.Rdata"))
+```
+## Assess results  
+  Number of matches per genome assembly
+```{r}
+mendeCount <- mendeBlastResults %>%
+  map_df(~nrow(.x)) %>%
+  t %>%
+  as.data.frame %>%
+  rownames_to_column(var="GenBank_accession") %>%
+  dplyr::rename(mende_count=V1)
+
+range(mendeCount$mende_count)
+mean(mendeCount$mende_count)
+median(mendeCount$mende_count)
+```
+
+  Organize data frame
+```{r}
+gardDF <- gardDF0 %>%
+  left_join(mendeCount, by="GenBank_accession")
+
+gardDF_plot <- gardDF %>%
+  replace_na(list(environmental_sample=FALSE, RefSeq_excluded="included")) %>%
+  mutate(genome_coverage=str_extract(genome_coverage, "[^x]*"),
+         genome_coverage=as.numeric(genome_coverage),
+         RefSeq_excluded=case_when(RefSeq_excluded=="derived from metagenome; fragmented assembly; genome length too small"~"small, fragmented, meta-assembly",
+                                   RefSeq_excluded!="derived from metagenome; fragmented assembly; genome length too small"~RefSeq_excluded),
+         RefSeq_excluded=factor(RefSeq_excluded, levels=c("included", 
+                                                          "genome length too small; partial",
+                                                          "genome length too large",
+                                                          "fragmented assembly",
+                                                          "many frameshifted proteins",
+                                                          "derived from environmental source",
+                                                          "small, fragmented, meta-assembly")),
+         assembly_level=factor(assembly_level, levels=c("Contig", "Scaffold", "Chromosome", "Complete Genome")))
+```
+  Number of Mende et al. single-copy core genes found vs. genome coverage
+```{r}
+gardDF_plot %>%
+  ggplot(aes(y=mende_count, x=genome_coverage, color=Genus, shape=genome_rep, alpha=environmental_sample)) +
+  geom_point() +
+  binary_colors +
+  scale_y_continuous(breaks = seq(0,60,5)) +
+  scale_alpha_manual(values=c(1, 0.5)) +
+  labs(x="Genome Coverage", y="Count of Mende Core Genes (/40)", shape="Genome Representation", alpha="Environmental Sample")
+#ggsave(file.path(figureOut, "20200914_mendeCountVsCoverage.png"))
+```
+```{r}
+gardDF_plot %>%
+  ggplot(aes(y=mende_count, x=total_length, color=Genus, shape=genome_rep, alpha=environmental_sample)) +
+  geom_point() +
+  binary_colors +
+  scale_y_continuous(breaks = seq(0,60,5)) +
+  scale_alpha_manual(values=c(1, 0.5)) +
+  labs(x="Total Length (nts)", y="Count of Mende Core Genes (/40)", shape="Genome Representation", alpha="Environmental Sample")
+#ggsave(file.path(figureOut, "20200914_mendeCountVsLength.png"))
+```
+ 
+  Look at samples excluded from RefSeq
+```{r}
+gardDF_plot %>%
+  ggplot(aes(y=mende_count, x=genome_coverage, color=RefSeq_excluded)) +
+  geom_point() +
+  RefSeq_colors +
+  scale_y_continuous(breaks = seq(0,60,5)) +
+  theme(legend.position = "bottom", legend.direction = "vertical") +
+  #guides(col=guide_legend(nrow=4)) +
+  #coord_fixed(40/5) +
+  labs(x="Genome Coverage", y="Count of Mende Core Genes (/40)", color="RefSeq Exclusion Criteria")
+#ggsave(file.path(figureOut, "20200914_mendeCountVsCoverage_refseq.png"))
+```
+
+```{r}
+gardDF_plot %>%
+  ggplot(aes(y=mende_count, x=total_length, color=RefSeq_excluded)) +
+  geom_point() +
+  RefSeq_colors +
+  scale_y_continuous(breaks = seq(0,60,5)) +
+  scale_alpha_manual(values=c(1, 0.5)) +
+  #theme(legend.position = "bottom", legend.direction = "vertical") +
+  #guides(col=guide_legend(nrow=4)) +
+  labs(x="Total Length (nts)", y="Count of Mende Core Genes (/40)", color="RefSeq Exclusion Criteria")
+#ggsave(file.path(figureOut, "20200914_mendeCountVsLength_refseq.png"))
+```
+
+# Number of Contigs/Scaffolds/Chromosomes and sequence fragmentation
+## Number of sequences and assembly level
+  (*Gardnerella* genome assemblies only)
+```{r}
+gardDF_plot %>%
+  filter(Genus=="Gardnerella") %>%
+  ggplot(aes(x=assembly_level, y=n_seqs, color=RefSeq_excluded, fill=RefSeq_excluded)) +
+  #geom_point(position="dodge") +
+  geom_dotplot(binaxis="y", stackdir = "center", binwidth = 1, position="identity", method="histodot", dotsize = 7, alpha=0.6) +
+  RefSeq_colors +
+  #ylim(0,200) +
+  labs(x="Assembly Level", y="Number of Sequences", color="RefSeq Exclusion Criteria", fill="RefSeq Exclusion Criteria")
+#ggsave(file.path(figureOut, "20200914_nseqsByAssemblyLevel_refseq.png"))
+```
+  What are the scaffolds that have ~150 to 200 sequences
+```{r}
+gardDF_plot %>%
+  filter(Genus=="Gardnerella",
+         assembly_level=="Scaffold",
+         n_seqs<100|n_seqs>200) %>%
+  select(Strain, GenBank_accession, submitter, isolation_source)
+```
+  From multiple submissions/studies.
+
+# Contig N50 and L50
+  RefSeq exclusion criteria is regarding fragmentation is contig L50 above 500, contig N50 below 5000, or more than 2,000 contigs.
+  *Gardnerella* genome assemblies only
+  Contig N50:
+```{r, message=FALSE}
+gardDF_plot %>%
+  filter(Genus=="Gardnerella") %>%
+  ggplot(aes(x=assembly_level, y=contig_N50, fill=RefSeq_excluded, color=RefSeq_excluded)) +
+  geom_point(alpha=0.6) +
+  geom_hline(aes(yintercept=5000), linetype="dashed", color="darkgrey") +
+  RefSeq_colors +
+  scale_y_log10() +
+  labs(x="Assembly Level", y="Contig N50", fill="RefSeq Exclusion Criteria", color="RefSeq Exclusion Criteria")
+#ggsave(file.path(figureOut, "20200923_contigN50.png"))
+```
+  
+  Contig L50
+```{r, message=FALSE}
+gardDF_plot %>%
+  filter(Genus=="Gardnerella") %>%
+  ggplot(aes(x=assembly_level, y=contig_L50, color=RefSeq_excluded)) +
+  geom_point(alpha=0.6) +
+  geom_hline(aes(yintercept=500), linetype="dashed", color="darkgrey") +
+  RefSeq_colors +
+  labs(x="Assembly Level", y="Contig L50", color="RefSeq Exclusion Criteria")
+#ggsave(file.path(figureOut, "20200923_contigL50.png"))
+```
+
+# Dereplication
+## Mash Distances 
+  Set up assembly pair combinations to assess
+```{r}
+assemblyCombs <- gardDF %>%
+  mutate(filePath=genomeAssemblyPaths[str_detect(genomeAssemblyPaths, GenBank_accession)]) %>%
+  .$filePath %>%
+  combn(., 2) %>%
+  t %>%
+  as.data.frame() %>%
+  as.list()
+assemblyPath1 <- assemblyCombs$V1
+names(assemblyPath1) <- c(1:length(assemblyPath1))
+assemblyPath2 <- assemblyCombs$V2
+```
+  Software info
+```{r}
+system("mash -h")
+```
+  Run
+```{r}
+# mashDists <- map2_dfc(assemblyPath1, assemblyPath2, ~system(paste("mash dist", .x, .y), intern=TRUE)) %>%
+#   t %>%
+#   as.data.frame %>%
+#   separate(V1,into = c("assembly1", "assembly2", "distance", "p", "Matching_hashes"), sep="\t") %>%
+#   mutate(assembly1=str_extract(assembly1, "GCA_.{11}"),
+#          assembly2=str_extract(assembly2, "GCA_.{11}"),
+#          distance=as.numeric(distance),
+#          p=as.numeric(p))
+# 
+# save(mashDists, file = file.path(resultsPath, "mashDists.Rdata"))
+load(file.path(resultsPath, "mashDists.Rdata"))
+```
+    
+  Output
+```{r}
+head(mashDists)
+```
+  
+  Add strain names:
+```{r}
+gardDF1 <- gardDF0 %>%
+  replace_na(list(Strain="x")) %>%
+  mutate(Strain=case_when(Strain!="x"~Strain, 
+                          Strain=="x"~isolate))
+
+mashDistsDF <- mashDists %>%
+  dplyr::rename(GenBank_accession=assembly1) %>%
+  left_join(gardDF1[,c("Strain", "GenBank_accession", "Genus")], by="GenBank_accession") %>%
+  mutate(assembly1=paste(Strain, GenBank_accession, sep="_")) %>%
+  dplyr::rename(Genus1=Genus) %>%
+  select(-Strain, -GenBank_accession) %>%  
+  dplyr::rename(GenBank_accession=assembly2) %>%
+  left_join(gardDF1[,c("Strain", "GenBank_accession", "Genus")], by="GenBank_accession") %>%
+  mutate(assembly2=paste(Strain, GenBank_accession, sep="_")) %>%
+  dplyr::rename(Genus2=Genus) %>%
+  select(assembly1, Genus1, assembly2, Genus2, distance, p, Matching_hashes)
+```
+  Assess Results
+  Histogram of distances:
+```{r}
+mashDistsDF %>%
+  ggplot(aes(x=distance)) +
+  geom_histogram()
+#ggsave(file.path(figureOut, "20200921_mashDistHistogram.png"))
+```
+  Zoom in on distances 0 to 0.3:
+```{r}
+mashDistsDF %>%
+  ggplot(aes(x=distance)) +
+  geom_histogram()+
+  scale_x_continuous(breaks=seq(0,0.3, 0.05), limits = c(0,0.3))
+#ggsave(file.path(figureOut, "20200924_mashDistHistogram0to.3.png"))
+```
+
+  Zoom in further on distances 0 to 0.03:
+```{r}
+mashDistsDF %>%
+  ggplot(aes(x=distance)) +
+  geom_histogram() +
+  scale_x_continuous(breaks=seq(0,0.03, 0.005), limits = c(0,0.03))
+#ggsave(file.path(figureOut, "20200924_mashDistHistogram0to.03.png"))
+```
+
+### Distance = 1
+  Assess assemblies that share 0 matching hashes with other assemblies
+```{r}
+dists1 <- mashDistsDF %>%
+  filter(distance==1)
+
+dists1 %>%
+  select(assembly1, assembly2) %>%
+  gather("label", "Assembly", assembly1, assembly2) %>%
+  select(Assembly) %>%
+  group_by(Assembly) %>%
+  summarise(`Number of comparisons with distance 1`=n()) %>%
+  filter(`Number of comparisons with distance 1`>2) %>%
+  formattable(align="l")
+```
+  These are the assemblies that were not confirmed to be *Gardnerella*
+  
+  What assemblies does UMB0388 have similarity to?
+```{r}
+mashDistsDF %>%
+  select(-Genus1, -Genus2) %>%
+  gather("label", "assembly", assembly1, assembly2) %>%
+  filter(assembly=="UMB0388_GCA_002871555.1") %>%
+  ggplot(aes(x=distance)) +
+  geom_histogram()
+#ggsave(file.path(figureOut, "20200921_UMB0388MashDistHistogram.png"))
+```
+  
+  Which are nearly identical?
+```{r}
+mashDistsDF %>%
+  select(-Genus1, -Genus2) %>%
+  filter(assembly1=="UMB0388_GCA_002871555.1"|
+         assembly2=="UMB0388_GCA_002871555.1",
+         distance<0.002)  
+```
+  Greatest similarity is with other non-*Gardnerella* genome assembly. 
+
+### Distance = 0
+```{r}
+dists0 <- mashDistsDF %>%
+  filter(distance==0)
+
+dists0 %>%
+  select(assembly1, assembly2) %>%
+  dplyr::rename(`Assembly 1`=assembly1,
+                 `Assembly 2`=assembly2) %>%
+  formattable(align="l")
+```
+
+### Distances of culture collection assemblies
+  Get list of culture collection GenBank accesions
+```{r}
+ccAssemblies <- gardDF1 %>%
+  filter(str_detect(type_material, "type strain of Gardnerella vaginalis")|
+          !is.na(culture_collection)|
+          str_detect(Strain, "ATCC|14019|14018|49145")) %>%
+  mutate(ccAssemblies=paste(Strain, GenBank_accession, sep="_")) %>%
+  .$ccAssemblies
+
+ccAssemblies
+```
+  
+  Look at distances among culture collection assemblies
+```{r}
+ccAssemblyMatches <- mashDistsDF %>%
+  filter(assembly1 %in% ccAssemblies, 
+         assembly2 %in% ccAssemblies)
+
+ccAssemblyMatches %>%
+  ggplot(aes(x=distance)) +
+  geom_histogram()
+```
+  Distances greater than 0.01 are between different culture collection strains.
+```{r}
+atcc14018_strains <- gardDF1 %>%
+  filter(str_detect(type_material, "type strain of Gardnerella vaginalis")|
+           str_detect(culture_collection, "14018|14019")|
+           str_detect(Strain, "14019|14018")) %>%
+  mutate(atcc14018_strains=paste(Strain, GenBank_accession, sep="_")) %>%
+  .$atcc14018_strains
+length(atcc14018_strains)
+
+atcc49145_strains <- gardDF1 %>%
+  filter(str_detect(Strain, "49145|FDAARGOS")|
+         str_detect(culture_collection, "49145")) %>%
+  mutate(atcc49145_strains=paste(Strain, GenBank_accession, sep="_")) %>%
+  .$atcc49145_strains
+length(atcc49145_strains)
+
+ccAssemblyMatches0 <- ccAssemblyMatches %>%
+  filter(distance<0.01) %>%
+  mutate(cultureCollection_Strain=case_when(assembly1 %in% atcc14018_strains~"ATCC 14018/14019",
+                                            assembly1 %in% atcc49145_strains~"ATCC 49145"))
+
+ccAssemblyMatches0 %>%
+  ggplot(aes(x=distance)) +
+  geom_histogram() +
+  facet_wrap(~cultureCollection_Strain)
+```
+  There are 9 ATCC 14018/14019 assemblies. Two of these are lab-derived resistant strains. 14019_metR (Schuyler et al., 2015) and 14019c (Weeks et al., 2019) are resistant to metronydazole and clindamycin, respectively. 
+```{r}
+gardDF2 <- gardDF1 %>%
+  mutate(assembly1=paste(Strain, GenBank_accession, sep="_"),
+         assembly2=paste(Strain, GenBank_accession, sep="_"), 
+         assembly1_length=total_length, 
+         assembly2_length=total_length)
+
+ccAssemblyMatches1 <- ccAssemblyMatches0 %>%
+  left_join(gardDF2[,c("assembly1", "assembly1_length")], by="assembly1") %>%
+  left_join(gardDF2[,c("assembly2", "assembly2_length")], by="assembly2") %>%
+  mutate(assembly_length_diff=abs(assembly1_length-assembly2_length))
+
+ccAssemblyMatches1 %>%
+  ggplot(aes(x=distance, y=assembly_length_diff)) +
+  geom_point() +
+  facet_wrap(~cultureCollection_Strain) +
+  labs(x="minhash distance", y="assembly length difference")
+#ggsave(file.path(figureOut, "20200921_cultureCollectionStrains_distanceByLengthDiff.png"))
+```
+  Greater than 0 distances appears to be at least partly due to incomplete assemblies
+
+## Dereplicate
+```{r}
+mashDistsDF995 <- mashDistsDF %>%
+  filter(distance<0.005)
+
+# number of pairs
+nrow(mashDistsDF995)
+
+# number of unique assemblies that are 99.5%+ similar to another assembly
+mashDistsDF995 %>%
+  select(assembly1, assembly2) %>%
+  gather("pair#", "name", assembly1, assembly2) %>%
+  select(name) %>%
+  unique %>%
+  nrow
+```
+  
+  Visualize similar assemblies as a network:
+```{r, fig.width=7, fig.height=7}
+gardDF3 <- gardDF2 %>%
+  dplyr::rename(vertex.names=assembly1) %>%
+  replace_na(list(RefSeq_excluded="included")) %>%
+  mutate(cc_strain=case_when(vertex.names %in% atcc14018_strains~"ATCC 14018/14019",
+                             vertex.names %in% atcc49145_strains~"ATCC 49145"),
+         RefSeq_excluded=case_when(RefSeq_excluded=="derived from metagenome; fragmented assembly; genome length too small"~"small, fragmented, meta-assembly",
+                                   RefSeq_excluded!="derived from metagenome; fragmented assembly; genome length too small"~RefSeq_excluded),
+         RefSeq_excluded=factor(RefSeq_excluded, levels=c("included", 
+                                                          "genome length too large",
+                                                          "fragmented assembly",
+                                                          "many frameshifted proteins",
+                                                          "small, fragmented, meta-assembly"))) %>%
+    select(vertex.names, cc_strain, RefSeq_excluded, Genus)
+
+mashDistsDF995 %>%
+  select(assembly1, assembly2) %>%
+  network(directed = FALSE) %>%
+  ggnetwork() %>%
+  left_join(gardDF3, by="vertex.names") %>%
+  ggplot(aes(x=x, y=y, xend=xend, yend=yend, label=vertex.names)) +
+  geom_edges() +
+  geom_nodes() +
+  geom_nodelabel_repel(aes(color=RefSeq_excluded, fill=Genus), size=5) +
+  RefSeq_colors +
+  scale_fill_manual(values = c("#FFFFFF", "#aaaaaa")) +
+  theme_blank() +
+  theme(legend.text = element_text(size=15)) +
+  labs(color="RefSeq Exclusion Criteria")
+#ggsave(file.path(figureOut, "20200924_99.5percentGroups.png"), width=18, height=18, units="in")
+```
+  Using the threshold of a distance of 0.005 (~99.5% ANI), based on the distribution of distances, choose one sequence from these "clusters" of of 99.5% similar sequences. There are 49 assemblies that are at least 99.5% similar to another. They form 18 clusters. Choose the "best" of these.
+  
+  Define clusters:
+```{r}
+clusters <- mashDistsDF995 %>%
+  select(assembly1, assembly2) %>%
+  gather("pair#", "assemblyName", assembly1, assembly2) %>%
+  select(assemblyName) %>%
+  unique %>%
+  mutate(., cluster=case_when(str_detect(assemblyName, "14018_GCA_000178355.1|ATCC 14018_GCA_003397685.1|ATCC 14018_GCA_004336685.1|ATCC 14019_GCA_000159155.2|JCM 11026_GCA_001042655.1|DSM 4944_GCA_900105405.1|NCTC10287_GCA_900637625.1|GH021_GCA_003426345.1|14018c_GCA_004336715.1|14019_MetR_GCA_001278345.1")~1,
+                           str_detect(assemblyName, "49145_GCA_001913835.1|49145_GCA_003034925.1|FDAARGOS_296_GCA_002206225.2|FDAARGOS_568_GCA_003812765.1")~2,
+                           str_detect(assemblyName, "GH007_GCA_003426405.1|GH019_GCA_003426565.1|GH020_GCA_003426385.1|18.01_GCA_003397585.1")~3,
+                           str_detect(assemblyName, "26-12_GCA_001660745.1|UMB0170_GCA_002884855.1|UMB0264_GCA_002884875.1")~4,
+                           str_detect(assemblyName, "UMB0682_GCA_002862065.1|30-4_GCA_001641215.1")~5,
+                           str_detect(assemblyName, "UMB0358_GCA_013315085.1|UMB0770_GCA_002861945.1")~6,
+                           str_detect(assemblyName, "UMB0298_GCA_002861975.1|UMB0386_GCA_002861965.1")~7,
+                           str_detect(assemblyName, "N101_GCA_003369895.1|N153_GCA_003369935.1")~8,
+                           str_detect(assemblyName, "JCP8017A_GCA_000414605.1|JCP8017B_GCA_000414585.1")~9,
+                           str_detect(assemblyName, "UMB0912_GCA_002861125.1|UMB0913_GCA_002861145.1")~10,
+                           str_detect(assemblyName, "315-A_GCA_000214315.2|UMB0540_GCA_013315045.1")~11,
+                           str_detect(assemblyName, "UMB0662_GCA_013315255.1|UMB1350_GCA_013315125.1")~12,
+                           str_detect(assemblyName, "18-4_GCA_001660755.1|UMB0061_GCA_002861165.1")~13,
+                           str_detect(assemblyName, "JCP8481A_GCA_000414465.1|JCP8481B_GCA_000414445.1")~14,
+                           str_detect(assemblyName, "UMB0032A_GCA_002862015.1|UMB0032B_GCA_002862005.1")~15,
+                           str_detect(assemblyName, "23-12_GCA_001660735.1|UMB0233_GCA_002862045.1")~16,
+                           str_detect(assemblyName, "S2_012_000_R3_92_GCA_003240925.1|S2_012_000_R3_93_GCA_003240955.1")~17,
+                           str_detect(assemblyName, "UMB0388_GCA_002871555.1|MGYG-HGUT-00021_GCA_902362445.1")~18)) %>%
+  mutate(GenBank_accession=str_extract(assemblyName, "GCA_.{11}")) %>%
+  select(GenBank_accession, cluster) %>%
+  left_join(gardDF, by="GenBank_accession") %>%
+  replace_na(list(RefSeq_excluded="included")) %>%
+  mutate(RefSeq_excluded=case_when(RefSeq_excluded=="derived from metagenome; fragmented assembly; genome length too small"~"small, fragmented, meta-assembly",
+                                   RefSeq_excluded!="derived from metagenome; fragmented assembly; genome length too small"~RefSeq_excluded),
+         RefSeq_excluded=factor(RefSeq_excluded, levels=c("included", 
+                                                          "genome length too large",
+                                                          "fragmented assembly",
+                                                          "many frameshifted proteins",
+                                                          "small, fragmented, meta-assembly")),
+         assembly_level=factor(assembly_level, levels=c("Contig", "Scaffold", "Chromosome", "Complete Genome"), labels=c("Cont", "Scaf", "Chr", "CG")))
+```
+  Now select one genome assembly from each cluster.
+### Clusters 1 and 2
+  Look only at genomes assembled to the "complete genome level"
+```{r}
+clusters %>%
+  filter(cluster<=2,
+         assembly_level=="CG") %>%
+  split(.$cluster) %>%
+  map(~select(.x, Strain, GenBank_accession, mende_count, total_length, submitter, note))
+```
+ 1) Keep ATCC 14019; GCA_000159155.2, exclude all others
+ 2) Only one assembly at complete genome level. Choose this one.
+
+### Clusters 3 - 18
+```{r}
+clusters %>%
+  filter(cluster>=3) %>%
+  split(.$cluster) %>%
+  map(~select(.x, cluster, Strain, GenBank_accession, mende_count, assembly_level, total_length, contig_N50, contig_L50, RefSeq_excluded))
+```
+3) Choose UGent 18.01; GCA_003397585.1. Has the correct number of Mende et al. core genes and best N50 and L50 values, other assemblies also have issues such as frameshifted proteins.
+4) All three have the same number of Mende et al. core genes. UMB0264; GCA_002884875.1 has best contig N50 and L50 values.
+5) They both have the same number of Mende et al. core genes. UMB0682; GCA_002862065.1 has best contig N50 and L50 values.
+6) They both have the same number of Mende et al. core genes. UMB0770; GCA_002861945.1 has best contig N50 value.
+7) They both have the same number of Mende et al. core genes. UMB0386; GCA_002861965.1 has best contig N50 and L50 values.
+8) They both have the same number of Mende et al. core genes. N101; GCA_003369895.1 has best contig N50 value.
+9) They both have the same number of Mende et al. core genes. JCP8017A; GCA_000414605.1 has best contig N50 value.
+10) They both have the same number of Mende et al. core genes. UMB0913; GCA_002861145.1  has best contig N50 value.
+11) They both have the same number of Mende et al. core genes. 315-A; GCA_000214315.2  has best contig N50 and L50 values.
+12) They both have the same number of Mende et al. core genes. UMB0662; GCA_013315255.1  has best contig N50 and L50 values.
+13) They both have the same number of Mende et al. core genes. UMB0061; GCA_002861165.1  has best contig N50 and L50 values.
+14) JCP8481A; GCA_000414465.1 has 41 Mende et al. core genes, other assembly has 38.
+15) They both have the same number of Mende et al. core genes. UMB0032B; GCA_002862005.1  has best contig N50 and L50 values.
+16) They both have the same number of Mende et al. core genes. UMB0233; GCA_002862045.1 has best contig N50 and L50 values.
+17) Both are already excluded
+18) Both are already excluded
+
+### Filter out replicates
+```{r}
+replicateInclude0 <- clusters %>%
+  filter(RefSeq_excluded=="included",
+         Genus=="Gardnerella") %>%
+  group_by(cluster) %>%
+  filter(abs(mende_count-40)==min(abs(mende_count-40))) %>%
+  filter(contig_N50==max(contig_N50)&contig_L50==min(contig_L50)) %>%
+  .$GenBank_accession
+
+replicateInclude <- c("GCA_000159155.2", "GCA_003812765.1", replicateInclude0)
+
+replicateExclude <- clusters$GenBank_accession %>%
+  setdiff(replicateInclude)
+replicateExclude
+```
+
+# Filter Assemblies for Phylogeny
+## First pass filtering:
+  * non-*Gardnerella*
+  * partial assemblies
+  * meta-assemblies
+  * replicates
+```{r}
+firstPassFilterGard <- gardDF %>%
+  replace_na(list(RefSeq_excluded="included")) %>%
+  mutate(RefSeq_excluded=factor(RefSeq_excluded, levels=c("included",
+                                                          "genome length too small; partial",
+                                                          "genome length too large",
+                                                          "fragmented assembly",
+                                                          "many frameshifted proteins",
+                                                          "derived from environmental source",
+                                                          "derived from metagenome; fragmented assembly; genome length too small"))) %>%
+  filter(GenBank_accession %!in% replicateExclude) %>%
+  filter(Genus=="Gardnerella",
+         genome_rep=="Full",
+         is.na(environmental_sample))
+
+firstPassFilterGard %>%
+  ggplot(aes(x=contig_N50, y=mende_count, color=RefSeq_excluded)) +
+  geom_point() +
+  geom_vline(aes(xintercept = 5000), linetype="dashed") +
+  theme_bw() +
+  scale_x_log10() +
+  scale_color_manual(values=c("#0072B2", "#56B4E9",  "#009E73")) +
+  labs(x="Contig N50", y="Mende Count", color="RefSeq Exclusion Criteria")
+#ggsave(file.path(figureOut, "20200925_noRepNoUnkownNoPartialNometa_mendeVsN50.png"))
+```
+  Count what remains after first pass filtering:
+```{r}
+nrow(firstPassFilterGard)
+```
+  89 assemblies remain after first pass filtering. 
+  Exlcude assemblies with contig N50 < 5000 (RefSeq criterion for fragmentation). Add a cutoff at 50 Mende et al. single-copy core genes, based on break in distribution of Mende et al. single-copy core genes
+  
+## Gardnerella reference assemblies for recontstructing phylogeny"
+  **Filtering Criteria**
+  Remove the following:
+  * non-*Gardnerella*
+  * partial assemblies
+  * meta-assemblies
+  * replicates with less than Mash distance of 0.005 (choose representative with best number of single-copy core genes or highest contig N50)
+  * 50+ Mende et al. single-copy core genes
+  * Contig N50 < 5000
+```{r}
+finalFilteredGard <- firstPassFilterGard %>%
+  filter(mende_count<50,
+         contig_N50>5000|is.na(contig_N50)) %>%
+  .$GenBank_accession
+
+gardDF_Fin <- gardDF0 %>%
+  mutate(in_phylogeny=case_when(GenBank_accession %in% finalFilteredGard~TRUE,
+                                GenBank_accession %!in% finalFilteredGard~FALSE),
+         Strain=str_replace(Strain, " ", "_"))
+
+#write_csv(gardDF_Fin, file.path(repoPath, "GardnerellaMetadata.csv"))
+```
+  85 assemblies will be used in reconstructing the *G. vaginalis* phylogeny.
+
+# Set Up for Annotation with Prokka
+## Create directories
+```{r}
+#dir.create(phylogenyDir)
+#dir.create(file.path(phylogenyDir, "scripts"))
+#dir.create(prokkaOutDir)
+```
+
+## Write prokka script
+```{r}
+annotateAssemblies <- gardDF_Fin %>%
+  filter(in_phylogeny==TRUE) %>%
+  select(Strain, GenBank_accession) %>%
+  as.list()
+
+# write_lines("#!/bin/bash\n\n#commands to annotate gardnerella genome assemblies with prokka v1.14.6\n", file.path(phylogenyDir, "scripts/prokkaAnnotate.sh"))
+# 
+# annotateAssemblies %>%
+#   pmap_chr(~paste0("prokka --outdir '", prokkaOutDir, "", .x,
+#                "' --prefix ", .x,
+#                " --locustag ", .x,
+#                " --prefix ", .x,
+#                " --genus Gardnerella --species vaginalis --strain ", .x,
+#                " --addgenes --addmrna --usegenus --cpu 2 '",
+#                gardFastasDir, .y, "_genomic_genbank.fna'")) %>%
+#   write_lines(file.path(phylogenyDir, "scripts/prokkaAnnotate.sh"), append = TRUE)
+```
+
+## Unzip fasta files
+```{r}
+#gardFastaFiles %>%
+#  map(gunzip)
+```
+
+# Session Info
+```{r}
+sessionInfo()
+```

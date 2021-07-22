@@ -18,7 +18,7 @@ library(cooccur)
 File paths
 ```{r}
 #metadata
-sgDF <- file.path("..", "..", "shotgunMetadata.tsv") %>%
+sgDF <- file.path("..", "shotgunMetadata.tsv") %>%
   read_tsv() %>%
   mutate(SampleID=as.character(SampleID))
 
@@ -57,7 +57,7 @@ DFpa <- DF %>% #presence, absence DF
                        .x==0~0)) %>%
   mutate(GDcoll=as.numeric(as.character(GDcoll)))
 
-subsetSamples <- read_lines(file.path("..", "..", "sampleSubset.txt"))
+subsetSamples <- read_lines(file.path("..", "sampleSubset.txt"))
 ```
 
 Define the two groups of taxa pairs to assess: (six *Gardnerella vaginalis* clades and four *Lactobacillus* species, and total *Gardnerella vaginalis* and four *Lactobacilllus* species).  
@@ -67,7 +67,7 @@ gardnerellaClades <- c("Gardnerella_vaginalis_C1", "Gardnerella_vaginalis_C2", "
 cladesLactos <- c("Gardnerella_vaginalis_C1", "Gardnerella_vaginalis_C2", "Gardnerella_vaginalis_C3", "Gardnerella_vaginalis_C4", "Gardnerella_vaginalis_C5", "Gardnerella_vaginalis_C6", "Lactobacillus_crispatus", "Lactobacillus_gasseri", "Lactobacillus_iners", "Lactobacillus_jensenii")
 allGardLactos <- c("Gardnerella_vaginalis", "Lactobacillus_crispatus", "Lactobacillus_gasseri", "Lactobacillus_jensenii", "Lactobacillus_iners")
 
-cladesSpecies <- c("Lactobacillus_crispatus", "Lactobacillus_gasseri", "Lactobacillus_iners", "Lactobacillus_jensenii", "Gardnerella_vaginalis_C1", "Gardnerella_vaginalis_C2", "Gardnerella_vaginalis_C3", "Gardnerella_vaginalis_C4", "Gardnerella_vaginalis_C5", "Gardnerella_vaginalis_C6", "Atopobium_vaginae", "Mycoplasma_hominis", "Prevotella_bivia", "Ureaplasma_parvum")
+cladesSpecies <- c("Gardnerella_vaginalis_C1", "Gardnerella_vaginalis_C2", "Gardnerella_vaginalis_C3", "Gardnerella_vaginalis_C4", "Gardnerella_vaginalis_C5", "Gardnerella_vaginalis_C6", "Lactobacillus_crispatus", "Lactobacillus_gasseri",  "Lactobacillus_jensenii", "Lactobacillus_iners", "Atopobium_vaginae", "Mycoplasma_hominis", "Prevotella_bivia", "Ureaplasma_parvum")
 allGardSpecies <- c("Lactobacillus_crispatus", "Lactobacillus_gasseri", "Lactobacillus_iners", "Lactobacillus_jensenii", "Gardnerella_vaginalis", "Atopobium_vaginae", "Mycoplasma_hominis", "Prevotella_bivia", "Ureaplasma_parvum")
 ```
 
@@ -88,65 +88,78 @@ Effect size is the difference between observed and expected co-occurrences, norm
 ## Define functions
 Make a function to perform and plot analyses for convenience.  
 ```{r}
-cooccurr_analyses <- function(cohort, samples, organisms){  
+cooccurr_analyses <- function(samples, organisms){  
   x <- DFpa %>%
-    filter(Cohort==cohort,
-          is.element(SampleID, samples)) %>%
-    select(organisms) %>%
-    select_if(~sum(.x)!=0) %>%
-    t() %>%
-    as.matrix() %>%
-    cooccur(., type="spp_site", spp_names=TRUE, prob="hyper", eff_standard=TRUE, thresh=FALSE)
+    filter(is.element(SampleID, samples)) %>%
+    split(.$Cohort) %>%
+    map(~select(.x, organisms)) %>%
+    map(~select_if(.x, ~sum(.x)!=0)) %>%
+    map(t) %>%
+    map(as.matrix) %>%
+    map(~cooccur(.x, type="spp_site", spp_names=TRUE, prob="hyper", eff_standard=TRUE, thresh=FALSE))
   
   #remove p values 
-  x$results <- x$results %>%
-    select(-p_lt, -p_gt)
+#  x$Stanford$results <- x$Stanford$results %>%
+#    select(-p_lt, -p_gt)
+#  x$UAB$results <- x$UAB$results %>%
+#    select(-p_lt, -p_gt)
   
-  x0 <- x$results %>%
-    select(sp1_name, sp2_name, obs_cooccur, exp_cooccur, 
+ #x <- map(x, ~.x[["results"]])
+     
+  x0 <- x %>%
+    map(~.x[["results"]]) %>%
+    map(~select(.x, sp1_name, sp2_name, obs_cooccur, exp_cooccur, 
            # p_lt, ## no p-values for now
            # p_gt
-           ) %>%
-    mutate(sp1_name=as.character(sp1_name),
-           sp2_name=as.character(sp2_name))
+           )) %>%
+    map(~mutate(.x, sp1_name=as.character(sp1_name),
+           sp2_name=as.character(sp2_name)))
   
   x1 <- x %>%
-    effect.sizes() %>%
-    dplyr::rename(sp1_name=sp1,
-                  sp2_name=sp2) %>%
-    mutate(sp1_name=as.character(sp1_name),
-           sp2_name=as.character(sp2_name)) %>%
-    left_join(x0, by=c("sp1_name", "sp2_name"))
+    map(effect.sizes) %>%
+    map(~dplyr::rename(.x, sp1_name=sp1,
+                  sp2_name=sp2)) %>%
+    map(~mutate(.x, sp1_name=as.character(sp1_name),
+                sp2_name=as.character(sp2_name))) %>%
+    map2(x0, ~left_join(.x, .y, by=c("sp1_name", "sp2_name")))
 
   #make table to add missing sp1 and sp2's
   x2 <- x1 %>% 
-    dplyr::rename(sp1_name=sp2_name,
-                  sp2_name=sp1_name) 
+    map(~dplyr::rename(.x, sp1_name=sp2_name,
+                           sp2_name=sp1_name)) 
   #make full table  
   x3 <- x1 %>% 
-    full_join(x2, by=colnames(x1)) %>%
-    unique.data.frame()
+    map2(x2, ~full_join(.x, .y, by=colnames(x1))) %>%
+    map(unique.data.frame) %>%
+    map(~mutate(.x, sp1_name=factor(sp1_name, levels=organisms), #order x axis
+                    sp2_name=factor(sp2_name, levels=organisms)))
 
-  x3$sp1_name <- factor(x3$sp1_name, levels=organisms) #order x axis
-  x3$sp2_name <-  factor(x3$sp2_name, levels=organisms)  
+  #x3$sp1_name <- factor(x3$sp1_name, levels=organisms) 
+  #x3$sp2_name <-  factor(x3$sp2_name, levels=organisms)  
   
-  # removing redundant iformation:
+  # removing redundant information:
    x4 <- x3 %>%
-     select(sp1_name, sp2_name, effects) %>%
-     spread(sp2_name, effects)
+     map(~select(.x, sp1_name, sp2_name, effects)) %>%
+     map(~spread(.x, sp2_name, effects))
    x5 <- x4 %>% # remove sp1 names column and get lower triangle
-     select(-sp1_name) %>%
-     as.matrix()
-   x5[lower.tri(x5)] <- NA
+     map(~select(.x, -sp1_name)) %>%
+     map(as.matrix)
+   x5$Stanford[lower.tri(x5$Stanford)] <- NA
+   x5$UAB[lower.tri(x5$UAB)] <- NA  
 
+xs <- x3 %>%
+  map(~select(.x, sp1_name, sp2_name))
+      
   #add sp1 names column back and other columns
    x6 <- x5 %>%
-     as.data.frame() %>%
-     mutate(sp1_name=x4$sp1_name) %>%
-     select(sp1_name, everything()) %>% #rearrange columns
-     gather("sp2_name", "effects", c(2:ncol(.))) %>%
-     left_join(x3[,c("sp1_name", "sp2_name")], by=c("sp1_name", "sp2_name"))  %>% #"p_lt", "p_gt"
-     mutate(Cohort=cohort)
+     map(as.data.frame) %>%
+     map2(x4, ~mutate(.x, sp1_name=.y$sp1_name)) %>%
+     map(~select(.x, sp1_name, everything())) %>% #rearrange columns
+     map(~gather(.x, "sp2_name", "effects", c(2:ncol(.)))) %>%
+     map2(xs, ~left_join(.x, .y, by=c("sp1_name", "sp2_name"))) %>% #"p_lt", "p_gt"
+     map2(names(.), ~mutate(.x, Cohort=.y)) %>%
+     purrr::reduce(full_join) %>%
+     mutate(sp2_name=factor(sp2_name, levels=rev(organisms))) #order y axis (reverse of x axis))
     # mutate(p_lt=case_when(is.na(effects)==TRUE~1,
     #                       is.na(effects)==FALSE~p_lt),
     #        p_gt=case_when(is.na(effects)==TRUE~1,
@@ -168,19 +181,24 @@ cooccurr_analyses <- function(cohort, samples, organisms){
   samples <- ifelse(length(samples)==length(subsetSamples), "Sample Subset", "All Samples")
   title <- ifelse(length(organisms)==length(cladesSpecies), "Co-occurrence of G. vaginalis clades and key species", "Co-occurrence of total G. vaginalis and key species")
 
-    x6$sp2_name <-  factor(x6$sp2_name, levels=rev(organisms)) #order y axis (reverse of x axis)
+    #x6$sp2_name <-  factor(x6$sp2_name, levels=rev(organisms)) #order y axis (reverse of x axis)
   
-    plot <- ggplot(x6, aes(x=sp1_name, y=sp2_name, fill=effects)) + #label=pvalue
+   plot <- x6 %>%
+      filter(!is.na(effects)) %>%
+      ggplot(aes(x=sp1_name, y=sp2_name, fill=effects)) + #label=pvalue
       geom_tile() +
       #geom_text()+
       scale_fill_gradient2(low = "red", mid = "white", high = "blue", midpoint = 0) +
-      scale_x_discrete(position="bottom") +
+      scale_x_discrete(labels=c("C1", "C2", "C3", "C4", "C5", "C6", "Lc", "Lg", "Lj", "Li", "Av", "Mh", "Pb", "Up"), position="bottom", drop=FALSE) +
+      scale_y_discrete(labels=c("Up", "Pb", "Mh", "Av", "Li", "Lj", "Lg", "Lc", "C6", "C5", "C4", "C3", "C2", "C1"), drop=FALSE) +
       facet_wrap(~Cohort) +
-      theme(axis.text.x = element_text(angle = 45, hjust=1),
-            panel.background = element_blank(),
+      theme_bw() +
+      theme(
+            #axis.text.x = element_text(angle=90, hjust=1), 
+            panel.background = element_rect(fill="gray92"),
             panel.grid.major = element_blank(),
-            panel.grid.minor = element_blank()) +
-      labs(title=title, subtitle = paste0(cohort, ": ", samples), x=NULL, y=NULL, fill="Effect size")
+            panel.grid.minor=element_blank()) +
+      labs(title=title, subtitle = samples, x=NULL, y=NULL, fill="Effect size")
     
   return(list(Cooccur_summary=summary(x), 
               Cooccur_results=x$results, 
@@ -204,8 +222,12 @@ UAB: $N=45$ samples from 15 subjects, subset $N=14$ samples (subject 40047 did n
 ## Stanford
 ### All Samples
 ```{r, warning=FALSE}
-cooccurr_analyses("Stanford", sgDF$SampleID, cladesSpecies)
-cooccurr_analyses("Stanford", sgDF$SampleID, allGardSpecies)
+#cooccurr_analyses("Stanford", sgDF$SampleID, cladesSpecies)
+#cooccurr_analyses("Stanford", sgDF$SampleID, allGardSpecies)
+
+
+cooccurr_analyses(sgDF$SampleID, cladesSpecies)
+#ggsave("/Users/hlberman/Desktop/cooccurtest.png", height = 4, width = 7)
 ```
 
 ### Sample Subset

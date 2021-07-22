@@ -1,0 +1,205 @@
+---
+title: "Gardnerella Reference Genome Assemblies"
+author: "HLB"
+date: "September 2020"
+output: 
+  html_document:
+    toc: TRUE
+    toc_float: TRUE
+---
+
+Download *Gardnerella vaginalis* genome assemblies and metadata from NCBI GenBank.
+
+# Set up
+## Packages
+```{r}
+library(tidyverse)
+library(genbankr)
+library(biomartr)
+library(R.utils)
+```
+
+```{r, message=FALSE}
+
+ncbiDownloadsPath <- "../../gardPhylogeny/_ncbi_downloads"
+
+seqFilesPath <- file.path(ncbiDownloadsPath, "genomes")
+
+WGSmastersPath <- file.path(ncbiDownloadsPath, "genome_assemblies_wgs_gbff/ncbi-genomes-2020-09-01")
+
+assemblyStatsPath <- file.path(ncbiDownloadsPath, "genome_assemblies_asm_stats/ncbi-genomes-2020-09-01")
+
+assemblyIDs <- file.path(ncbiDownloadsPath, "assemblies.tsv") %>%
+  read_tsv %>%
+  select(-X5)
+```
+# Reference Sequences and Metadata
+## 1) Download sequences in FASTA format
+Go to NCBI "Assembly" database: `https://www.ncbi.nlm.nih.gov/assembly` to see what's out there.
+Use genbnk accessions from our ID list to download the assembly files in fasta format.
+```{r}
+# assemblyIDs$`GenBank Assembly ID (Accession.version)` %>%
+#    map(~getGenome(db="genbank", organism = .x, seqFilesPath, reference = FALSE))
+```
+
+Along with the sequence files in FASTA format, each sequence also has ".txt"" and ".tsv" files containing information about the sequence:
+```{r, message=FALSE}
+gardnerellaDF0 <- list.files(path=seqFilesPath, pattern = "genbank.tsv", full.names = TRUE) %>%
+  map(., ~read_tsv(.x)) %>%
+  purrr::reduce(full_join) %>%
+  mutate(Strain=str_extract(infraspecific_name, "(?<=strain=).*")) %>%
+  select(Strain, organism, everything(), -infraspecific_name)
+```
+
+## 2) Create data frame of metadata
+### WGS gbff master files downloaded from ncbi website download feature (ie not from ftp. Were not on ftp site, only full gbff files)
+Unzip files:
+```{r}
+# WGSmastersPath %>%
+#   list.files(pattern="wgsmaster.gbff.gz", full.names = TRUE) %>%
+#   map(~gunzip(.x, overwrite=TRUE))
+```
+
+```{r, message=FALSE, warning=FALSE}
+WGSmasterFiles <- list.files(path=WGSmastersPath, pattern = "wgsmaster.gbff$", full.names=TRUE) #get all unzipped master files
+assemblyFileNames <- list.files(path=WGSmastersPath, pattern = "wgsmaster.gbff$", full.names=FALSE) #get truncated file names (to obtain assembly identifiers)
+
+gbffMasters <- WGSmasterFiles %>%
+  map(~readGenBank(.x)) %>% # function from genbankr to parse GFF files
+  map(~as.data.frame(sources(.x))) %>%
+  map(~mutate_at(.x, vars(one_of("culture_collection"), "db_xref"), as.character)) %>%
+  map2(., assemblyFileNames, ~mutate(.x, master_file_name=.y)) %>%
+  purrr::reduce(full_join) %>%
+  mutate(Genus="Gardnerella",
+         Species=case_when(str_detect(organism, "vaginalis")~"vaginalis",
+                           str_detect(organism, "sp.")~"sp."),
+         GenBank_Accession=str_extract(master_file_name, "GCA_.{11}"), 
+         Assembly=str_extract(master_file_name, "(?<=GCA_.{11}_).*(?=_wgsmaster.gbff)")) %>%
+    dplyr::rename(Strain=strain,
+                GenBank_accession=GenBank_Accession) %>%
+  select(Strain, Genus, Species, GenBank_accession, Assembly, everything(), -seqnames, -start, -end, -width, -strand, -type, -organism, -temp_grouping_id, -master_file_name, -db_xref)
+```
+
+Which assemblies are missing a gbff master file?
+```{r}
+assemblyFileNames %>%
+  str_extract("GCA_.{11}") %>%
+  setdiff(gardnerellaDF0$assembly_accession, .)
+```
+
+### Download and extract metadata from available assembly report files
+```{r}
+# safe_download <- safely(download.file) #make safe version of download.file() function so that the error caused by the accession not having a report file. 
+# gardnerellaDF0$url %>% #this is the list of ftp paths for the fastas
+#   map(., ~str_replace(.x, "_genomic.fna.gz", "_assembly_report.txt")) %>% #change the names for the ftp paths to the assembly report files
+#   map2(., gardnerellaDF0$assembly_accession, ~safe_download(.x, destfile = file.path(seqFilesPath, paste0(.y, "_assembly_report.txt")))) #download and save 
+```
+
+```{r, message=FALSE, warning=FALSE}
+reportFiles <- seqFilesPath %>%
+  list.files(full.names = TRUE, pattern = "_assembly_report.txt") %>%
+  map(~read_lines(.x)) %>%
+  map(~as.data.frame(.x)) %>%
+  map(~separate(.x, `.x`, into=c("Category", "Statistic"), sep=":\\ *")) %>%
+  map(~filter(.x, str_detect(Category, "Assembly name|Assembly level|Assembly method|Genome coverage|Sequencing technology|GenBank assembly accession|RefSeq assembly accession|RefSeq assembly and GenBank assemblies identical|Excluded from RefSeq|WGS project|Chromosome"))) %>%
+  map(~mutate(.x, columnname=case_when(str_detect(Category, "Assembly name")~"Assembly",
+                                       str_detect(Category, "Assembly level")~"assembly_level",
+                                       str_detect(Category, "Assembly method")~"assembly_method",
+                                       str_detect(Category, "Genome coverage")~"genome_coverage",
+                                       str_detect(Category, "Sequencing technology")~"sequencing_technology", 
+                                       str_detect(Category, "GenBank assembly accession")~"GenBank_accession",
+                                       str_detect(Category, "RefSeq assembly accession")~"RefSeq_accession",
+                                       str_detect(Category, "RefSeq assembly and GenBank assemblies identical")~"GenBank_RefSeq_identical",
+                                       str_detect(Category, "Excluded from RefSeq")~"RefSeq_excluded",
+                                       str_detect(Category, "WGS project")~"WGS_project",
+                                       str_detect(Category, "Chromosome")~"GenBank_genome"),
+              Statistic=case_when(str_detect(Category, "Chromosome")~paste0(str_extract(Category, "[:graph:]*(?=\\s=)"), ";", str_extract(Category, "(?<==\\s)[:graph:]*")),
+                                  !str_detect(Category, "Chromosome")~Statistic))) %>%
+  map(~select(.x, columnname, Statistic)) %>%
+  map(~column_to_rownames(.x, var="columnname")) %>%
+  map(~t(.x)) %>%
+  map(as.data.frame) %>%
+  purrr::reduce(full_join) %>%
+  separate(GenBank_genome, into=c("GenBank_genome", "RefSeq_genome"), sep=";")
+```
+
+```{r, message=FALSE}
+gardnerellaDF1 <- gardnerellaDF0 %>%
+  select(-organism, -file_name, -url, -path) %>%
+  dplyr::rename(GenBank_accession=assembly_accession) %>%
+  left_join(reportFiles) %>%
+  left_join(gbffMasters) %>%
+  select(Strain, Genus, Species, taxid, Assembly, WGS_project, GenBank_accession, RefSeq_accession, GenBank_RefSeq_identical, RefSeq_excluded, GenBank_genome, RefSeq_genome, bioproject, biosample, assembly_level, genome_rep, everything())
+```
+
+# Assembly Stats
+```{r, message=FALSE}
+sumstat_tsvs <- list.files(path=seqFilesPath, pattern = "summary_statistics.tsv", full.names = TRUE) %>%
+  map(., ~read_tsv(.x)) %>%
+  purrr::reduce(full_join) %>%
+  dplyr::rename(GenBank_accession=organism)
+```
+
+## Length and Gaps
+```{r, message=FALSE}
+assemblyStatsFiles <- assemblyStatsPath %>%
+  list.files(pattern = "assembly_stats.txt", full.names = TRUE) %>%
+  map(~read_tsv(.x, comment="#", col_names = c("unit_name",	"molecule_name", "molecule_type/loc", "sequence_type", "statistic", "value")))
+
+names(assemblyStatsFiles) <- assemblyStatsPath %>%
+  list.files(pattern = "assembly_stats.txt", full.names = FALSE) %>%
+  str_extract("GCA_.{11}")
+
+assemblyStatsLengthGaps <- assemblyStatsFiles %>%
+  map(~filter(.x, unit_name=="Primary Assembly", 
+                  sequence_type=="all")) %>%
+  map(~select(.x, statistic, value)) %>%
+  map(~filter(.x, str_detect(statistic, "total-length|spanned-gaps|unspanned-gaps|ungapped-length"))) %>%
+  map(unique) %>%
+  map(~spread(.x, statistic, value)) %>%
+  map(~dplyr::rename(.x, total_length=`total-length`,
+                         ungapped_length=`ungapped-length`,
+                         spanned_gaps=`spanned-gaps`,
+                         unspanned_gaps=`unspanned-gaps`)) %>%
+  map2(names(assemblyStatsFiles), ~mutate(.x, GenBank_accession=.y)) %>%
+  map(~mutate(.x, total_gap_length=total_length-ungapped_length)) %>%
+  map(~select(.x, GenBank_accession, total_length, ungapped_length, total_gap_length, spanned_gaps, unspanned_gaps)) %>%
+  purrr::reduce(full_join)
+```
+
+## Contig and Scaffold N50 and L50
+```{r, message=FALSE}
+assemblyStatsN50L50 <- assemblyStatsFiles %>%
+  map(~filter(.x, unit_name=="all", 
+                  sequence_type=="all")) %>%
+  map(~select(.x, statistic, value)) %>%
+  map(~filter(.x, str_detect(statistic, "contig-N50|contig-L50|scaffold-N50|scaffold-L50"))) %>%
+  map(unique) %>%
+  map(~spread(.x, statistic, value)) %>%
+  map2(names(assemblyStatsFiles), ~mutate(.x, GenBank_accession=.y)) %>%
+  purrr::reduce(full_join) %>%
+  rename(contig_N50=`contig-N50`,
+         contig_L50=`contig-L50`,
+         scaffold_N50=`scaffold-N50`,
+         scaffold_L50=`scaffold-L50`) %>%
+  select(GenBank_accession, contig_N50, contig_L50, scaffold_N50, scaffold_L50)
+```
+
+
+## Join Stats to data frame
+```{r}
+gardnerellaDF2 <- gardnerellaDF1 %>%
+  left_join(sumstat_tsvs, by="GenBank_accession") %>%
+  left_join(assemblyStatsLengthGaps, by="GenBank_accession") %>%
+  left_join(assemblyStatsN50L50, by="GenBank_accession")
+```
+
+# Save Metadata Data Frame
+```{r}
+#write_csv(gardnerellaDF2, "GardnerellaMetadata.csv")
+```
+
+# Session Info
+```{r}
+sessionInfo()
+```

@@ -22,7 +22,7 @@ library(rlist)
 
 ## Paths and values
 ```{r}
-repo_dir <- "../../"
+repo_dir <- "../"
 
 #shotgun metadata
 sgDF <- file.path(repo_dir, "shotgunMetadata.tsv") %>%
@@ -286,10 +286,16 @@ totalAbundances <- sgDF %>%
   select(SampleID, totalAbundance) 
 
 
-subsetSamples <- read_lines(file.path("..", "..", "sampleSubset.txt"))
+subsetSamples <- read_lines(file.path("..", "sampleSubset.txt"))
 ```
 
 ## Assess Distiribution of bacterial load
+```{r}
+range(totalAbundances$totalAbundance)
+mean(totalAbundances$totalAbundance)
+sd(totalAbundances$totalAbundance)
+```
+
 ```{r}
 totalAbundances %>%
   ggplot(aes(x=totalAbundance)) + 
@@ -337,6 +343,12 @@ sgDF %>%
 ```
   2 Samples were filtered out, one in each cohort
 
+```{r}
+range(totalAbundancesNoOut$totalAbundance)
+mean(totalAbundancesNoOut$totalAbundance)
+sd(totalAbundancesNoOut$totalAbundance)
+```
+
 ## Distribution of each clade and total *G. vaginalis*
 ```{r}
 aaCladesPlot <- DF %>%
@@ -370,18 +382,25 @@ aaTaxPlot <- DF %>%
     geom_boxplot(outlier.alpha=0) +
     geom_jitter() +
     taxColorsN +
-    scale_x_discrete(labels=c("C1", "C2", "C3", "C4", "C5", "C6", bquote('Uncharacterized'~italic(Gardnerella)), bquote('Total'~italic(Gardnerella)),
-                       bquote(italic("L. crispatus")), bquote(italic("L. gasseri")), bquote(italic("L. jensenii")), bquote(italic("L.iners")),
-                       bquote(italic("A. vaginae")), bquote(italic("M. hominis")), bquote(italic("P. bivia")), bquote(italic("U. parvum")))) +
+  scale_x_discrete(labels=c("C1", "C2", "C3", "C4", "C5", "C6", "Unch. Gv", "Gv", "Lc", "Lg", "Lj", "Li", "Av", "Mh", "Pb", "Up")) +
+    # scale_x_discrete(labels=c("C1", "C2", "C3", "C4", "C5", "C6", bquote('Uncharacterized'~italic(Gardnerella)), bquote('Total'~italic(Gardnerella)),
+    #                    bquote(italic("L. crispatus")), bquote(italic("L. gasseri")), bquote(italic("L. jensenii")), bquote(italic("L.iners")),
+    #                    bquote(italic("A. vaginae")), bquote(italic("M. hominis")), bquote(italic("P. bivia")), bquote(italic("U. parvum")))) +
     facet_grid(Cohort~.) +
     labs(y="Absolute Abundance", x="") +
-    theme(axis.text.x = element_text(angle=45, hjust=1),
-          legend.position = "none")
+   theme_bw() +
+   theme(legend.position = "none")  
+  #theme(axis.text.x = element_text(angle=45, hjust=1),
+    #      legend.position = "none")
 
 aaTaxPlot
 
 aaTaxPlot +
-  scale_y_log10()
+  scale_y_log10() +
+  theme(axis.title = element_text(size=17),
+        strip.text = element_text(size=13),
+        axis.text = element_text(size = 11, angle=45, hjust=1))
+#ggsave("/Users/hlberman/Desktop/absoluteAbundanceBoxplot.png", width=7, height = 4)
 ```
 
 ## Correlation among important taxa
@@ -693,15 +712,16 @@ corTestFig <- function(df, test, name){
       geom_tile() +
       #geom_text() +
       scale_fill_gradient2(low = "red", mid = "white", high = "blue", midpoint = 0) +
-      scale_x_discrete(drop=FALSE) +
-      scale_y_discrete(drop=FALSE) +
+      scale_x_discrete(labels=c("Gv", "C1", "C2", "C3", "C4", "C5", "C6", "Lc", "Lg", "Lj", "Li", "Av", "Mh", "Pb", "Up"), drop=FALSE) +
+      scale_y_discrete(labels=c("Up", "Pb", "Mh", "Av", "Li", "Lj", "Lg", "Lc", "C6", "C5", "C4", "C3", "C2", "C1", "Gv"), drop=FALSE) +
       facet_wrap(~Cohort) +
       #theme_grey() +
-      theme(axis.text.x = element_text(angle=90, hjust=1), 
+      theme(
+            #axis.text.x = element_text(angle=90, hjust=1), 
             panel.background = element_rect(fill="gray92"),
             panel.grid.major = element_blank(),
             panel.grid.minor=element_blank()) +
-      labs(x="Taxon 1 ", y="Taxon 2", title = paste("Abundance Correlations:", test), subtitle = name)
+      labs(x="", y="", title = paste("Abundance Correlations:", test), subtitle = name)
   outputList <- list(Results=cor_test_results, Figure=plot)   
     return(outputList)
 }
@@ -715,6 +735,7 @@ corTestFig(DFtaxtax, "spearman", "Absolute Abundance: Raw")
 #corTestFig(DFsqrt, "pearson", "Absolute Abundance: Sqrt")
 #corTestFig(DFloglog, "pearson", "Absolute Abundance: Log10")
 #corTestFig(DFloglogNZ, "pearson", "Absolute Abundance: Log10, no zeros")
+#ggsave("/Users/hlberman/Desktop/corrtest.png", height = 4, width = 7)
 ```
   
   Spearman correlation coefficients largely follow previously described relationships. Clades Lactobacilli may be associated (except *L. iners*) and may be negatively correlated with BV/CST IV-type taxa. C1/C2 appear most strongly negatively associated with *L. crispatus*, where as C6 may be the least negatively associated with *L. crispatus*. With Pearson coefficients, we see stronger positive correlations than negative. Some relationships appear different using this method. 
@@ -797,9 +818,9 @@ PresAbsVsAbundance <- function(df, name){
     left_join(totalAbundances, by="SampleID") %>%
     filter(SampleID %in% nonOutlierSamps) %>%  # change to filter outliers
     gather("Taxon", "presAbs", c(G_vaginalis, C1, C2, C3, C4, C5, C6, A_vaginae, L_crispatus, L_gasseri, L_iners, L_jensenii, P_bivia, U_parvum, M_hominis)) %>%
-    mutate(presAbs=case_when(presAbs>0~"present",
-                             presAbs==0~"absent"),
-           presAbs=factor(presAbs, levels=c("present", "absent")),
+    mutate(presAbs=case_when(presAbs>0~"+",
+                             presAbs==0~"-"),
+           presAbs=factor(presAbs, levels=c("+", "-")),
            Taxon=factor(Taxon, levels=taxaOfInterestAbbr, labels=c("Gv", "C1", "C2", "C3", "C4", "C5", "C6", "Lc", "Lg", "Lj", "Li", "Av", "Mh", "Pb", "Up")))
   # wilcoxResults <- df0 %>%
   #   split(list(.$Taxon, .$Cohort)) %>% #split
@@ -822,15 +843,20 @@ PresAbsVsAbundance <- function(df, name){
       binaryColors +
       #taxColors +
       scale_y_log10() +
-      theme(axis.text.x = element_text(angle=90),
+      theme_bw() +
+      theme(
+            #axis.text.x = element_text(angle=90),
             aspect.ratio = 3/1,
             legend.position = "none") +
       labs(x=element_blank(), y="Bacterial Load", title="Presence-Absence vs. Abundance", subtitle = name)
   outputList <- list(Figure=plot) #`Wilcox Results`=wilcoxResults,
 }
 
-list(AllSamples=DF, SampleSubset=filter(DF, SampleID %in% subsetSamples)) %>% # full data frame and data frame with only subset samples
+fig <- list(AllSamples=DF, SampleSubset=filter(DF, SampleID %in% subsetSamples)) %>% # full data frame and data frame with only subset samples
    map2(c("All Samples", "Sample Subset"), PresAbsVsAbundance) # run function
+
+fig$AllSamples
+#ggsave("/Users/hlberman/Desktop/presAbsvsAbundance.png")
 ```
 
 # Prelim/F31 figures
