@@ -1,0 +1,83 @@
+
+
+IMPORTANT WARNING: Sequences DNF01162 and UMB1642 are exactly identical
+
+IMPORTANT WARNING
+Found 1 sequence that is exactly identical to other sequences in the alignment.
+Normally they should be excluded from the analysis.
+
+Just in case you might need it, an alignment file with 
+sequence duplicates removed is printed to file /home/hlberman/VMMG/gard_phylogeny/outgroup_core_gene_alignment.aln.reduced
+
+
+Using BFGS method to optimize GTR rate parameters, to disable this specify "--no-bfgs" 
+
+Found a total of 85 taxa in tree file /home/hlberman/VMMG/gard_phylogeny/20201005_ml_phylogeny/RAxML_bipartitions.bootstrappedGardTree
+
+
+This is RAxML version 8.2.12 released by Alexandros Stamatakis on May 2018.
+
+With greatly appreciated code contributions by:
+Andre Aberer      (HITS)
+Simon Berger      (HITS)
+Alexey Kozlov     (HITS)
+Kassian Kobert    (HITS)
+David Dao         (KIT and HITS)
+Sarah Lutteropp   (KIT and HITS)
+Nick Pattengale   (Sandia)
+Wayne Pfeiffer    (SDSC)
+Akifumi S. Tanabe (NRIFS)
+Charlie Taylor    (UF)
+
+
+Alignment has 1137 distinct alignment patterns
+
+Proportion of gaps and completely undetermined characters in this alignment: 2.50%
+
+RAxML likelihood-based placement algorithm
+
+Using 1 distinct models/data partitions with joint branch length optimization
+
+
+All free model parameters will be estimated by RAxML
+GAMMA model of rate heterogeneity, ML estimate of alpha-parameter
+
+Partition: 0
+Alignment Patterns: 1137
+Name: No Name Provided
+DataType: DNA
+Substitution Matrix: GTR
+
+
+
+
+RAxML was called as follows:
+
+raxmlHPC-PTHREADS-SSE3 -w /home/hlberman/VMMG/gard_phylogeny/20201005_ml_phylogeny -f v --epa-keep-placements=100 -t /home/hlberman/VMMG/gard_phylogeny/20201005_ml_phylogeny/RAxML_bipartitions.bootstrappedGardTree -m GTRGAMMA -s /home/hlberman/VMMG/gard_phylogeny/outgroup_core_gene_alignment.aln -n rootedGardTree 
+
+
+RAxML placement algorithm: You provided a reference tree with 85 taxa; alignmnet has 86 taxa
+1 query taxa will be placed using maximum likelihood
+
+RAxML Evolutionary Placement Algorithm
+
+Likelihood of reference tree: -31708.760801
+
+RAxML will place 1 Query Sequences into the 167 branches of the reference tree with 85 taxa
+
+Overall Classification time: 2.294305
+
+
+
+Labelled reference tree including branch labels and query sequences written to file: /home/hlberman/VMMG/gard_phylogeny/20201005_ml_phylogeny/RAxML_labelledTree.rootedGardTree
+
+Labelled reference tree with branch labels (without query sequences) written to file: /home/hlberman/VMMG/gard_phylogeny/20201005_ml_phylogeny/RAxML_originalLabelledTree.rootedGardTree
+
+Labelled reference tree with branch labels in portable pplacer/EPA format (without query sequences) written to file: /home/hlberman/VMMG/gard_phylogeny/20201005_ml_phylogeny/RAxML_portableTree.rootedGardTree.jplace
+
+Classification result file written to file: /home/hlberman/VMMG/gard_phylogeny/20201005_ml_phylogeny/RAxML_classification.rootedGardTree
+
+Classification result file using likelihood weights written to file: /home/hlberman/VMMG/gard_phylogeny/20201005_ml_phylogeny/RAxML_classificationLikelihoodWeights.rootedGardTree
+
+Classification entropy result file using likelihood weights written to file: /home/hlberman/VMMG/gard_phylogeny/20201005_ml_phylogeny/RAxML_entropy.rootedGardTree
+

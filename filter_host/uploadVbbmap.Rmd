@@ -1,0 +1,279 @@
+---
+title: "Compare metaphlan and clade results"
+author: "Hanna Berman"
+date: "11/4/2019"
+output: html_document
+---
+
+Compare results from first (with upload) and second (with BBmap filtered) analyses
+
+```{r}
+library(tidyverse)
+`%!in%` <- Negate(`%in%`)
+clade_colors <- scale_color_manual(values=c("salmon", "indianred", "lightblue", "blue3", "darkorchid2", "yellowgreen"), labels=c("C1", "C2", "C3", "C4", "C5", "C6"))
+method_colors <- scale_color_manual(values=c("#56B4E9", "#D55E00"))
+method_fill <- scale_fill_manual(values=c("#56B4E9", "#D55E00"))
+```
+
+```{r}
+sgDF <- "./shotgunMetadata.tsv" %>%
+  read_tsv %>%
+  mutate(SampleID=as.character(SampleID))
+```
+
+
+# Gard Clades
+
+**Upload clade abundance and alignments**
+```{r}
+uploadGardDF <- "./gard_mapping/clade_assignments/archive/gardRelativeAbundance.tsv" %>%
+  read_tsv() %>%
+    mutate(SampleID=as.character(SampleID),
+           SampleID=case_when(SampleID=="4008434348"~"4008435348",
+                            SampleID!="4008434348"~SampleID))  #typo was still here in previous run, but now fixed to
+head(uploadGardDF)
+```
+
+**BBmap clade abundance and alignments**
+```{r}
+bbmapGardDF <- "./gard_mapping/clade_assignments/gardRelativeAbundance.tsv" %>%
+  read_tsv() %>%
+  mutate(SampleID=as.character(SampleID))
+head(bbmapGardDF)
+```
+
+**Make unified abundance dataframe**
+```{r}
+uploadGardDF0 <-uploadGardDF %>%
+  select(-propClade) %>% # will add this back later. Remove to avoid duplicate rows
+  spread(Clade, n) %>%
+  gather("Clade", "n_upload", c(C1, C2, C3, C4, C5, C6)) %>% # now each sample has a row for each clade
+  group_by(SampleID) %>%
+  mutate(n_upload=replace_na(n_upload, 0),
+         propClade_upload=n_upload/sum(n_upload)) %>%
+  ungroup
+
+bbmapGardDF0 <- bbmapGardDF %>%
+  select(-propClade) %>%
+  spread(Clade, n) %>%
+  gather("Clade", "n_bbmap", c(C1, C2, C3, C4, C5, C6)) %>%
+  group_by(SampleID) %>%
+  mutate(n_bbmap=replace_na(n_bbmap,0),
+         propClade_bbmap=n_bbmap/sum(n_bbmap)) %>%
+  ungroup
+
+GardDF <- uploadGardDF0 %>%
+  left_join(bbmapGardDF0, by=c("SampleID", "Clade")) %>%
+  replace_na(list(n_bbmap=0, propClade_bbmap=0))  # fix nas induced by sample 1060435348
+head(GardDF)
+```
+
+## Compare Clade Abundances
+### Gv Clade Samples
+```{r}
+setdiff(unique(uploadGardDF$SampleID), unique(bbmapGardDF$SampleID))
+```
+Sample 1060435348 is missing from the new clade assignments. A closer look:  
+```{r}
+uploadGardDF %>%
+  filter(SampleID=="1060435348")
+```
+Had one read of C4 and now none shows up  
+
+### Clades per sample  
+```{r}
+# remove 1060435348
+uploadGardDF1 <- uploadGardDF %>%
+  filter(SampleID!="1060435348")
+```
+
+```{r}
+nClades_upload <- uploadGardDF1 %>%
+  group_by(SampleID) %>%
+  summarise(Upload=n()) 
+
+nClades_bbmap <- bbmapGardDF %>%
+  group_by(SampleID) %>%
+  summarise(BBmap=n())
+
+nClades_upload %>%
+  left_join(nClades_bbmap, by="SampleID") %>%
+  filter(Upload!=BBmap) %>% # only look at samples where the number of clades has changed
+  gather("Method", "nClades", c(Upload, BBmap)) %>%
+  ggplot(aes(x=SampleID, y=nClades, shape=Method)) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle=45, hjust=1))
+```
+One sample gained a clade: Sample 1005601348  
+
+Three samples lost a clade: Samples 1005601098, 4007435258, 4007535358  
+Closer inspection: 
+```{r}
+GardDF %>%
+  select(SampleID, Clade, n_upload, n_bbmap) %>%
+  gather("Method", "n", c(n_upload, n_bbmap)) %>%
+  mutate(Method=case_when(Method=="n_upload"~"Upload",
+                          Method=="n_bbmap"~"BBmap")) %>%
+  filter(SampleID=="1005601098"|SampleID=="1005601348"|SampleID=="4007435258"|SampleID=="4007535358") %>%
+  ggplot(aes(x=Clade, y=n, fill=Method, label=n)) +
+  geom_bar(position="dodge", stat="identity") +
+  geom_text(position=position_dodge(width = 1), angle=45, size=3, hjust=.75) +
+  facet_wrap(~SampleID, scales = "free_y") +
+  method_fill +
+  labs(y="n Reads")
+```
+In these cases where a clade is missing between the bbmap and upload runs, the difference is between one and zero reads.  
+
+### Overall Differences
+```{r}
+# differences betwen the measures of each clade in each sample (only looking at clades that are not both 0)
+diffs <- GardDF %>% 
+  filter((n_upload>0|n_bbmap>0)) %>%
+  mutate(n_diff=n_upload-n_bbmap,
+         prop_diff=propClade_upload-propClade_bbmap) %>%
+  select(SampleID, Clade, n_diff, prop_diff)
+summary(diffs)
+  
+diffs %>%  
+  gather("measure", "value", c(n_diff, prop_diff)) %>%
+  ggplot(aes(x=value)) +
+  geom_histogram() +
+  facet_wrap(~measure, scales="free")
+
+diffs %>%
+  filter(n_diff>100)
+
+diffs %>%
+  filter(prop_diff==1)
+```
+Overall, differences in the proportions of each clade are very low, and in cases where the number of reads that differ is large, the change in the proportion of that clade is still small. The case where the proportion change is 1, is in sample 1060435348, where there is one read of one clade with the upload run and then no reads with the bbmap run. 
+
+# Metaphlan
+  
+**Upload metaphlan**
+```{r}
+#metaphlan data
+uploadMetaphlan0 <- file.path("/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/humann2/merged_tables_upload/mergedMetaphlanAbundance.tsv") %>%
+  read_tsv() %>%
+  filter(str_detect(ID, "s__"), !str_detect(ID, "t__")) %>%
+  mutate(Species = str_extract(ID, "(?<=s__)\\w+$")) %>%
+  select(Species, everything(), -ID) %>%
+  as.data.frame()
+
+#make col and row names
+samps <- colnames(uploadMetaphlan0[2:ncol(uploadMetaphlan0)]) %>%
+  str_extract("[0-9]{10}")
+samps
+colnames(uploadMetaphlan0) <- c("Species", samps)
+rownames(uploadMetaphlan0) <- uploadMetaphlan0$Species
+
+#Final edits to table
+uploadMetaphlan <- uploadMetaphlan0 %>%
+  select(-Species) %>%
+  t() %>%
+  as_tibble() %>%
+  mutate_all(funs(./100)) %>%
+  mutate(SampleID=samps) %>% 
+  select(SampleID, everything()) %>%
+  mutate(SampleID=case_when(SampleID=="4008434348"~"4008435348",
+                            SampleID!="4008434348"~SampleID))  #typo was still here in previous run, but now fixed to 
+uploadMetaphlan[1:6,1:5]  
+```
+
+**BBmap Metaphlan**
+```{r}
+#metaphlan data
+bbmapMetaphlan0 <- file.path("/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/humann2/merged_tables/mergedMetaphlanAbundance.tsv") %>%
+  read_tsv() %>%
+  filter(str_detect(ID, "s__"), !str_detect(ID, "t__")) %>%
+  mutate(Species = str_extract(ID, "(?<=s__)\\w+$")) %>%
+  select(Species, everything(), -ID) %>%
+  as.data.frame()
+
+#make col and row names
+samps1 <- colnames(bbmapMetaphlan0[2:ncol(bbmapMetaphlan0)]) %>%
+  str_extract("[0-9]{10}")
+samps1
+colnames(bbmapMetaphlan0) <- c("Species", samps1)
+rownames(bbmapMetaphlan0) <- bbmapMetaphlan0$Species
+
+#Final edits to table
+bbmapMetaphlan <- bbmapMetaphlan0 %>%
+  select(-Species) %>%
+  t() %>%
+  as_tibble() %>%
+  mutate_all(funs(./100)) %>%
+  mutate(SampleID=samps1) %>% 
+  select(SampleID, everything())
+bbmapMetaphlan[1:6,1:5]
+```
+
+**Unify Data Frame**
+```{r}
+uploadMetaphlan1 <- uploadMetaphlan %>%
+  gather("Taxon", "Upload", c(2:ncol(.)))
+head(uploadMetaphlan1)
+
+bbmapMetaphlan1 <- bbmapMetaphlan %>%
+  gather("Taxon", "BBmap", c(2:ncol(.)))
+head(bbmapMetaphlan1)
+
+metaphlanDF <- uploadMetaphlan1 %>%
+  full_join(bbmapMetaphlan1, by=c("SampleID", "Taxon")) %>%
+  replace_na(list(Upload=0, BBmap=0)) %>%
+  mutate(abundanceDiff=Upload-BBmap)
+head(metaphlanDF)
+```
+
+## Comparison
+### Taxa in the sample
+```{r}
+#n taxa with upload
+length(unique(uploadMetaphlan1$Taxon))
+#n taxa with bbap
+length(unique(bbmapMetaphlan1$Taxon))
+```
+Three more taxa in upload samples  
+What are they?  
+```{r}
+diffTaxa <- c(setdiff(unique(uploadMetaphlan1$Taxon), unique(bbmapMetaphlan1$Taxon)), setdiff(unique(bbmapMetaphlan1$Taxon), unique(uploadMetaphlan1$Taxon)))
+diffTaxa
+```
+There are five taxa that appear in only one run.  
+How common are these in the cohort?  
+```{r}
+metaphlanDF %>%
+  select(-abundanceDiff) %>%
+  filter(Taxon %in% diffTaxa) %>%
+  gather("Method", "Abundance", c(Upload, BBmap)) %>%
+  filter(Abundance>0) %>%
+  ggplot(aes(x=Taxon, y=Abundance, color=Method)) +
+  geom_jitter() +
+  method_colors +
+  theme(axis.text.x = element_text(angle=45, hjust=1))
+```
+The taxa are in low abundance and in few samples  
+
+### Overall Differences
+**note** Only looking at instances where the abundance of the taxon is not 0 in both cases  
+```{r}
+metaphlanDF %>%
+  filter(Upload>0|BBmap>0,
+         Taxon %!in% diffTaxa) %>%
+  summary
+
+
+metaphlanDF %>%
+  filter(Upload>0|BBmap>0,
+         Taxon %!in% diffTaxa) %>%
+  ggplot(aes(x=" ", y=abundanceDiff)) +
+  geom_jitter() +
+  labs(x=element_blank(), y="Abundance Difference") +
+  theme(axis.text.x = element_blank())
+```
+All differences in proportion are less than 0.05.
+
+#Session Info
+```{r}
+sessionInfo()
+```

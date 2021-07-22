@@ -59,3 +59,19 @@ Notes:
 May 2020: 
 -Add labels and items on figures for samples with Gardnerella that is uncharacterized
 -Coefficients of correlation measureas
+
+
+UPDATED GARDNERELLA REFERENCE DATABASE
+November 2020
+1) `./ref_genes` : directory of Gardnerella reference genes determined by `coreGenomeAndPhylogeny.Rmd`
+2) Perform alignments for mapping using the following in `./scripts`:
+    + `buildBowtieDB.sh` : for building Bowtie2 indexed database of Gardnerella reference genes
+    + `bowtieAlign.sh` : align short reads to Gardnerella databse with Bowtie2 v 2.1.0 and filter out reads with mapq score less than 20 (Samtools v1.9)
+    + `bowtieCmds.sh` : script to call bowtieAlign.sh for each sample
+    + `usearch.sh` : Use USEARCH v11.0.667_i86linux32 to perform global alignments of Gardnerella reads from Bowtie2 output to Gardnerella database with  to bin reads to clades 
+    + `usearchCmds.sh` : for calling usearch.sh script for each sample
+3) `./bowtie_index` : output from `buildBowtieDB.sh`
+4) `./bowtie_out` : unfiltered output from `bowtieAlign.sh`
+5) `./gard_bam` and `./gard_fastq` : filtered output from Bowtie2 Gardnerella alignments
+6) `./usearch_in` : concatenated fastq files for USEARCH alignments
+7) `./usearch_alns` : USEARCH output

@@ -15,71 +15,53 @@ library(tidyverse)
 set.seed(7334)
 ```
 
-# Collection Figure
-```{r}
-# sgDF <- "./Tables_4_Ben.txt" %>%
-#   read_delim(delim="\t") %>%
-#   dplyr::rename(SampleIndex=`Sample Index`,
-#                 SampleType=`Sample Type`,
-#                 SubjectID=Subject,
-#                 SampleID=`Sample ID`,
-#                 GDcoll=GD_Coll,
-#                 GWdell=GW_Dell,
-#                 TermPre=`Term/Pre`,
-#                 TotalReads=`Total reads`,
-#                 TotalPairs=`Total pairs`,
-#                 Sickle100_pe=`Sickle_100 (pe)`,
-#                 Sickle_pairs=Sickle_pe,
-#                 Human_pairs=Human_pe,    #number of human pairs from DAG, not final number human pairs.
-#                 PctTrim=`Pct Trim`,
-#                 PctHuman=`Pct Human`) %>%
-#   mutate(SampleID=as.character(SampleID),
-#          SubjectID=as.character(SubjectID),
-#          PctTrim=as.numeric(as.character(str_extract(PctTrim, ".*(?=\\%)")))/100,
-#          PctHuman=as.numeric(as.character(str_extract(PctHuman, ".*(?=\\%)")))/100, 
-#          GWcoll=GDcoll/7,
-#          SampleID_a=paste0(substr(SampleID, 1, 5), "01", substr(SampleID, 8, 10)),
-#          RNAlater=case_when(str_detect(SampleID, "[0-9]{5}01[0-9]{3}")~"No",
-#                             str_detect(SampleID, "[0-9]{5}35[0-9]{3}")~"Yes"))
-# head(sgDF)
-```
-
-## sanity checks
-```{r}
-#sickle pairs == half of `Sickle100_pe`
-# sgDF %>%
-#   select(Sickle100_pe, Sickle_pairs) %>%
-#   mutate(test=Sickle_pairs*2,
-#          TF=case_when(test==Sickle100_pe~TRUE,
-#                       test!=Sickle100_pe~FALSE)) %>%
-#   .$TF %>%
-#   table()
-# 
-# #Percent trimmed is Sickle 100 paired and single reads divided by total reads
-# sgDF %>%
-#   select(TotalReads, Sickle100_pe, Sickle_sngl, PctTrim) %>%
-#   mutate(test=as.character(round(((Sickle100_pe+Sickle_sngl)/TotalReads), 4)),
-#          PctTrim=as.character(PctTrim),
-#          TF=case_when(test==PctTrim~TRUE,
-#                       test!=PctTrim~FALSE)) %>%
-#   .$TF %>%
-#   table()
-# 
-# #Percent human is bowtie paired and single reads divided by total reads?
-# sgDF %>%
-#   select(Sickle100_pe, Sickle_pairs, Sickle_sngl, Human_pairs, Human_sngl,PctHuman) %>%
-#   mutate(test=as.character(round((Human_pairs*2+Human_sngl)/(Sickle100_pe+Sickle_sngl),4)),
-#          PctHuman=as.character(PctHuman),
-#          TF=case_when(test==PctHuman~TRUE,
-#                       test!=PctHuman~FALSE)) %>%
-#   .$TF %>%
-#   table
-```
-Unsure how pct human was calculated...
 
 ```{r}
-PS15 <- "./sampledata_VaginalSwabs_Pregnancy_DiGiulio2015.tsv" %>%
+sgDF0 <- "./Tables_4_Ben.txt" %>%
   read_tsv() %>%
+  dplyr::rename(SampleIndex=`Sample Index`,
+                SampleType=`Sample Type`,
+                SubjectID=Subject,
+                SampleID=`Sample ID`,
+                GDcoll=GD_Coll,
+                GWdel=GW_Dell,
+                TermPre=`Term/Pre`,
+                TotalReads=`Total reads`,
+                TotalPairs=`Total pairs`,
+                Sickle100_pe=`Sickle_100 (pe)`,
+                Sickle_pairs=Sickle_pe,
+                Human_pairs=Human_pe,    #number of human pairs from DAG, not final number human pairs.
+                PctTrim=`Pct Trim`,
+                PctHuman=`Pct Human`) %>%
+  mutate(SampleID=as.character(SampleID),
+         SubjectID=as.character(SubjectID),
+         PctTrim=as.numeric(as.character(str_extract(PctTrim, ".*(?=\\%)")))/100,
+         PctHuman=as.numeric(as.character(str_extract(PctHuman, ".*(?=\\%)")))/100,
+         GWcoll=GDcoll/7,
+         SampleID_a=paste0(substr(SampleID, 1, 5), "01", substr(SampleID, 8, 10)),
+         RNAlater=case_when(str_detect(SampleID, "[0-9]{5}01[0-9]{3}")~"No",
+                            str_detect(SampleID, "[0-9]{5}35[0-9]{3}")~"Yes"))
+head(sgDF0)
+```
+
+```{r, message=FALSE}
+oldDF <- read_tsv("/Users/hlberman/Desktop/2021-6-4_shotgunMetadata.tsv")
+
+df2015 <- "./sampledata_VaginalSwabs_Pregnancy_DiGiulio2015.tsv" %>%
+  read_tsv()
+
+df2017 <- "./MAP_MANUSCRIPT_IL02-IL09_ToBen_20170404_fixed.txt" %>%
+  read_tsv()
+
+figureOut <- "../../FIGURES/metadata"
+
+theme_set(theme_bw() +
+          theme(panel.grid = element_blank()))
+```
+
+
+```{r}
+PS15 <- df2015 %>%
   dplyr::rename(GDcoll=GDColl) %>%
   mutate(SubjectID= as.character(SubjectID),
          Cohort="Stanford",
@@ -87,8 +69,7 @@ PS15 <- "./sampledata_VaginalSwabs_Pregnancy_DiGiulio2015.tsv" %>%
          PaperCohort="2015") %>%
   select(SubjectID, GDcoll, Cohort, Method, PaperCohort)
 
-PS17 <- "./MAP_MANUSCRIPT_IL02-IL09_ToBen_20170404_fixed.txt" %>%
-  read_delim(delim="\t") %>%
+PS17 <- df2017 %>%
   mutate(SubjectID= as.character(SubjectID),
          Cohort=case_when(UAB_Sample==0~"Stanford",
                                  UAB_Sample==1~"UAB"),
@@ -99,45 +80,24 @@ PS17 <- "./MAP_MANUSCRIPT_IL02-IL09_ToBen_20170404_fixed.txt" %>%
 AMP <- rbind(PS15, PS17) %>%
   unique.data.frame()
 
-# sgDF0 <- sgDF %>%
-#   #left_join(AMP[,c("SubjectID", "Cohort", "PaperCohort")], by="SubjectID") %>%
-#   filter(SampleID %in% sgDF$SampleID) %>%
-#   #mutate(Cohort=replace_na(Cohort,"Stanford")) %>%
-#   unique.data.frame()
-# 
-# 
-# SHOT <- sgDF0 %>%
-#   select(SubjectID, GDcoll, Cohort, PaperCohort) %>%
-#   filter(PaperCohort=="2015"|PaperCohort=="2017") %>%
-#   mutate(Method="Shotgun") %>%
-#   unique.data.frame()
-```
+sgDF1 <- sgDF0 %>%
+  left_join(AMP[,c("SubjectID", "Cohort", "PaperCohort")], by="SubjectID") %>%
+  filter(SampleID %in% sgDF0$SampleID) %>%
+  mutate(Cohort=case_when(SubjectID == "10604"~"Stanford",
+                          SubjectID != "10604"~Cohort)) %>% # add cohort info for 10604
+  unique.data.frame()
 
-# Collection Figure
-```{r}
-# ggplot() +
-#   geom_point(data=AMP, aes(x=GDcoll, y=as.character(SubjectID), shape=Method, color=Cohort, size=Method), alpha=.5) +
-#    geom_point(data=SHOT, aes(x=GDcoll, y=as.character(SubjectID), shape=Method, size=Method), color="black") +
-#   xlim(0,280) +
-#      labs(x = "Gestation Days",
-#           y = "Subject") +
-#      scale_color_manual(values=c("olivedrab", "steelblue", "black"))+
-#      scale_shape_manual(values=c(19, 15)) +
-#      scale_size_manual(values=c(1,2)) +
-#      #theme_classic()+
-#      theme(axis.ticks.y = element_blank(),
-#      #axis.text.x = element_text(size = 10),
-#      axis.text.y  = element_blank()
-#      #axis.title.x = element_text(size=20),
-#      #axis.title.y = element_text(size=20)
-#      )
-#      #scale_x_continuous(breaks = c(0,50,100,150,200, 250))
-# #ggsave("./collectionPlot.svg", height=8, width=8.5) 
+
+SHOT <- sgDF1 %>%
+  select(SubjectID, GDcoll, Cohort, PaperCohort) %>%
+  filter(PaperCohort=="2015"|PaperCohort=="2017") %>%
+  mutate(Method="Shotgun") %>%
+  unique.data.frame()
 ```
 
 # Trimesters
 ```{r}
-sgDF1 <- sgDF0 %>%
+sgDF2 <- sgDF1 %>%
   group_by(SubjectID) %>%
   mutate(sampleOrder=rank(GDcoll),
          sampleTrimester=case_when(GDcoll<=97~"First",
@@ -146,84 +106,200 @@ sgDF1 <- sgDF0 %>%
   ungroup() 
 
 #save updated dataframe
-#write_tsv(sgDF1, "../shotgunMetadata.tsv") # save to main path of repo
+#write_tsv(sgDF2, "../shotgunMetadata.tsv") # save to main path of repo
 ```
 
-# Samples/subjects per cohort
+  Total 107 Samples. 
+  From Stanford: 62 samples from 20 subjects (11 term and 9 preterm). Average 3.1 samples per subject.
+  From UAB: 45 samples from 15 subjects (5 term and 10 preterm). Average 3 samples per subject.
+
 ```{r}
-sgDF1 %>%
-  filter(Cohort=="UAB")%>%
-  nrow()
+colnames(df2015)
+colnames(df2017)
+unique(df2015$Race)
+unique(df2017$MaternalRace)
+df2015 %>%
+  select(SubjectID, Race)
 
-sgDF1 %>%
-  filter(Cohort=="UAB") %>%
-  select(SubjectID) %>%
-  n_distinct()
-
-sgDF1 %>%
-  filter(Cohort=="Stanford")%>%
-  nrow()
-
-sgDF1 %>%
-  filter(Cohort=="Stanford") %>%
-  select(SubjectID) %>%
-  n_distinct()
+df2017 %>%
+  select(SubjectID, MaternalRace, SpecifyOTHERrace) %>%
+  filter(SubjectID %in% sgDF$SubjectID) %>%
+  unique
 ```
 
-# Subsetting
-## Look at potential ways to subset samples
+
+## Demographics
+Note, no demographics data for 10604
 ```{r}
-range(sgDF1$GDcoll)
-summary(sgDF1$GDcoll[sgDF1$sampleOrder==1])
-summary(sgDF1$GDcoll[sgDF1$sampleOrder==2])
-summary(sgDF1$GDcoll[sgDF1$sampleOrder==3])
+demo2015 <- df2015 %>%
+  select(SubjectID, Race, Ethnicity)  %>%
+  filter(SubjectID %in% sgDF$SubjectID) %>%
+  unique %>%
+  mutate(SubjectID=as.character(SubjectID),
+         Cohort="Stanford")
 
+demo2017 <- df2017%>%
+  select(SubjectID, UAB_Sample, MaternalRace, SpecifyOTHERrace, MaternalEthnicity, AgeAtConsent, BMI, NumberOfPriorPregnancies) %>%
+  filter(SubjectID %in% sgDF$SubjectID) %>%
+  unique %>%
+  dplyr::rename(Race=MaternalRace,
+                Ethnicity=MaternalEthnicity) %>%
+  mutate(SubjectID= as.character(SubjectID),
+         Cohort=case_when(UAB_Sample==0~"Stanford",
+                          UAB_Sample==1~"UAB")) %>%
+  select(-UAB_Sample)
+#Race levels for matching coding
+unique(demo2015$Race)
+unique(demo2017$Race)
+#Ethnicity levels for matching coding
+unique(demo2015$Ethnicity)
+unique(demo2017$Ethnicity)
+```
+  
+  Fix levels to match and assess
+```{r}
+demo <- demo2015 %>%
+  full_join(demo2017) %>%
+  bind_rows(., c(SubjectID="10604", Cohort="Stanford")) %>% # add subject without demo data
+  mutate(Ethnicity=case_when(Ethnicity=="Hispanic"~"Hispanic",
+                             Ethnicity=="Non-Hispanic"~"Non Hispanic",
+                             Ethnicity=="NonHispanic"~"Non Hispanic"),
+         Race=case_when(Race=="White"~"White",
+                        Race=="American Indian"~"American Indian",
+                        Race=="AmericanIndian"~"American Indian",
+                        Race=="Other (Specify below)"~"Other",
+                        Race=="Other"~"Other",
+                        Race=="AsianChinese"~"Asian",
+                        Race=="Indian"~"Asian",
+                        Race=="Black"~"Black",
+                        Race=="Hawaiian"~"Native Hawaiian")) %>%
+  replace_na(list(Ethnicity="Unknown", Race="Unknown"))
 
-sgDF1 %>%
-  ggplot(aes(x=sampleOrder, y=GDcoll, group=sampleOrder)) +
-  geom_boxplot() +
-  geom_point() +
-  facet_wrap(~Cohort) +
-  labs(x="Sample Order", y="Gestation Days at Collection")
+# Gest age
+gestage <- demo %>%
+  left_join(unique(sgDF[,c("SubjectID", "TermPre", "GWdel")]), by="SubjectID") %>%
+  group_by(Cohort, TermPre) %>%
+  summarize(across(GWdel, list(mean = ~mean(.x, na.rm = TRUE), sd = ~sd(.x, na.rm = TRUE)))) %>%
+  ungroup %>%
+  mutate(GWdel_mean=round(GWdel_mean, 1), GWdel_sd=round(GWdel_sd, 1),
+        x=paste0(GWdel_mean, " (", GWdel_sd, ")"),
+        cat=paste(Cohort, TermPre),
+        Variable="Mean gestational age in weeks at delivery (±SD)") %>%
+  select(Variable, cat, x) %>%
+  spread(cat, x) %>%
+  select(Variable, `Stanford T`, `Stanford P`, `UAB T`, `UAB P`)
 
-sgDF1 %>%
-  ggplot(aes(x=GDcoll, y=as.character(SubjectID), color=Cohort)) +
-  geom_point() +
-  geom_vline(xintercept = 97.5)+
-  geom_vline(xintercept = 195.5) +
-  labs(x="Gestation Days at Collection", y="Subject ID")
+# Don't have AgeAtConsent, BMI, or prior number of pregnancies for nulliparity for 2015 data
+
+#race
+race <- demo %>%
+  left_join(unique(sgDF[,c("SubjectID", "TermPre")]), by="SubjectID") %>%
+  select(SubjectID, Cohort, TermPre, Race) %>%
+  group_by(Cohort, TermPre, Race) %>%
+  tally %>%
+  group_by(Cohort, TermPre) %>%
+  mutate(percent=round(n/sum(n), 2)*100,
+         x=paste0(n, " (", percent, "%)"), 
+         cat=paste(Cohort, TermPre)) %>%
+  ungroup %>%
+  select(Race, cat, x) %>%
+  spread(cat, x) %>%
+  mutate(across(everything(), ~replace_na(.x, "0")), 
+         Race=factor(Race, levels=c("White", "Black", "Asian", "American Indian", "Pacific Islander", "Unknown", "Other"))) %>%
+  select(Race, `Stanford T`, `Stanford P`, `UAB T`, `UAB P`) %>%
+  arrange(Race) %>%
+  bind_rows(data_frame(Race="Race", `Stanford T`="", `Stanford P`="", `UAB T`="", `UAB P`=""), .) %>%
+  dplyr::rename(Variable=Race)
+
+#ethnicity
+ethn <- demo %>%
+  left_join(unique(sgDF[,c("SubjectID", "TermPre")]), by="SubjectID") %>%
+  select(SubjectID, Cohort, TermPre, Ethnicity) %>%
+  group_by(Cohort, TermPre, Ethnicity) %>%
+  tally %>%
+  group_by(Cohort, TermPre) %>%
+  mutate(percent=round(n/sum(n), 2)*100,
+         x=paste0(n, " (", percent, "%)"), 
+         cat=paste(Cohort, TermPre)) %>%
+  ungroup %>%
+  select(Ethnicity, cat, x) %>%
+  spread(cat, x) %>%
+  mutate(across(everything(), ~replace_na(.x, "0")), 
+         Ethnicity=factor(Ethnicity, levels=c("Non Hispanic", "Hispanic", "Unknown"))) %>%
+  select(Ethnicity, `Stanford T`, `Stanford P`, `UAB T`, `UAB P`) %>%
+  arrange(Ethnicity) %>%
+  bind_rows(data_frame(Ethnicity="Ethnicity", `Stanford T`="", `Stanford P`="", `UAB T`="", `UAB P`=""), .) %>%
+  dplyr::rename(Variable=Ethnicity)
+
+demoTable <- gestage %>%
+  full_join(race) %>%
+  full_join(ethn)
+demoTable
+
+#write_csv(demoTable, file.path(figureOut, "20210118_demoTable.csv"))
 ```
 
-## Randomly select one sample per subject from each subject
-It seems that is the best way to maintain a small range of gestation days at collection of each range while excluding the least number of samples (will only exclude one sample)
+
+## Reads
+### Get read counts:
 ```{r}
-#Create dataframe of subsets
-sgDFsubset <- sgDF1 %>%
-  filter(sampleTrimester=="Second") %>%
-  group_by(SubjectID) %>%
-  sample_n(size=1) %>%
-  ungroup
-
-sampleSubset <- sgDFsubset$SampleID
-sampleSubset
-#save list of subset
-#write_lines(sampleSubset, "../sampleSubset.txt") # save to main folder of repo
-
-#what subject is missing a sample
-setdiff(unique(sgDF$SubjectID), sgDFsubset$SubjectID)
+readCountDF0 <- read_delim("../filter_host/fastq_counts_bbmap.txt", delim = "\ ") %>%
+  mutate(Sample=as.character(Sample)) %>%
+  mutate_if(is.numeric, ~.x/4)
+colnames(readCountDF0) 
+head(readCountDF0)
 ```
 
-## gestation days range of subset
 ```{r}
-summary(sgDFsubset$GDcoll)
+readCountDF <- readCountDF0 %>%
+  dplyr::rename(SampleID=Sample,
+                bbmapFiltered_pairs=filteredCount1) %>%
+  mutate(SampleID=as.character(SampleID))
+  
+testDF <- read_tsv("/Users/hlberman/Desktop/2021-6-4_shotgunMetadata.tsv")
+View(testDF)
+
+sgDF2 %>%
+  left_join(readCountDF[,c("SampleID", "uploadCount1")]) %>%
+  mutate(test=Sickle_pairs-Human_pairs) %>%
+  select(SampleID, Sickle_pairs, Human_pairs, uploadCount1, test) %>%
+  View
+  .$test
+  table()
+
+sgDF <- sgDF2 %>%
+    left_join(readCountDF[,c("SampleID", "bbmapFiltered_pairs")], by="SampleID") %>%
+    left_join(demo[,c("SubjectID", "Race")], by="SubjectID") %>%
+    mutate(bacLoad=bbmapFiltered_pairs/(Sickle_pairs-bbmapFiltered_pairs),
+         pctHuman=((Sickle_pairs-bbmapFiltered_pairs)/Sickle_pairs)*100)
+#write_tsv(sgDF, "/Volumes/GoogleDrive/My Drive/Callahan Lab/metagenome_gardnerella/pregnancy_metagenome/shotgunMetadata.tsv")
 ```
 
-# Collection figure: paired
+# Collection figure
+## MGS
 ```{r}
-sgDF <- "../shotgunMetadata.tsv" %>%
-  read_tsv %>%
-  mutate(SubjectID=as.character(SubjectID))
+ggplot() +
+  geom_point(data=AMP, aes(x=GDcoll, y=as.character(SubjectID), shape=Method, color=Cohort, size=Method), alpha=.5) +
+   geom_point(data=SHOT, aes(x=GDcoll, y=as.character(SubjectID), shape=Method, size=Method), color="black") +
+  xlim(0,280) +
+     labs(x = "Gestation Days",
+          y = "Subject") +
+     scale_color_manual(values=c("olivedrab", "steelblue", "black"))+
+     scale_shape_manual(values=c(19, 15)) +
+     scale_size_manual(values=c(1,2)) +
+     #theme_classic()+
+     theme(axis.ticks.y = element_blank(),
+     #axis.text.x = element_text(size = 10),
+     axis.text.y  = element_blank()
+     #axis.title.x = element_text(size=20),
+     #axis.title.y = element_text(size=20)
+     )
+     #scale_x_continuous(breaks = c(0,50,100,150,200, 250))
+#ggsave("./collectionPlot.svg", height=8, width=8.5) 
+```
 
+## paired sequencing
+```{r}
 SHOT2 <- sgDF %>%
   select(SubjectID, GDcoll, Cohort, PaperCohort, RNAlater) %>%
   filter(PaperCohort=="2015"|PaperCohort=="2017") %>%
@@ -244,211 +320,6 @@ ggplot() +
      theme(axis.ticks.y = element_blank(),
      axis.text.y  = element_blank())
 #ggsave("/Users/hlberman/Desktop/prelimPlot.svg", height=8, width=8.5) 
-```
-
-# Info for metadata table
-## Term vs. Preterm
-```{r}
-# samples
-sgDF %>%
-  group_by(Cohort, TermPre) %>%
-  tally()
-#subjects
-sgDF %>%
-  select(SubjectID, Cohort, TermPre) %>%
-  unique %>%
-  group_by(Cohort, TermPre) %>%
-  tally
-
-#Average samples per subject
-sgDF %>%  # by cohort
-  group_by(Cohort, SubjectID) %>%
-  summarise(samplesPerSubject=n_distinct(SampleID)) %>%
-  ungroup() %>%
-  group_by(Cohort) %>%
-  summarise(mean(samplesPerSubject), sd(samplesPerSubject))
-
-sgDF %>% # total
-  group_by(Cohort, SubjectID) %>%
-  summarise(samplesPerSubject=n_distinct(SampleID)) %>%
-  ungroup() %>%
-  summarise(mean(samplesPerSubject), sd(samplesPerSubject))
-```
-  Total 107 Samples. 
-  From Stanford: 62 samples from 20 subjects (9 preterm, 11 term). Average 3.1 samples per subject.
-  From UAB: 45 samples from 15 subjects (5 term and 10 preterm). Average 3 samples per subject.
-  
-## Gestation weeks at delivery
-```{r}
-# grouped by cohort
-sgDF %>%
-  select(SubjectID, Cohort, TermPre, GWdell) %>%
-  unique() %>%
-  group_by(Cohort, TermPre) %>%
-  summarize(mean(GWdell), sd(GWdell))
-
-# total
-sgDF %>%
-  select(SubjectID, Cohort, TermPre, GWdell) %>%
-  unique() %>%
-  group_by(TermPre) %>%
-  summarize(mean(GWdell), sd(GWdell))
-```
-
-## Gestation time at collection
-```{r}
-# grouped by cohort
-sgDF %>%
-  select(SampleID, Cohort, TermPre, GWcoll) %>%
-  unique() %>%
-  group_by(Cohort, TermPre) %>%
-  summarize(mean(GWcoll), sd(GWcoll))
-
-# total
-sgDF %>%
-  select(SampleID, Cohort, TermPre, GWcoll) %>%
-  unique() %>%
-  group_by(TermPre) %>%
-  summarize(mean(GWcoll), sd(GWcoll))
-```
-
-## Reads
-```{r}
-# by cohort
-sgDF %>%
-  select(Cohort, TotalReads, Sickle100_pe, bbmapFiltered_pairs, finalPctHuman_po) %>%
-  group_by(Cohort) %>%
-  summarise_all(funs(mean, sd, min, max))
-  
-# total
-sgDF %>%
-  select(TotalReads, Sickle100_pe, bbmapFiltered_pairs, finalPctHuman_po) %>%
-  summarise_all(funs(mean, sd, min, max))
-```
-
-```{r}
-sgDF %>%
-  ggplot(aes(x=bbmapFiltered_pairs)) +
-  geom_histogram(bins=100)
-```
-
-
-## Demographics
-Note, no demographics data for 10604
-```{r}
-demo2015 <- "./sampledata_VaginalSwabs_Pregnancy_DiGiulio2015.tsv" %>%
-  read_tsv() %>%
-  select(SubjectID, Race, Ethnicity, SES_maternal_education, SES_household_income)  %>%
-  filter(SubjectID %in% sgDF$SubjectID) %>%
-  unique %>%
-  mutate(SubjectID= as.character(SubjectID),
-         Cohort="Stanford",
-         Race=factor(Race),
-         Ethnicity=factor(Ethnicity),
-         SES_maternal_education=factor(SES_maternal_education),
-         SES_household_income=factor(SES_household_income),
-         Race=addNA(Race),
-         Ethnicity=addNA(Ethnicity),
-         SES_maternal_education=addNA(SES_maternal_education),
-         SES_household_income=addNA(SES_household_income))
-
-demo2017 <- "./MAP_MANUSCRIPT_IL02-IL09_ToBen_20170404_fixed.txt" %>%
-  read_delim(delim="\t") %>%
-  select(SubjectID, UAB_Sample, MaternalRace, SpecifyOTHERrace, MaternalEthnicity, HighestEducationLevel, HouseholdIncome) %>%
-  filter(SubjectID %in% sgDF$SubjectID) %>%
-  unique %>%
-  dplyr::rename(Race=MaternalRace,
-                Ethnicity=MaternalEthnicity,
-                SES_maternal_education=HighestEducationLevel,
-                SES_household_income=HouseholdIncome) %>%
-  mutate(SubjectID= as.character(SubjectID),
-         Cohort=case_when(UAB_Sample==0~"Stanford",
-                          UAB_Sample==1~"UAB"),
-         #Race=case_when(Race=="Other"~SpecifyOTHERrace,
-         #               Race!="Other"~Race),
-         Race=factor(Race),
-         Ethnicity=factor(Ethnicity),
-         SES_maternal_education=factor(SES_maternal_education),
-         SES_household_income=factor(SES_household_income),
-         Race=addNA(Race),
-         Ethnicity=addNA(Ethnicity),
-         SES_maternal_education=addNA(SES_maternal_education),
-         SES_household_income=addNA(SES_household_income)) %>%
-  select(-UAB_Sample)
-#Race levels for matching coding
-levels(demo2015$Race)
-levels(demo2017$Race)
-#Ethnicity levels for mathing coding
-levels(demo2015$Ethnicity)
-levels(demo2017$Ethnicity)
-```
-
-  Fix levels to match and assess
-  Note: Asian, Hawaiian, Indian merged to Asian, South Asian, Pacific Islander
-```{r}
-demo2015 <- demo2015 %>%
-  mutate(Race0=case_when(Race=="American Indian"~"Other",
-                         Race=="Other (Specify below)"~"Other",
-                         Race=="Indian"~"Asian, South Asian, or Pacific Islander",
-                         Race=="White"~"White"),
-                  Ethnicity=case_when(Ethnicity=="Hispanic"~"Hispanic",
-                  Ethnicity=="Non-hispanic"~"Non Hispanic"))
-
-demo2017 <- demo2017 %>%
-  mutate(Race0=case_when(Race=="AmericanIndian"~"Other",
-                         Race=="Black"~"Black",
-                         Race=="Other"~"Other",
-                         Race=="AsianChinese"~"Asian, South Asian, or Pacific Islander",
-                         Race=="White"~"White"),
-         Ethnicity=case_when(Ethnicity=="Hispanic"~"Hispanic",
-                             Ethnicity=="NonHispanic"~"Non Hispanic"))
-demo <- demo2015 %>%
-  full_join(demo2017) %>%
-  bind_rows(., c(SubjectID="10604", Cohort="Stanford")) %>% # add subject without demo data
-  mutate(Race0=factor(Race0))
-  
-demo %>%
-  group_by(Cohort, Race0) %>%
-  tally() %>%
-  ungroup %>% # remove race grouping
-  group_by(Cohort) %>%
-  mutate(Percent=round(n/sum(n),3)) %>%
-  select(-n) %>%
-  spread(Race0,Percent) %>%
-  mutate_all(~replace_na(.x, 0))
-
-demo %>%
-  group_by(Race0) %>%
-  tally() %>%
-  ungroup %>%
-  mutate(Percent=round(n/sum(n),3)) %>%
-  select(-n) %>%
-  spread(Race0,Percent) %>%
-  mutate_all(~replace_na(.x, 0))
-```
-
-  Ethnicity
-```{r}
-# by cohort
-demo %>%
-  group_by(Cohort, Ethnicity) %>%
-  tally() %>%
-  ungroup %>% # Remove ethnicity grouping
-  group_by(Cohort) %>% 
-  mutate(Percent=round(n/sum(n),3)) %>%
-  select(-n) %>%
-  spread(Ethnicity, Percent) %>%
-  mutate_all(~replace_na(.x, 0))
-
-# total
-demo %>%
-  group_by(Ethnicity) %>%
-  tally() %>%
-  ungroup %>% # Remove ethnicity grouping
-  mutate(Percent=round(n/sum(n),3)) %>%
-  select(-n) %>%
-  spread(Ethnicity, Percent) %>%
-  mutate_all(~replace_na(.x, 0))
 ```
 
 

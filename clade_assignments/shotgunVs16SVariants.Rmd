@@ -5,47 +5,109 @@ date: "12/10/2019"
 output: html_document
 ---
 # Set up
-## packages
+## Packages
 ```{r}
 library(tidyverse)
 library(phyloseq)
 library(Biostrings)
+library(formattable)
+`%!in%` <- negate(`%in%`)
 ```
-
 ## Paths
 ```{r}
-repo_dir <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/pregnancy_metagenome"
-google_drive_dir <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/"
+repoDir <- ".."
+dataDir <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/metagenome_gardnerella/"
+figureOut <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/metagenome_gardnerella/FIGURES/clade_assignments"
 
 #shotgun metadata
-sgDF <- file.path(repo_dir, "shotgunMetadata.tsv") %>%
+sgDF <- file.path(repoDir, "shotgunMetadata.tsv") %>%
   read_delim(delim = "\t") %>%
   mutate(SampleID=as.character(SampleID),
          SampleID_a=as.character(SampleID_a))
 
-#ASVs from Callahan et al., 2017
-S16_path <- file.path(google_drive_dir, "16S_data/RepRefine_Scripts/input/processed.rda")
+#ASVs from Callahan et al., 2017 PNAS Replication and Refinement
+S16_path <- file.path(dataDir, "16S_data/RepRefine_Scripts/input/processed.rda")
 load(S16_path)
 
 #Gardnerella 16S fasta sequences from reference WGS strains
-rRNAs16S <- readDNAStringSet(file.path(repo_dir, "gard_mapping", "clade_assignments", "16SrRNAs.fasta"))
+rRNAs16S <- file.path(dataDir, "gardPhylogeny/prokka_annotated_genomes/ffn") %>%
+  list.files(full.names = TRUE, pattern = "ffn") %>%
+  map(readDNAStringSet) %>%
+  do.call("c", .) %>%
+  .[str_detect(names(.), "16S ribosomal RNA")]
+
 
 #gardnerella metadata
-refDF <- file.path(repo_dir, "GardnerellaMetadata.csv") %>%
+refDF <- file.path(repoDir, "refGardnerellaCladesGenomos.csv") %>%
   read_csv
 
-#Gardnerella abundance from shotgun results
-sgGardDF <- "./gardRelativeAbundance.tsv" %>%
+#Gardnerella clade abundance from cladeAssignments.Rmd
+sgCladeDF <- file.path(repoDir, "gardCladeRelativeAbundance.tsv") %>%
   read_tsv() %>%
   mutate(SampleID=as.character(SampleID))
 
-#figure_out <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/vagMicrobiomeMetagenome/gardMapping/clade_assignments/figures"
+#Gardnerella genomospecies abundance from cladeAssignments.Rmd
+sgGenomoDF <- file.path(repoDir, "gardGenomospeciesRelativeAbundance.tsv") %>%
+  read_tsv() %>%
+  mutate(SampleID=as.character(SampleID))
+```
+## ggplot themes
+```{r}
+theme_set(theme_bw())
+# variant colors for clades vs V4
+ggplotCladeV4 <- list(scale_size_manual(values=c(1.5, 3)),
+  scale_color_manual(values=c("salmon", "indianred", "lightblue", "blue3", "darkorchid2", "yellowgreen", "red", "blue1", "grey48", "darkorchid2", "yellowgreen"), labels=c("Clade C1 (shotgun)", "Clade C2 (shotgun)", "Clade C3 (shotgun)", "Clade C4 (shotgun)", "Clade C5 (shotgun)", "Clade C6 (shotgun)", "G2: Clades 1/2 (V4 amplicon)", "G1: Clades 3/4 (V4 amplicon)", "G3: indeterminant (V4 amplicon)", "G4: Clade 5 (V4 amplicon)", "G5: Clade 6 (V4 amplicon)")),
+  scale_shape_manual(values = c(16, 1)))
+
+# clade, genomospecies, and V4 variant colors
+ggplotAll <- list(scale_size_manual(values=c(1.5, 2, 3)),
+  scale_color_manual(values=c("salmon", "indianred", "lightblue", "blue3", "darkorchid2", "yellowgreen",
+                              "salmon1", "salmon3", "indianred1", "indianred2", "indianred3", "blue4", "blue", "lightblue1", "lightblue2", "lightblue3", "lightblue4",   "darkorchid2", "yellowgreen", "cadetblue1",
+                              "red", "blue1", "grey48", "darkorchid2", "yellowgreen"),
+                     labels=c("Clade C1 (shotgun)", "Clade C2 (shotgun)", "Clade C3 (shotgun)", "Clade C4 (shotgun)", "Clade C5 (shotgun)", "Clade C6 (shotgun)",
+                              "Genomospecies 1, G. vaginalis (shotgun)",
+                              "Genomospecies 2 (shotgun)",
+                              "Genomospecies 3 (shotgun)",
+                              "Genomospecies 4, G. piotti (shotgun)",
+                              "Genomospecies 11 (shotgun)",
+                              "Genomospecies 5, G. leopoldii (shotgun)",
+                              "Genomospecies 6, G. swidsinskii (shotgun)",
+                              "Genomospecies 7 (shotgun)",
+                              "Genomospecies 8 (shotgun)",
+                              "Genomospecies 9 (shotgun)",
+                              "Genomospecies 10 (shotgun)",
+                              "Genomospecies 12 (shotgun)",
+                              "Genomospecies 13 (shotgun)",
+                              "Genomospecies 14 (shotgun)",
+                              "G2: Clades 1/2 (V4 amplicon)", "G1: Clades 3/4 (V4 amplicon)", "G3: indetereminant (V4 amplicon)", "G4: Clade 5 (V4 amplicon)", "G5: Clade 6 (V4 amplicon)")),
+  scale_shape_manual(values = c(16, 5, 1)))  
+
+# clade and genomospecies variant colors  
+ggplotShotgunOnly <- list(scale_size_manual(values=c(1.5, 2)),
+  scale_color_manual(values=c("salmon", "indianred", "lightblue", "blue3", "darkorchid2", "yellowgreen",
+                              "salmon1", "salmon3", "indianred1", "indianred2", "indianred3", "blue4", "blue", "lightblue1", "lightblue2", "lightblue3", "lightblue4",   "darkorchid2", "yellowgreen", "cadetblue1"),
+                     labels=c("Clade C1", "Clade C2", "Clade C3", "Clade C4", "Clade C5", "Clade C6",
+                              "Genomospecies 1, G. vaginalis",
+                              "Genomospecies 2",
+                              "Genomospecies 3",
+                              "Genomospecies 4, G. piotti",
+                              "Genomospecies 11",
+                              "Genomospecies 5, G. leopoldii",
+                              "Genomospecies 6, G. swidsinskii",
+                              "Genomospecies 7",
+                              "Genomospecies 8",
+                              "Genomospecies 9",
+                              "Genomospecies 10",
+                              "Genomospecies 12",
+                              "Genomospecies 13",
+                              "Genomospecies 14")),
+  scale_shape_manual(values = c(16, 5)))
 ```
 
-Set up metaphlan table
+## Set up abundance table from MetaPhlAn2 results
 ```{r}
 #metaphlan data
-mDF0 <- file.path(google_drive_dir, "/humann2/merged_tables/mergedMetaphlanAbundance.tsv") %>%
+mDF0 <- file.path(dataDir, "/humann2/merged_tables/mergedMetaphlanAbundance.tsv") %>%
   read_tsv() %>%
   filter(str_detect(ID, "s__"), !str_detect(ID, "t__")) %>%
   mutate(Species = str_extract(ID, "(?<=s__)\\w+$")) %>%
@@ -70,10 +132,17 @@ mDF <- mDF0 %>%
 mDF[1:6,1:5]
 ```
 
-# Get variants
+# Organize method abundances
+## Get V4 variants
+  Get V4 Variants that appear in these samples and determine corresponding clades using 16S rRNA sequences from 
 ```{r}
-studyIDs <- sgDF$SampleID_a
+# all sample IDs that would have corresponding ASV data
+studyIDs <- sgDF %>%
+  filter(PaperCohort=="2017",
+         RNAlater=="No") %>%
+  .$SampleID
 
+# phyloseq object of data from Callahan et al., 2017 PNAS  Replication and Refinement
 PS17 <- phyloseq(otu_table(st, taxa_are_rows=FALSE), sample_data(df), tax_table(tax))
   #transform_sample_counts(function(x) {x/sum(x)}) #make read counts into relative abundances
 
@@ -81,89 +150,92 @@ has.shotgun <- PS17@sam_data$SampleID %in% studyIDs
 PS16S_170 <- PS17 %>%
   subset_samples(has.shotgun) #keep only samples of interest in OTU table
 
-# sgDF0 <- sgDF %>%
-#  filter(PaperCohort==2017) %>%
-#  mutate(SampleID=as.character(SampleID),
-#         SampleID_a=as.character(SampleID_a))
-
-gardVarTable <- PS16S_170 %>%
-  psmelt() %>% 
-  dplyr::rename(SampleID_a = SampleID) %>%
+S16gard <- PS16S_170 %>%
+  psmelt %>% 
   filter(Genus=="Gardnerella", 
-         Abundance>0) %>%
-  left_join(., sgDF[,c("SampleID_a", "SampleID", "RNAlater")], by="SampleID_a")
+         Abundance>0)
 ```
-Note: there are 9 variants among the entire sample set for 2017, but only 5 within these 81 samples
-
-## Function to get the variants among all sequences
+  Note: there are 9 variants among the entire sample set for 2017, but only 5 within the shotgun samples samples
+  
+  Are there any samples in which *Gardnerella* was not found by 16S?
 ```{r}
-varSequences <- function(label, sequences){
-  sequenceVariants <- unique(sequences)
-  names(sequenceVariants) <- paste(label, c(1:length(sequenceVariants)), sep =  "_")
-  print(sequenceVariants)
-}
+noGard16S <- setdiff(studyIDs, unique(S16gard$SampleID))
+noGard16S
+
+PS16S_170 %>%
+  psmelt %>%
+  filter(Genus=="Gardnerella",
+         SampleID %in% noGard16S) %>%
+  select(SampleID, Abundance) %>%
+  unique
 ```
-
-## Relate Variant assignments to clades
+  Two from subject 10623. Was *Gardnerella* found by MetaPhlAn2?
 ```{r}
-vars <- as.list(varSequences("G", gardVarTable$OTU)) # get list of variants from 16S march of dimes
+mDF %>%
+  filter(SampleID %in% noGard16S) %>%
+  select(SampleID, Gardnerella_vaginalis)
+```
+  *Gardnerella* was not found by MetaPhlAn2 or 16S in these two samples.
 
-strains <- names(rRNAs16S) %>%
-  str_extract(., ".*(?=_[0-9]{5} 16S ribosomal RNA$)")
-varClades <- vars %>%
-  map(.,~vcountPattern(.x, rRNAs16S)) %>%
-  data.frame(Strain=strains) %>%
-  mutate(Var=case_when(G_1==1~"G1",
-                       G_2==1~"G2",
-                       G_3==1~"G3",
-                       G_4==1~"G4",
-                       G_5==1~"G5")) %>%
-  left_join(refDF[,c("Strain", "Clade")], by="Strain") %>%
-  select(Var, Clade) %>%
-  mutate(Clade=as.character(Clade)) %>%
-  unique()
+### Map variants to clades
+  Determine which V4 variants are in each reference WGS isolate
+```{r}
+# get list of ASVs from 16S amplicon data
+vars <- S16gard %>%
+  select(OTU) %>%
+  unique %>%
+  mutate(var=paste0("G", c(1:nrow(.)))) %>%
+  dplyr::rename(seq="OTU") %>%
+  select(var, seq)
+
+# Determine which clades each V4 ASV maps to in Gardnerella WGS reference sequences
+varClades <- rRNAs16S %>%
+  as.data.frame() %>%
+  rownames_to_column("Strain") %>%
+  dplyr::rename(seq=x) %>%
+  mutate(Strain=str_extract(Strain, ".*(?=_[0-9]{5} 16S ribosomal RNA$)"),
+         seq=str_extract(seq, paste(vars$seq, collapse = "|"))) %>%
+  filter(!is.na(seq)) %>%
+  left_join(refDF, by="Strain") %>%
+  left_join(vars, by="seq") %>%
+  select(var, Clade) %>%
+  unique
+  
 varClades
 ```
 
 **NOTE: THESE LABELS DO NOT MATCH Callahan 2017 G1/G2 ARE FLIPPED**
 
-## classify samples
+## Prganize sample abundances for 
+  Get abundances of variants in each sample that has 16S and shotgun sequencing and format tables
 ```{r}
-S16gardDF <- gardVarTable %>%
-  mutate(Var=case_when(OTU==vars$G_1~"G2: Clades 1/2", #change G1/G2 to match Callahan 2017 
-                        OTU==vars$G_2~"G1: Clades 3/4",
-                        OTU==vars$G_3~"G3: indetereminant",
-                        OTU==vars$G_4~"G4: Clade 5",
-                        OTU==vars$G_5~"G5: Clade 6")) %>%
+vars0 <- vars %>%
+  spread(var, seq)
+
+S16gardDF <- S16gard %>%
+  mutate(Var=case_when(OTU==vars0$G1~"G2: Clades 1/2", #change G1/G2 to match Callahan 2017 
+                       OTU==vars0$G2~"G1: Clades 3/4",
+                       OTU==vars0$G3~"G3: indetereminant",
+                       OTU==vars0$G4~"G4: Clade 5",
+                       OTU==vars0$G5~"G5: Clade 6")) %>%
   group_by(SampleID) %>%
   mutate(propGard=Abundance/sum(Abundance)) %>%
   ungroup() %>%
-  select(OTU, SampleID, SubjectID, Abundance, propGard, GWcoll, RNAlater, Var) 
+  select(OTU, SampleID, SubjectID, Abundance, propGard, GWcoll, Var) #RNAlater
+
 S16gardDF$Var <- factor(S16gardDF$Var, levels = c("G2: Clades 1/2", "G1: Clades 3/4", "G3: indetereminant", "G4: Clade 5", "G5: Clade 6")) #Keep order G2, G1, G3, G4, G5
-
-ggplot(data=S16gardDF, aes(x=GWcoll, y=propGard, color=Var, shape=RNAlater)) +
-  geom_point() +
-  facet_wrap(~SubjectID) +
-  scale_color_manual(values=c("indianred2", "steelblue2", "black", "darkorchid2", "yellowgreen")) + # labels=c("G2: Clades 1/2", "G1: Clades 3/4", "G3: indetereminant", "G4: Clade 5", "G5: Clade 6")) +
-  labs(title = "Clade assignments by 16S Amplicon Sequencing", x= "GW collection", y="Proportion of Gardnerella", shape="RNA Later", color="V4 variant")
-#ggsave(filename = file.path(figure_out, "cladesBy16S.pdf"))
 ```
 
-## Save table
-```{r}
-#write_delim(S16gardDF, "./16SgardVariants.tsv", delim="\t")
-```
 
-# Comparison to shotgun methods:
-
-## Unify dataframe
+## Organize dataframes
+  Place clade, genomospecies, and V4 variant abundances into one dataframe
 ```{r}
 S16gardDF0 <- S16gardDF %>%
   select(SampleID, Var, propGard) %>%
   mutate(Method="V4 region 16S amplicon")
 
-sgGardDF0 <- sgGardDF %>%
-#  select(-n) %>%
+sgCladeDF0 <- sgCladeDF %>%
+  filter(SampleID %in% studyIDs) %>%
   dplyr::rename(Var=Clade,
                 propGard=propClade) %>%
   mutate(Var=case_when(Var=="C1"~"Clade 1",
@@ -172,305 +244,537 @@ sgGardDF0 <- sgGardDF %>%
                        Var=="C4"~"Clade 4",
                        Var=="C5"~"Clade 5",
                        Var=="C6"~"Clade 6"),
-         Method="Shotgun")
+         Method="Shotgun Clade")
 
-gardVarDF <- S16gardDF0 %>%
-  full_join(sgGardDF0, by=c("SampleID", "Var", "propGard", "Method")) %>%
-  left_join(sgDF[,c("SampleID", "SubjectID", "GWcoll", "RNAlater", "PaperCohort")], by="SampleID")
+sgGenomoDF0 <- sgGenomoDF %>%
+  filter(SampleID %in% studyIDs) %>%
+  dplyr::rename(Var=Genomospecies,
+                propGard=propGenomospecies) %>%
+  mutate(Var=as.character(Var),
+          Var=case_when(Var=="GS1"~"Genomospecies 1, G. vaginalis",
+                        Var=="GS2"~"Genomospecies 2",
+                        Var=="GS3"~"Genomospecies 3",
+                        Var=="GS4"~"Genomospecies 4, G. piotti",
+                        Var=="GS5"~"Genomospecies 5, G. leopoldii",
+                        Var=="GS6"~"Genomospecies 6, G. swidsinskii",
+                        Var=="GS7"~"Genomospecies 7",
+                        Var=="GS8"~"Genomospecies 8",
+                        Var=="GS9"~"Genomospecies 9",
+                        Var=="GS10"~"Genomospecies 10",
+                        Var=="GS11"~"Genomospecies 11",
+                        Var=="GS12"~"Genomospecies 12",
+                        Var=="GS13"~"Genomospecies 13", 
+                        Var=="GS14"~"Genomospecies 14"),
+         Method="Shotgun Genomospecies")
 
-gardVarDF$Var <- factor(gardVarDF$Var, levels=c("Clade 1", "Clade 2", "Clade 3", "Clade 4", "Clade 5", "Clade 6", "G2: Clades 1/2", "G1: Clades 3/4", "G3: indetereminant", "G4: Clade 5", "G5: Clade 6"))
-```
+gardAllVarDF <- S16gardDF0 %>%
+  full_join(sgCladeDF0, by=c("SampleID", "Var", "propGard", "Method")) %>%
+  full_join(sgGenomoDF0) %>%
+  left_join(sgDF[,c("SampleID", "SubjectID", "GWcoll")], by="SampleID") %>%
+  mutate(Var=factor(Var, levels = c("Clade 1", "Clade 2", "Clade 3", "Clade 4", "Clade 5", "Clade 6",
+                                     "Genomospecies 1, G. vaginalis", "Genomospecies 2", "Genomospecies 3", "Genomospecies 4, G. piotti", "Genomospecies 11", "Genomospecies 5, G. leopoldii", "Genomospecies 6, G. swidsinskii", "Genomospecies 7", "Genomospecies 8", "Genomospecies 9", "Genomospecies 10",  "Genomospecies 12", "Genomospecies 13", "Genomospecies 14",
+                                     "G2: Clades 1/2", "G1: Clades 3/4", "G3: indetereminant", "G4: Clade 5", "G5: Clade 6")))
 
-## Plot 
-Subset of two samples  
-```{r}
-gardVarDF %>%
-  filter(RNAlater=="No",
-         SubjectID=="10621"|SubjectID=="19024")%>%
-ggplot(aes(x=GWcoll, y=propGard, color=Var, shape=Method, size=Method)) +
-  geom_point() +
-  scale_size_manual(values=c(1.5, 3)) +
-  scale_color_manual(values=c("salmon", "indianred", "lightblue", "blue3", "red", "blue1", "grey48"), labels=c("Clade C1 (shotgun)", "Clade C2 (shotgun)", "Clade C3 (shotgun)", "Clade C4 (shotgun)", "G2: Clades 1/2 (V4 amplicon)", "G1: Clades 3/4 (V4 amplicon)", "G3: indeterminant (V4 amplicon)")) +
-  scale_shape_manual(values = c(16, 1)) +
-  facet_wrap(~SubjectID) +
-  labs(x="Gestation weeks at collection", y="Proportion of Gardnerella", shape="Method", color="Variant") +
-  guides(color=guide_legend(override.aes=list(shape=15, size=3)))
-#ggsave(file.path(figure_out, "biolunchV4SG2samp.png"), width=8, height=6)
-```
+#gardCladeVarDF$Var <- factor(gardCladeVarDF$Var, levels=c("Clade 1", "Clade 2", "Clade 3", "Clade 4", "Clade 5", "Clade 6", "G2: Clades 1/2", "G1: Clades 3/4", "G3: indetereminant", "G4: Clade 5", "G5: Clade 6"))  
   
-All samples 
-```{r}
-gardVarDF %>%
-  filter(RNAlater=="No",
-         PaperCohort==2017)%>%
-ggplot(aes(x=GWcoll, y=propGard, shape=Method, size=Method, color=Var)) +
+head(gardAllVarDF)
+unique(gardAllVarDF$Var)  
+```
+
+## View assignments
+  First pass assignmentby mapping reads to variants without imposing any read count thresholds. 
+```{r, fig.width=5, fig.height=4}
+gardAllVarDF %>%
+  ggplot(aes(x=GWcoll, y=propGard, shape=Method, size=Method, color=Var)) +
   geom_point() +
-  scale_size_manual(values=c(1.5, 3)) +
-  scale_color_manual(values=c("salmon", "indianred", "lightblue", "blue3", "darkorchid2", "yellowgreen", "red", "blue1", "grey48", "darkorchid2", "yellowgreen"), labels=c("Clade C1 (shotgun)", "Clade C2 (shotgun)", "Clade C3 (shotgun)", "Clade C4 (shotgun)", "Clade C5 (shotgun)", "Clade C6 (shotgun)", "G2: Clades 1/2 (V4 amplicon)", "G1: Clades 3/4 (V4 amplicon)", "G3: indeterminant (V4 amplicon)", "G4: Clade 5 (V4 amplicon)", "G5: Clade 6 (V4 amplicon)")) + 
-  scale_shape_manual(values = c(16, 1)) +
+  ggplotAll +
   facet_wrap(~SubjectID, nrow=2) +
   labs(x="Gestation weeks at collection", y="Proportion of Gardnerella", shape="Method", color="Variant") +
   guides(color=guide_legend(override.aes=list(shape=15, size=3))) +
   xlim(0,40)
-#ggsave(file.path(figure_out, "biolunchV4SGv1.png"), width=8, height=6)
+#ggsave(filename = file.path(figureOut, "firstPassAllMethods.png"))
 ```
 
-Four Subjects:
+  Shotgun variants only with N reads on y-axis
 ```{r}
-gardVarDF %>%
-  filter(RNAlater=="No",
-         PaperCohort==2017, 
-         SubjectID %in% c("10621", "10627", "10629", "19024"))%>%
-ggplot(aes(x=GWcoll, y=propGard, shape=Method, size=Method, color=Var)) +
+gardAllVarDF %>%
+  filter(str_detect(Method, "Shotgun")) %>%
+  ggplot(aes(x=GWcoll, y=n, shape=Method, size=Method, color=Var)) +
   geom_point() +
-  scale_size_manual(values=c(1.5, 3)) +
-  scale_color_manual(values=c("salmon", "indianred", "lightblue", "blue3", "darkorchid2", "yellowgreen", "red", "blue1", "grey48", "darkorchid2", "yellowgreen"), labels=c("Clade C1 (shotgun)", "Clade C2 (shotgun)", "Clade C3 (shotgun)", "Clade C4 (shotgun)", "Clade C5 (shotgun)", "Clade C6 (shotgun)", "G2: Clades 1/2 (V4 amplicon)", "G1: Clades 3/4 (V4 amplicon)", "G3: indeterminant (V4 amplicon)", "G4: Clade 5 (V4 amplicon)", "G5: Clade 6 (V4 amplicon)")) + 
-  scale_shape_manual(values = c(16, 1)) +
+  ggplotShotgunOnly +
+  scale_y_log10() +
   facet_wrap(~SubjectID, nrow=2) +
   labs(x="Gestation weeks at collection", y="Proportion of Gardnerella", shape="Method", color="Variant") +
   guides(color=guide_legend(override.aes=list(shape=15, size=3))) +
-  theme(plot.background = element_rect(fill = "transparent", color = NA),
-        legend.background = element_rect(fill = "transparent"))
-#ggsave("/Users/hlberman/Desktop/figure1.png", width=7, height=5, bg = "transparent")
+  xlim(0,40)
+#ggsave(filename = file.path(figureOut, "firstPassAllMethodsN.png"))
 ```
-
-# Add thresholds and test:
+  
+# Test Thresholds
+  Determine how many reads must map to each variant to count the variant as present.
+  View variants over ranges of thresholds:
 ```{r, fig.height=6, fig.width=9}
 # create data frames
 thresholds <- c(1:49) %>% # set the threshold range
-  map(~filter(gardVarDF, n>.x)) %>% # filter out clades below read threshold 
-  map(~group_by(.x, SampleID)) %>%
+  map(~filter(gardAllVarDF, n>.x)) %>% # filter out clades below read threshold 
+  map(~group_by(.x, SampleID, Method)) %>%
   map(~mutate(.x, propGard=propGard/sum(propGard))) %>% # recalculate proportions after threshold filtering
   map(ungroup) %>%
   map2(c(1:49), ~mutate(.x, Threshold=.y)) %>% # add threshold column
-  purrr::reduce(full_join, by=c(colnames(gardVarDF), "Threshold")) # reduce to one data frame
+  purrr::reduce(full_join, by=c(colnames(gardAllVarDF), "Threshold")) # reduce to one data frame
 
 # add threshold information to data frame
-gardVarDF0 <- gardVarDF %>%
+gardAllVarDFThresholds <- gardAllVarDF %>%
   mutate(Threshold=0) %>% # set zero threshold for baseline
   rbind(thresholds) %>%
   mutate(Threshold=Threshold+1) # make threshold as >=n 
 
 # plot - thresholds 1 to 50
-gardVarDF0 %>%
-  filter(RNAlater=="No", PaperCohort=="2017") %>%
+gardAllVarDFThresholds %>%
   ggplot(aes(x=Threshold, y=propGard, shape=Method, size=Method, color=Var)) + 
   geom_point() +
-  scale_size_manual(values=c(2, 4), guide=FALSE) +
-  scale_shape_manual(values = c(16, 5), guide=FALSE) +
-  scale_color_manual(values=c("salmon", "indianred", "lightblue", "blue3", "darkorchid2", "yellowgreen", "red", "blue1", "grey48", "darkorchid2", "yellowgreen"), labels=c("Clade C1 (shotgun)", "Clade C2 (shotgun)", "Clade C3 (shotgun)", "Clade C4 (shotgun)", "Clade C5 (shotgun)", "Clade C6 (shotgun)", "G2: Clades 1/2 (V4 amplicon)", "G1: Clades 3/4 (V4 amplicon)", "G3: indeterminant (V4 amplicon)", "G4: Clade 5 (V4 amplicon)", "G5: Clade 6 (V4 amplicon)")) +
+  ggplotAll +
   ylim(0,1) +
   scale_x_continuous(breaks = seq(0,50, 5)) +
   facet_wrap(~SampleID) +
-  guides(color=guide_legend(override.aes=list(shape=c(rep(16, 6), rep(5, 5)), size=c(rep(2, 6), rep(4, 5))))) +
+  #guides(color=guide_legend(override.aes=list(shape=c(rep(16, 6), rep(5, 5)), size=c(rep(2, 6), rep(4, 5))))) +
   labs(x="Threshold (reads ≥ n)", y="Proportion of Gardnerella")
+ggsave(file.path(figureOut, "variantsByThreshold1_50.png"))
 
 # plot - thresholds 1 to 5
-gardVarDF0 %>%
-  filter(RNAlater=="No", PaperCohort=="2017", Threshold<=5) %>%
+gardAllVarDFThresholds %>%
+  filter(Threshold<=5) %>%
   ggplot(aes(x=Threshold, y=propGard, shape=Method, size=Method, color=Var)) + 
   geom_point() +
-  scale_size_manual(values=c(2, 4), guide=FALSE) +
-  scale_shape_manual(values = c(16, 5), guide=FALSE) +
-  scale_color_manual(values=c("salmon", "indianred", "lightblue", "blue3", "darkorchid2", "yellowgreen", "red", "blue1", "grey48", "darkorchid2", "yellowgreen"), labels=c("Clade C1 (shotgun)", "Clade C2 (shotgun)", "Clade C3 (shotgun)", "Clade C4 (shotgun)", "Clade C5 (shotgun)", "Clade C6 (shotgun)", "G2: Clades 1/2 (V4 amplicon)", "G1: Clades 3/4 (V4 amplicon)", "G3: indeterminant (V4 amplicon)", "G4: Clade 5 (V4 amplicon)", "G5: Clade 6 (V4 amplicon)")) +
+  ggplotAll +
   ylim(0,1) +
   scale_x_continuous(breaks = seq(0,5, 1)) +
   facet_wrap(~SampleID) +
-  guides(color=guide_legend(override.aes=list(shape=c(rep(16, 6), rep(5, 5)), size=c(rep(2, 6), rep(4, 5))))) +
+  #guides(color=guide_legend(override.aes=list(shape=c(rep(16, 6), rep(5, 5)), size=c(rep(2, 6), rep(4, 5))))) +
   labs(x="Threshold (reads ≥ n)", y="Proportion of Gardnerella")
+ggsave(file.path(figureOut, "variantsByThreshold1_5.png"))
 ```
-
- 
-```{r}
+  View count of variants over ranges of thresholds
+```{r, fig.height=5, fig.width=6}
 #fig.height=5, fig.width=6}
-V4Vars <- gardVarDF0 %>%
-  filter(RNAlater=="No",
-         PaperCohort=="2017",
-         Method=="V4 region 16S amplicon") %>%
+V4Vars <- gardAllVarDF %>%
+  filter(Method=="V4 region 16S amplicon") %>%
   select(SampleID, Var, propGard) %>%
   group_by(SampleID) %>%
   summarise(V4vars=n())
 
 sum(V4Vars$V4vars)
 
-varCounts <- gardVarDF0 %>%
-  filter(RNAlater=="No",
-         PaperCohort=="2017",
-         Method=="Shotgun") %>%
-  select(SampleID, Var, propGard, Threshold) %>%
-  group_by(SampleID, Threshold) %>%
-  summarise(shotgunVars=n()) %>%
+varCounts <- gardAllVarDFThresholds %>%
+  filter(Method!="V4 region 16S amplicon") %>%
+  select(SampleID, Method, Var, propGard, Threshold) %>%
+  group_by(SampleID, Method, Threshold) %>%
+  summarise(nVars=n()) %>%
+  spread(Method, nVars) %>%
+  ungroup() %>%
   full_join(map(1:50, ~mutate(V4Vars, Threshold=.x)) %>%
-            purrr::reduce(full_join, by=c("SampleID", "V4vars", "Threshold")), 
+            purrr::reduce(full_join, by = c("SampleID", "V4vars", "Threshold")), 
             by=c("SampleID", "Threshold")) %>%
-  replace_na(list(shotgunVars=0))
+  replace_na(list(shotgunVars=0)) %>%
+  gather("Method", "nVars", c(`Shotgun Clade`, `Shotgun Genomospecies`, `V4vars`))
+
 # Thresholds 1:50
 varCounts %>%
-  gather("Method", "Vars", c(shotgunVars, V4vars)) %>%
-ggplot(aes(x=Threshold, y=Vars, group=Method, color=Method, linetype=Method)) +
+ggplot(aes(x=Threshold, y=nVars, group=Method, color=Method, linetype=Method)) +
   geom_line() +
-  facet_wrap(~SampleID) +
-  scale_y_continuous(breaks=seq(0,6,1)) +
-  scale_color_manual(values=c("blue", "red"), labels=c("Shotgun variants", "V4 variants")) +
-  scale_linetype(guide=FALSE) +
-  guides(color=guide_legend(override.aes=list(linetype=c(1,2)))) +
-  labs(x="Threshold (reads≥n)", y="Variants", color="Method")
-# Thresholds 1:5
+  facet_wrap(~SampleID, scales="free_y") +
+  scale_color_manual(values=c("#56B4E9", "#009E73", "#D55E00"), labels=c("Shotgun Clade", "Shotgun Genomospecies", "V4 variants")) +
+  scale_color_manual(values=c("#56B4E9", "#009E73", "#D55E00"), labels=c("Shotgun Clade", "Shotgun Genomospecies", "V4 variants")) +
+  labs(x="Threshold (reads≥n)", y="N Variants", color="Method")
+#ggsave(filename = file.path(figureOut, "variantCountsbyThreshold.png"))
+
 varCounts %>%
-  gather("Method", "Vars", c(shotgunVars, V4vars)) %>%
-ggplot(aes(x=Threshold, y=Vars, group=Method, color=Method, linetype=Method)) +
+ggplot(aes(x=Threshold, y=nVars, group=Method, color=Method, linetype=Method)) +
   geom_line() +
-  facet_wrap(~SampleID) +
-  scale_y_continuous(breaks=seq(0,6,1)) +
+  facet_wrap(~SampleID, scales = "free_y") +
   xlim(1,5) +
-  scale_color_manual(values=c("blue", "red"), labels=c("Shotgun variants", "V4 variants")) +
-  scale_linetype(guide=FALSE) +
-  guides(color=guide_legend(override.aes=list(linetype=c(1,2)))) +
-  labs(x="Threshold (reads≥n)", y="Variants", color="Method")
+ scale_linetype_manual(values=c(1,2,3), labels=c("Shotgun Clade", "Shotgun Genomospecies", "V4 variants")) +
+  scale_color_manual(values=c("#56B4E9", "#009E73", "#D55E00"), labels=c("Shotgun Clade", "Shotgun Genomospecies", "V4 variants")) +
+  labs(x="Threshold (reads≥n)", y="N Variants", color="Method")
+#ggsave(filename = file.path(figureOut, "variantCountsbyThreshold1_5.png"))
 ```
 
-**Sensitivity**: Percent of cases where a variant is lost
-At threshold ≥1: 8 V4 variants are unrepresented
-At threshold ≥2: 10 V4 variants are unrepresented
-At threshold ≥3: 10 V4 variants are unrepresented
-At threshold ≥4: 14 V4 variants are unrepresented
-At threshold ≥5: 14 V4 variants are unrepresented
-
-With 56 V4 variants total in these 26 samples, percent missing at each threshold:
+# Sensitivity and Specificity testing 
+  Determine the how well variants correspond to each other. 
 ```{r}
-tribble(
-  ~Threshold, ~nMissing, ~total,
-  1,8,56,
-  2,10,56,
-  3,10,56,
-  4,14,56,
-  5,14,56
-) %>%
-  mutate(`Percent Missing`=round(nMissing/total*100, 1)) %>%
-  select(-nMissing, -total) %>%
-  formattable::formattable()
-```
+# Samples we are testing
+testSamples <- gardAllVarDF %>%
+  .$SampleID %>%
+  unique
 
-**Specificity**: how many clades have no support
-At threshold ≥1: 2 clades are unsupported
-At threshold ≥2: 1 clade is unsupported
-At threshold ≥3: 0 clades are unsupported
-```{r}
-# Total number of clades found in at threshold >= 1 read matching
-gardVarDF0 %>%
-  select(SampleID, Var, propGard, RNAlater, PaperCohort, Method, Threshold) %>%
-  filter(Method=="Shotgun", Threshold==1, RNAlater=="No", PaperCohort=="2017") %>%
+# Number of V4 variants in these samples
+nV4 <- gardAllVarDF %>% # number of v4 variants
+  filter(Method=="V4 region 16S amplicon") %>%
+  select(SampleID, Var) %>%
   nrow
+
+ # Number of Clades at each threshold
+nClades <- gardAllVarDFThresholds %>%
+  filter(Method=="Shotgun Clade",
+         Threshold <= 5) %>%
+  select(SampleID, Var, Threshold) %>%
+  group_by(Threshold) %>%
+  summarise(Total=n())
+
+#  Number of Genomospecies at each threshold
+nGenomos <- gardAllVarDFThresholds %>%
+  filter(Method=="Shotgun Genomospecies",
+         Threshold <= 5) %>%
+  select(SampleID, Var, Threshold) %>%
+  group_by(Threshold) %>%
+  summarise(Total=n())
 ```
-60 clades are found among the 28 samples being compated with 16S results
+
+## Sensitivity
+  Sensitivity as percent of V4 variants or clades that are not represented by a clade or genomospecies
+```{r}
+# define function to determine number of V4 variants or clades that are not represented by a clade or genomospecies
+testSens <- function(testSample, comparison, thresh) {
+ if(str_detect(comparison, "V4")){
+   a <- gardAllVarDF %>%
+      filter(SampleID == testSample,
+             Method=="V4 region 16S amplicon") %>%
+      dplyr::rename(V4=Method) %>%
+      select(Var, V4)
+  
+  if("G3: indetereminant" %in% a$Var){
+    a <- a %>%
+      bind_rows(data.frame(Var=c("G2: Clades 1/2", "G1: Clades 3/4"), V4=c("V4 region 16S amplicon", "V4 region 16S amplicon"))) %>%
+      unique %>%
+      filter(Var!="G3: indetereminant")
+  }
+  
+  if(comparison=="V4_clade"){
+     b <- gardAllVarDFThresholds %>%
+      filter(SampleID == testSample,
+             Threshold == thresh,
+             Method=="Shotgun Clade") %>%
+      mutate(Var=case_when(Var=="Clade 1"~"G2: Clades 1/2", 
+                          Var=="Clade 2"~"G2: Clades 1/2",
+                          Var=="Clade 3"~"G1: Clades 3/4",
+                          Var=="Clade 4"~"G1: Clades 3/4",
+                          Var=="Clade 5"~"G4: Clade 5",
+                          Var=="Clade 6"~"G5: Clade 6"),
+            Shotgun=Method) %>%
+      select(Var, Shotgun) %>%
+      unique 
+  }
+  
+  if(comparison=="V4_genomospecies"){
+     b <- gardAllVarDFThresholds %>%
+      filter(SampleID == testSample,
+             Threshold == thresh,
+             Method=="Shotgun Genomospecies") %>%
+      mutate(Var=case_when(Var=="Genomospecies 1, G. vaginalis"~"G2: Clades 1/2", 
+                          Var=="Genomospecies 2"~"G2: Clades 1/2",
+                          Var=="Genomospecies 3"~"G2: Clades 1/2",
+                          Var=="Genomospecies 4, G. piotti"~"G2: Clades 1/2",
+                          Var=="Genomospecies 11"~"G2: Clades 1/2",
+                          Var=="Genomospecies 5, G. leopoldii"~"G1: Clades 3/4",
+                          Var=="Genomospecies 6, G. swidsinskii"~"G1: Clades 3/4",
+                          Var=="Genomospecies 7"~"G1: Clades 3/4",
+                          Var=="Genomospecies 8"~"G1: Clades 3/4",
+                          Var=="Genomospecies 9"~"G1: Clades 3/4",
+                          Var=="Genomospecies 10"~"G1: Clades 3/4",
+                          Var=="Genomospecies 14"~"G1: Clades 3/4",
+                          Var=="Genomospecies 12"~"G4: Clade 5",
+                          Var=="Genomospecies 13"~"G5: Clade 6"),
+            Shotgun=Method) %>%
+      select(Var, Shotgun) %>%
+      unique}
+ 
+  c <- a %>%
+      full_join(b, by="Var") %>%
+      group_by(Shotgun) %>%
+      tally %>%
+      filter(is.na(Shotgun)) %>%
+      .$n
+  }
+  
+  if(comparison=="clade_genomospecies"){
+    a <- gardAllVarDFThresholds %>%
+      filter(SampleID == testSample,
+             Threshold == thresh,
+             Method =="Shotgun Clade") %>%
+      dplyr::rename(Clade=Method) %>%
+      select(Var, Clade)
+     
+    b <- gardAllVarDFThresholds %>%
+      filter(SampleID == testSample,
+             Threshold == thresh,
+             Method=="Shotgun Genomospecies") %>%
+      mutate(Var=case_when(Var=="Genomospecies 1, G. vaginalis"~"Clade 1", 
+                          Var=="Genomospecies 2"~"Clade 1",
+                          Var=="Genomospecies 3"~"Clade 2",
+                          Var=="Genomospecies 4, G. piotti"~"Clade 2",
+                          Var=="Genomospecies 11"~"Clade 2",
+                          Var=="Genomospecies 5, G. leopoldii"~"Clade 4",
+                          Var=="Genomospecies 6, G. swidsinskii"~"Clade 4",
+                          Var=="Genomospecies 7"~"Clade 3",
+                          Var=="Genomospecies 8"~"Clade 3",
+                          Var=="Genomospecies 9"~"Clade 3",
+                          Var=="Genomospecies 10"~"Clade 3",
+                          Var=="Genomospecies 14"~"Clade 3",
+                          Var=="Genomospecies 12"~"Clade 5",
+                          Var=="Genomospecies 13"~"Clade 6"),
+            Genomospecies=Method) %>%
+      select(Var, Genomospecies) %>%
+      unique  
+    
+   c <- a %>%
+    full_join(b, by="Var") %>%
+    group_by(Genomospecies) %>%
+    tally %>%
+    filter(is.na(Genomospecies)) %>%
+    .$n
+   }
+ return(c)
+}
+```
+
+### V4 vs. Clade
+```{r}
+data.frame(testSample=rep(testSamples, 5),# set variables for testSens function
+           comparison=rep("V4_clade", 135),
+           thresh=rep(c(1:5), 27)) %>%
+  bind_cols(z=pmap(., testSens) %>%  #run testSens to find number of missing variables for each test
+              modify_if(~length(.)==0, ~0) %>%
+              flatten_dbl) %>%
+  group_by(thresh) %>%
+  summarize(nMissing=sum(z)) %>%  # count N missing at each threshold
+  dplyr::rename(Threshold=thresh) %>%  # format results table
+  mutate(Total = nV4,
+         `Percent Missing`=round(nMissing/Total*100, 1)) %>%
+  formattable
+```
+
+### V4 vs. genomospecies
+```{r}
+data.frame(testSample=rep(testSamples, 5),  # set variables for testSens function
+             comparison=rep("V4_genomospecies", 135),
+             thresh=rep(c(1:5), 27)) %>%
+  bind_cols(z=pmap(., testSens) %>%  # run testSens to find number of missing variants to each test
+              modify_if(~length(.)==0, ~0) %>%
+              flatten_dbl) %>%
+  group_by(thresh) %>%
+  summarize(nMissing=sum(z)) %>% # count N missing at each threshold
+  dplyr::rename(Threshold=thresh) %>%  # format results table
+  mutate(Total=nV4,  
+    `Percent Missing`=round(nMissing/Total*100, 1)) %>%
+  formattable
+```
+
+### Clade vs. genomospecies
+```{r}
+data.frame(testSample=rep(testSamples, 5), # set variables for testSens function
+             comparison=rep("clade_genomospecies", 135),
+             thresh=rep(c(1:5), 27)) %>%
+  bind_cols(z=pmap(., testSens) %>% # run testSens to find number of missing variants to each test
+              modify_if(~length(.)==0, ~0) %>%
+              flatten_dbl) %>%
+  group_by(thresh) %>%
+  summarize(nMissing=sum(z)) %>% # count N missing at each threshold
+  dplyr::rename(Threshold=thresh) %>% # format results table
+  left_join(nClades, by="Threshold") %>%
+  mutate(`Percent Missing`=round(nMissing/Total*100, 1)) %>%
+  formattable
+```
+
+## Specificity
+  Specificity as number of clades or genomospecies that are not supported by a V4 variant
+```{r}
+# define function to determine the number of clades or genomospecies that are not supported by a V4 variant
+testSpec <- function(testSample, comparison, thresh) {
+  a <- gardAllVarDF %>%
+    filter(SampleID == testSample,
+           Method=="V4 region 16S amplicon") %>%
+    dplyr::rename(V4=Method) %>%
+    select(Var, V4)
+
+  if("G3: indetereminant" %in% a$Var){
+    a <- a %>%
+      bind_rows(data.frame(Var=c("G2: Clades 1/2", "G1: Clades 3/4"), V4=c("V4 region 16S amplicon", "V4 region 16S amplicon"))) %>%
+      unique %>%
+      filter(Var!="G3: indetereminant")
+  }
+  
+  if(comparison=="V4_clade"){
+     b <- gardAllVarDFThresholds %>%
+      filter(SampleID == testSample,
+             Threshold == thresh,
+             Method=="Shotgun Clade") %>%
+      mutate(Var=case_when(Var=="Clade 1"~"G2: Clades 1/2", 
+                          Var=="Clade 2"~"G2: Clades 1/2",
+                          Var=="Clade 3"~"G1: Clades 3/4",
+                          Var=="Clade 4"~"G1: Clades 3/4",
+                          Var=="Clade 5"~"G4: Clade 5",
+                          Var=="Clade 6"~"G5: Clade 6"),
+            Shotgun=Method) %>%
+      select(Var, Shotgun) %>%
+      unique 
+  }
+  
+  if(comparison=="V4_genomospecies"){
+     b <- gardAllVarDFThresholds %>%
+      filter(SampleID == testSample,
+             Threshold == thresh,
+             Method=="Shotgun Genomospecies") %>%
+      mutate(Var=case_when(Var=="Genomospecies 1, G. vaginalis"~"G2: Clades 1/2", 
+                          Var=="Genomospecies 2"~"G2: Clades 1/2",
+                          Var=="Genomospecies 3"~"G2: Clades 1/2",
+                          Var=="Genomospecies 4, G. piotti"~"G2: Clades 1/2",
+                          Var=="Genomospecies 11"~"G2: Clades 1/2",
+                          Var=="Genomospecies 5, G. leopoldii"~"G1: Clades 3/4",
+                          Var=="Genomospecies 6, G. swidsinskii"~"G1: Clades 3/4",
+                          Var=="Genomospecies 7"~"G1: Clades 3/4",
+                          Var=="Genomospecies 8"~"G1: Clades 3/4",
+                          Var=="Genomospecies 9"~"G1: Clades 3/4",
+                          Var=="Genomospecies 10"~"G1: Clades 3/4",
+                          Var=="Genomospecies 14"~"G1: Clades 3/4",
+                          Var=="Genomospecies 12"~"G4: Clade 5",
+                          Var=="Genomospecies 13"~"G5: Clade 6"),
+            Shotgun=Method) %>%
+      select(Var, Shotgun) %>%
+      unique
+     }
+  
+   c <- a %>%
+    full_join(b, by="Var") %>%
+    group_by(V4) %>%
+    tally %>%
+    filter(is.na(V4)) %>%
+    .$n
+   
+return(c)}
+```
+
+### V4 vs. Clade
+```{r}
+data.frame(testSample=rep(testSamples, 5),  # set variables for testSpec function
+             comparison=rep("V4_clade", 135),
+             thresh=rep(c(1:5), 27)) %>%
+  bind_cols(z=pmap(., testSpec) %>%  # run testSpec to find number of missing variants to each test
+              modify_if(~length(.)==0, ~0) %>%
+              flatten_dbl) %>%
+  group_by(thresh) %>%
+  summarize(nUnsupported=sum(z)) %>%  # count N unsupported variants at each threshold
+  dplyr::rename(Threshold=thresh) %>% # format results table
+  left_join(nClades, by="Threshold") %>%
+  mutate(`Percent Unsupported`=round(nUnsupported/Total*100, 1)) %>%
+  formattable
+```
+
+### V4 vs. Genomospecies
+```{r}
+data.frame(testSample=rep(testSamples, 5),  # set variables for testSpec function
+             comparison=rep("V4_genomospecies", 135),
+             thresh=rep(c(1:5), 27)) %>%
+  bind_cols(z=pmap(., testSpec) %>%  # run testSpec to find number of missing variants at each test
+              modify_if(~length(.)==0, ~0) %>%
+              flatten_dbl) %>%
+  group_by(thresh) %>%
+  summarize(nUnsupported=sum(z)) %>%  # count N unsupported variants at each threshold
+  dplyr::rename(Threshold=thresh) %>% # format results table
+  left_join(nGenomos, by="Threshold") %>%
+  mutate(`Percent Unsupported`=round(nUnsupported/Total*100, 1)) %>%
+  formattable
+```
+  Choose a threshold of ≥2 reads for presents. Ignore all one-read assignments
 
 ```{r}
-tribble(
-  ~Threshold, ~nUnsupported, ~total,
-  1,2,60,
-  2,1,60,
-  3,0,60,
-) %>%
-  mutate(`Percent Supported`=round((total-nUnsupported)/total*100, 1)) %>%
-  select(-nUnsupported, -total) %>%
-  formattable::formattable()
+gardAllVarDF_withThreshold <- gardAllVarDFThresholds %>%
+  filter(str_detect(Method, "Shotgun")&Threshold==2|str_detect(Method, "V4")&Threshold==1) %>%
+  select(-Threshold)
 ```
-  However, one of of these "unsupported clades" is clade 6 and G3 appears in that sample, so G3 *could* represent clade 6. Also, both of these have a match by 16S in another sample of the same subject.
 
-  Clades that appear in addition and are supported (ie a V4 variant appears as two clades):
-  At threshold ≥1: 9 clades are added
-  At threshold ≥2: 7  clade is added
-  At threshold ≥3: 5 clades are added
-  At threshold ≥4: 4 clades are added
-  At threshold ≥5: 4 clades are added
+# View Variants in Samples
+## All variants
+```{r, fig.width=6, fig.height=3.5}
+gardAllVarDF_withThreshold %>%
+ggplot(aes(x=GWcoll, y=propGard, shape=Method, size=Method, color=Var)) +
+  geom_point() +
+  ggplotAll +
+  facet_wrap(~SubjectID, nrow=2) +
+  labs(x="Gestation weeks at collection", y="Proportion of Gardnerella", shape="Method", color="Variant") +
+  guides(color=guide_legend(override.aes=list(shape=15, size=3))) +
+  xlim(0,40)
+#ggsave(file.path(figureOut, "allVariants.png"), width=10, height=6)
+```
+
+## Clades vs. 16S
 ```{r}
-tribble(
-  ~Threshold, ~added, ~total,
-  1,9,56,
-  2,7,56,
-  3,5,56,
-  4,4,56,
-  5,4,56
-) %>%
-  mutate(`Percent Supported`=round(added/total*100, 1)) %>%
-  select(-added, -total) %>%
-  formattable::formattable()
+gardAllVarDF_withThreshold %>%
+  filter(Method!="Shotgun Genomospecies") %>%
+ggplot(aes(x=GWcoll, y=propGard, shape=Method, size=Method, color=Var)) +
+  geom_point() +
+  ggplotCladeV4 +
+  facet_wrap(~SubjectID, nrow=2) +
+  labs(x="Gestation weeks at collection", y="Proportion of Gardnerella", shape="Method", color="Variant") +
+  guides(color=guide_legend(override.aes=list(shape=15, size=3))) +
+  xlim(0,40)
+#ggsave(file.path(figureOut, "16SvsClade.png"), width=8, height=6)
 ```
 
+## Shotgun methods only
+```{r, fig.width=4.5, fig.height=3.5}
+gardAllVarDF_withThreshold %>%
+  filter(Method!="V4 region 16S amplicon") %>%
+  ggplot(aes(x=GWcoll, y=propGard, shape=Method, size=Method, color=Var)) +
+  geom_point() +
+  ggplotShotgunOnly +
+  facet_wrap(~SubjectID, nrow=2) +
+  labs(x="Gestation weeks at collection", y="Proportion of Gardnerella", shape="Method", color="Variant") +
+  guides(color=guide_legend(override.aes=list(shape=15, size=3), ncol=2)) +
+  xlim(0,40)
+#ggsave(filename = file.path(figureOut, "shotgunMethods.png"))
+```
 
-Look at distribution of clades per sample after threshold filtering
+# Comparing methods alternate figures
+## Clade vs. 16S
 ```{r}
-# 1 to 5
-add0s <- tibble(SampleID=rep(sgDF$SampleID, 5),
-               Threshold=c(rep(1, 107), rep(2, 107), rep(3, 107), rep(4, 107), rep(5, 107)))
+# samples with variant G3
+g3Samples <- gardAllVarDF_withThreshold %>%
+  filter(Var=="G3: indetereminant") %>%
+  .$SampleID
 
-gardVarDF0 %>%
-  filter(Method == "Shotgun") %>%
-  filter(Threshold %in% c(1:5)) %>%
-  group_by(Threshold, SampleID) %>%
-  summarise(nClades=n()) %>%
-  full_join(add0s, by=c("SampleID", "Threshold")) %>% #each sample has 5 entries (1 per threshold)
-  mutate(nClades=replace_na(nClades, 0)) %>% #replace NAs with 0's
-  left_join(sgDF[,c("SampleID", "Cohort")]) %>%
-  ggplot(aes(x=nClades, group=Threshold, fill=Threshold)) +
-  geom_bar(stat="count", position="dodge") +
-  facet_wrap(~Cohort) +
-  scale_x_continuous(breaks=seq(0,6,1)) +
-  scale_y_continuous(breaks=seq(0,20,2)) +
-  labs(x="Clades per sample", y="Count", fill="Threshold ≥")
-
-add0s <- tibble(SampleID=rep(sgDF$SampleID, 5),
-               Threshold=c(rep(6, 107), rep(7, 107), rep(8, 107), rep(9, 107), rep(10, 107)))
-
-#6 to 10
-gardVarDF0 %>%
-  filter(Method == "Shotgun") %>%
-  filter(Threshold %in% c(6:10)) %>%
-  group_by(Threshold, SampleID) %>%
-  summarise(nClades=n()) %>%
-  full_join(add0s, by=c("SampleID", "Threshold")) %>% #each sample has 5 entries (1 per threshold)
-  mutate(nClades=replace_na(nClades, 0)) %>% #replace NAs with 0's
-  left_join(sgDF[,c("SampleID", "Cohort")]) %>%
-  ggplot(aes(x=nClades, group=Threshold, fill=Threshold)) +
-  geom_bar(stat="count", position="dodge") +
-  facet_wrap(~Cohort) +
-  scale_x_continuous(breaks=seq(0,6,1)) +
-  scale_y_continuous(breaks=seq(0,20,2)) +
-  labs(x="Clades per sample", y="Count", fill="Threshold ≥")
+gardAllVarDF_withThreshold %>%
+  filter(Method!="Shotgun Genomospecies",
+         SampleID %!in% g3Samples) %>%
+  mutate(Var=as.character(Var),
+         Var=case_when(Var=="Clade 1"~"G2: Clades 1/2",
+                   Var=="Clade 2"~"G2: Clades 1/2",
+                   Var=="Clade 3"~"G1: Clades 3/4",
+                   Var=="Clade 4"~"G1: Clades 3/4",
+                   Var=="Clade 5"~"G4: Clade 5",
+                   Var=="Clade 6"~"G5: Clade 6",
+                   str_detect(Var, "G")~Var)) %>%
+  group_by(SampleID, Method, Var) %>%
+  summarise(propGard=sum(propGard)) %>%
+  ungroup %>%
+  spread(Method, propGard) %>%
+  replace_na(list(`V4 region 16S amplicon`=0, 
+                  `Shotgun Clade`=0)) %>%
+  ggplot(aes(x=`V4 region 16S amplicon`, y=`Shotgun Clade`, color=Var)) +
+  geom_point(alpha=0.5)
 ```
 
-# Proportion of reads before and after filtering
-```{r}
-sapply(list(ReadDepth=sgDF$TotalPairs, inputReads=sgDF$upload_pairs, bbmapFiltered=sgDF$bbmapFiltered_pairs), summary)
-meanDepth <- mean(sgDF$TotalPairs)
-meanDepth
-meanInput <- mean(sgDF$bbmapFiltered_pairs)
-meanInput
 
-sgDF0 <- sgDF %>%
-  select(TotalPairs, bbmapFiltered_pairs) %>%
-  gather("Reads", "Count", c(1:2))
-sgDF0$Reads <- factor(sgDF0$Reads, levels=c("TotalPairs", "bbmapFiltered_pairs"))
-
-ggplot(data=sgDF0, aes(y=Count, x=Reads)) +
-  geom_boxplot() +
-  geom_jitter()
-```
-
-## Samples where we lose all Gardnerella
+# Samples where we lose all Gardnerella
 In subject 10608: No Gardnerella was detected. Shotgun sequencing can demonstrate less sensitivity than amplicon sequencing.  
-In subject 10626: Some Gardnerella was detected (by metaphlan), but we do not see any after filtering the reads with our criteria.   
-**Sample 10608**
+**Subject 10608**
 ```{r}
 #gardnerella found by metaphlan in subject 10608
-gardVarDF %>%
-  filter(SubjectID==10608,
-         RNAlater=="No") %>%
+gardAllVarDF %>%
+  filter(SubjectID==10608) %>%
   select(SampleID, Var, propGard, Method)
 
-samples10608 <- gardVarDF %>%
-  filter(SubjectID==10608,
-         RNAlater=="No") %>%
+samples10608 <- gardAllVarDF %>%
+  filter(SubjectID==10608) %>%
   .$SampleID %>%
   unique
 samples10608
@@ -496,140 +800,10 @@ ggplot(data=sgDF) +
   geom_vline(xintercept = sgDF$bbmapFiltered_pairs[sgDF$SampleID==samples10608[2]], color="blue")
 ```
 
-**Subject 10626**
-```{r}
-#gardnerella found by metaphlan in subject 10626
-gardVarDF %>%
-  filter(SubjectID==10626,
-         RNAlater=="No") %>%
-  select(SampleID, Var, propGard, Method)
-
-samples10626 <- gardVarDF %>%
-  filter(SubjectID==10626,
-         RNAlater=="No") %>%
-  .$SampleID %>%
-  unique
-samples10626
-
-#percent Gardnerella in these samples
-mDF %>%
-  select(SampleID, Gardnerella_vaginalis) %>%
-  filter(SampleID %in% samples10626)
-
-#read depth of these samples
-sgDF %>%
-  filter(SampleID %in% samples10626) %>%
-  select(SampleID, TotalPairs, bbmapFiltered_pairs, PctHuman, finalPctHuman_po)
-
-ggplot(data=sgDF) +
-  geom_density(aes(x=TotalPairs)) +
-  geom_vline(xintercept = sgDF$TotalPairs[sgDF$SampleID==samples10626[1]], color="red") +
-  geom_vline(xintercept = sgDF$TotalPairs[sgDF$SampleID==samples10626[2]], color="blue") +
-  geom_vline(xintercept = sgDF$TotalPairs[sgDF$SampleID==samples10626[3]], color="orange")
-
-ggplot(data=sgDF) +
-  geom_density(aes(x=bbmapFiltered_pairs)) +
-  geom_vline(xintercept = sgDF$bbmapFiltered_pairs[sgDF$SampleID==samples10626[1]], color="red") +
-  geom_vline(xintercept = sgDF$bbmapFiltered_pairs[sgDF$SampleID==samples10626[2]], color="blue") +
-  geom_vline(xintercept = sgDF$bbmapFiltered_pairs[sgDF$SampleID==samples10626[3]], color="orange")
-```
-Vertical lines represent reads in subject 10608’s samples. Fewer bacterial reads in these samples.  
-
-#### Samples with no Gardnerella by clade mapping but Gardnerella found by Metaphlan
-```{r}
-sgGardDF %>%
-  full_join(mDF[,c("SampleID", "Gardnerella_vaginalis")], by="SampleID") %>%
-  filter(is.na(n), Gardnerella_vaginalis>0)
-```
-**Subject 10626** noted above. Additional Sample **1060435348**. This sample previously had one read of Clade 4, and now has no reads. There is only 0.2% *Gardnerella vaginalis* in the sample. 
-
-```{r}
-#proportion Gardnerella vaginalis from metaphlan results
-mDF %>%
-  filter(SampleID=="1060435348") %>%
-  select(SampleID, Gardnerella_vaginalis)
-
-#read depth of this sample
-sgDF %>%
-  filter(SampleID=="1060435348") %>%
-  select(SampleID, TotalPairs, bbmapFiltered_pairs, PctHuman, finalPctHuman_po)
-
-ggplot(data=sgDF) +
-  geom_density(aes(x=TotalPairs)) +
-  geom_vline(xintercept = sgDF$TotalPairs[sgDF$SampleID=="1060435348"], color="red")
-
-ggplot(data=sgDF) +
-  geom_density(aes(x=bbmapFiltered_pairs)) +
-  geom_vline(xintercept = sgDF$bbmapFiltered_pairs[sgDF$SampleID=="1060435348"], color="red")
-```
-Relatively low read count in this sample. 
-
-### Samples where we lose one variant 
-First 10508 sample (1050801308) see only C2 with shotgun. G3 (ambiguous) and G1 were see. –we lose G1  
-```{r}
-#gardnerella found by metaphlan in sample 1050801308
-gardVarDF %>%
-  filter(SampleID=="1050801308") %>%
-  select(SampleID, Var, propGard, Method)
-
-#percent Gardnerella in this sample
-mDF %>%
-  select(SampleID, Gardnerella_vaginalis) %>%
-  filter(SampleID=="1050801308")
-
-#read depth of these samples
-sgDF %>%
-  filter(SampleID=="1050801308") %>%
-  select(SampleID, TotalPairs, bbmapFiltered_pairs, PctHuman, finalPctHuman_po)
-
-ggplot(data=sgDF) +
-  geom_density(aes(x=TotalPairs)) +
-  geom_vline(xintercept = sgDF$TotalPairs[sgDF$SampleID=="1050801308"], color="red")
-
-ggplot(data=sgDF) +
-  geom_density(aes(x=bbmapFiltered_pairs)) +
-  geom_vline(xintercept = sgDF$bbmapFiltered_pairs[sgDF$SampleID=="1050801308"], color="red")
-```
-
-Third sample 10629 (1062901318) We lose G5 (ie don’t see C6, but G5 was the least abundant variant in this sample.  
-```{r}
-#gardnerella found by metaphlan in sample 1062901318
-gardVarDF %>%
-  filter(SampleID=="1062901318") %>%
-  select(SampleID, Var, propGard, Method)
-
-#percent Gardnerella in this sample
-mDF %>%
-  select(SampleID, Gardnerella_vaginalis) %>%
-  filter(SampleID=="1062901318")
-
-#read depth of these samples
-sgDF %>%
-  filter(SampleID=="1062901318") %>%
-  select(SampleID, TotalPairs, bbmapFiltered_pairs, PctHuman, finalPctHuman_po)
-
-ggplot(data=sgDF) +
-  geom_density(aes(x=TotalPairs)) +
-  geom_vline(xintercept = sgDF$TotalPairs[sgDF$SampleID=="1062901318"], color="red")
-
-ggplot(data=sgDF) +
-  geom_density(aes(x=bbmapFiltered_pairs)) +
-  geom_vline(xintercept = sgDF$bbmapFiltered_pairs[sgDF$SampleID=="1062901318"], color="red")
-```
-
-Second 10627 sample (1062701298) G3 looks like C1, C2, and C6 – we haven’t seen a G3 variant in C6 before, but it is not impossible as we only have 1 reference strain in this clade at present.  
-
-## Clades found by *Gardnerella* mapping method but not by MetaPhlAn
-```{r}
-sgGardDF %>%
-  full_join(mDF[,c("SampleID", "Gardnerella_vaginalis")], by="SampleID") %>%
-  filter(Gardnerella_vaginalis==0, n>0)
-```
-
-Sample 1050801318
+**Sample 1050801318**
 ```{r}
 #No gardnerella found by metaphlan in sample 1050801318
-gardVarDF %>%
+gardAllVarDF %>%
   filter(SubjectID=="10508") %>%
   select(SampleID, Var, propGard, Method)
 
@@ -646,42 +820,27 @@ ggplot(data=sgDF) +
   geom_vline(xintercept = sgDF$bbmapFiltered_pairs[sgDF$SampleID=="1050835178"], color="green", show.legend = TRUE)
 ```
 
-# Reads cutoff?:
+# Compare to Gardnerella found by MetaPhlAn2
+## Gardnerella in MetaPhlAn2 but not this method
 ```{r}
-sgGardDF$n %>%
-  summary
-
-sgGardDF %>%
+sgCladeDF %>%
+  filter(n>=2) %>%
   group_by(SampleID) %>%
-  summarise(nClades=n()) %>%
-  right_join(sgGardDF, by="SampleID") %>%
-  ggplot(aes(x=n, fill=nClades)) +
-  geom_histogram(binwidth = 50)
-
-sgGardDF %>%
-  group_by(SampleID) %>%
-  summarise(nClades=n()) %>%
-  right_join(sgGardDF, by="SampleID") %>%
-  ggplot(aes(x=n, fill=nClades)) +
-  geom_bar() +
-  scale_x_continuous(limits=c(0,50), breaks=seq(0,50,by=5))
+  summarise(n=sum(n)) %>%
+  full_join(mDF[,c("SampleID", "Gardnerella_vaginalis")], by="SampleID") %>%
+  filter(is.na(n), Gardnerella_vaginalis>0)
 ```
-range of reads per clade is 1 to ~16,000. A large portion are below 5 reads per clade.
+No uncharacterized *Gardnerella*!
 
-Cases of one read per clade:
 ```{r}
-sgGardDF %>%
+sgGenomoDF %>%
+  filter(n>=2) %>%
   group_by(SampleID) %>%
-  summarise(nClades=n()) %>%
-  right_join(sgGardDF, by="SampleID") %>%
-  ungroup() %>%
-  filter(n==1) %>%
-  ggplot(aes(x=nClades)) +
-  geom_bar() +
-  scale_y_continuous(limits = c(0,10), breaks = seq(0,10,by=1), minor_breaks = NULL)
+  summarise(n=sum(n)) %>%
+  full_join(mDF[,c("SampleID", "Gardnerella_vaginalis")], by="SampleID") %>%
+  filter(is.na(n), Gardnerella_vaginalis>0)
 ```
-Only 3 samples have one read of one clade. 
-
+One sample with uncharacterized *Gardnerella* by genomospecies.
 
 # Session Info
 ```{r}

@@ -1,0 +1,235 @@
+---
+title: "Gardnerella Reference Genome Assembly Identity"
+author: HLB
+date: September 2020
+output: 
+  html_document:
+    toc: true
+    toc_float: true 
+---
+  
+  
+Use blastn to verify the identity of *Gardnerella* sequences in GenBank. 124 *Gardnerella* Genome assemblies were downloaded from GenBank in September 2020 and verified first by aligning the sequences against the 16S rRNA database. Second, 8 genome assemblies were selected to align against the nr/nt database, again with blastn. These genome assemblies were selected if they: a) did not align with any 16S rRNA sequences in the database, b) did not align to a *Gardnerella* 16S rRNA sequence, c) the best alignment (by bit score) was with a non-*Gardnerella* sequence, or d) the alignment percent identity was an outlier.   
+
+# Set up
+## Packages
+```{r, warning=FALSE}
+library(tidyverse)
+```
+```{r, warning=FALSE, message=FALSE}
+library(rBLAST)
+library(R.utils)
+library(Biostrings)
+`%!in%` <- negate(`%in%`)
+```
+
+## File Paths
+```{r}
+gardFastasDir <- "../../../gardPhylogeny/_ncbi_downloads/genomes"
+figureOut <- "../../../FIGURES/reference_genome_qc"
+blastDB_16S <- "/Users/hlberman/Desktop/16S_db/16S_ribosomal_RNA"
+gardDF <- "../GardnerellaMetadata.csv" %>%
+  read_csv
+blastResults16SPath <- "../../../gardPhylogeny/assembly_quality_control/gard_blast_test"
+```
+
+## ggplot settings
+```{r}
+theme_set(theme_bw())
+binary_colors <- scale_color_manual(values=c("#0072B2", "#D55E00"))
+```
+
+# Blastn against 16S rRNA database
+## Set up
+Download Database:
+```{r}
+#dir.create("./16S_db")
+#download.file("ftp://ftp.ncbi.nlm.nih.gov/blast/db/16S_ribosomal_RNA.tar.gz",
+#             paste0(blastDB_16S, ".tar.gz"), mode='wb')
+#gunzip(paste0(blastDB_16S, ".tar.gz"), overwrite=TRUE)
+#untar(paste0(blastDB_16S, ".tar")", exdir = "./16S_db")
+#file.remove(paste0(blastDB_16S, ".tar"))
+```
+
+Create blast Object:
+```{r}
+#sixteenSBlast <- blast(db = blastDB_16S, type="blastn") 
+```
+
+## Perform alignments
+Load fasta files of 124 GenBank *Gardnerella* genome assemblies:
+```{r}
+# gardFastaFiles <- gardFastasDir %>%
+#   list.files(pattern = "fna.gz", full.names = TRUE)
+# 
+# gardFastas <- gardFastaFiles %>%
+#   map(~readDNAStringSet(.x, format = "fasta"))
+# names(gardFastas) <- gardFastaFiles %>%
+#   str_extract("GCA_.{11}")
+```
+
+```{r}
+#blastResults16S0 <- gardFastas %>%
+#  map(~predict(sixteenSBlast, .x))
+
+#blastResults16S <- blastResults16S0 %>%
+#  map2(names(.), ~mutate(.x, GenBank_accession=.y)) %>%
+#  map(~mutate(.x, rank=rank(dplyr::desc(Bits), ties.method="first"))) %>%
+#  map(~select(.x, GenBank_accession, rank, everything()))
+
+#save(blastResults16S, file=file.path(blastResults16SPath, "16SBlastResults.Rdata")
+load(file.path(blastResults16SPath, "16SBlastResults.Rdata"))
+```
+
+## Assess results
+  *Gardnerella* 16S sequences in reference database:
+```{r}
+Gard16SRefs <- tribble(
+  ~SubjectID, ~Name,
+  "NR_118377.1", "Gardnerella ATCC14018",
+  "NR_044694.2", "Gardnerella 594", 
+)
+```
+
+### No 16S Matches
+```{r}
+nMatches <- blastResults16S %>%
+  map(nrow)
+noMatchNames <- nMatches[nMatches==0] %>%
+  names
+noMatchNames
+```
+  5 of the *Gardnerella* genome assemblies from GenBank did not align with *any* reference 16S sequence from any organism.
+  
+  **Next we will assess the alignments to** ***Gardnerella*** **16S references**
+  
+### Assess *Gardnerella* alignments
+```{r}
+gardTopMatch <- blastResults16S %>%
+  .[names(blastResults16S) %!in% noMatchNames] %>% # filter out genome assemblies with no matches
+  map(~mutate(.x, gardMatch=str_detect(SubjectID, "NR_118377.1|NR_044694.2"))) %>%
+  map(~filter(.x, rank==1)) %>%
+  map(~select(.x, rank, GenBank_accession, QueryID, gardMatch)) %>%
+  map(~mutate(.x, gardMatch=case_when(gardMatch==TRUE~"Top",
+                                      gardMatch==FALSE~"Not"))) %>%
+  map(~select(.x, GenBank_accession, gardMatch)) %>%
+  purrr::reduce(full_join, by = c("GenBank_accession", "gardMatch"))
+
+gardTopMatch %>%
+  .$gardMatch %>%
+  table
+```
+ 
+  **Which accessions do not have** ***Gardnerella*** **as a top alignment:**
+```{r}
+notTopMatches <- gardTopMatch %>%
+  filter(gardMatch=="Not") %>%
+  .$GenBank_accession
+notTopMatches
+
+blastResults16S[names(blastResults16S) %in% notTopMatches] %>%
+  map(~filter(.x, rank<=5)) %>%
+  map(~select(.x, GenBank_accession, rank, everything())) %>%
+  purrr::reduce(full_join)
+```
+  NR_041796.1 *Lactobacillus vaginalis* strain ATCC 49540 is top for both.
+  
+  **Which accessions have no** ***Gardnerella*** **alignments?**
+```{r}
+blastResults16S_Gard <- blastResults16S %>%
+  .[names(blastResults16S) %!in% noMatchNames] %>%
+  map(~left_join(.x, Gard16SRefs, by="SubjectID")) %>%
+  map(~filter(.x, Name=="Gardnerella ATCC14018"|Name=="Gardnerella 594"))
+
+length(blastResults16S_Gard) # santiy check that the correct number of genomes were removed
+nGardMatches <- blastResults16S_Gard %>%
+  map(nrow)
+noGardMatches <- nGardMatches[nGardMatches==0] %>%
+  names
+noGardMatches
+```
+  One accession with zero alignments *Gardnerella*. This is one of the above two accessions.  
+  
+  **Plot quality of Gardnerella alignments**
+```{r}
+gardMatchDF <- blastResults16S_Gard[names(blastResults16S_Gard) %!in% noGardMatches] %>%
+  purrr::reduce(full_join, c("GenBank_accession", "rank", "QueryID", "SubjectID", "Perc.Ident", "Alignment.Length", "Mismatches", "Gap.Openings", "Q.start", "Q.end", "S.start", "S.end", "E", "Bits", "Name"))
+
+gardMatchDF_plot <- gardMatchDF %>%
+  group_by(GenBank_accession) %>%
+  filter(Bits==max(Bits)) %>%
+  select(GenBank_accession, SubjectID, Name, Perc.Ident, Alignment.Length, Bits) %>%
+  unique %>%
+  left_join(gardTopMatch, by="GenBank_accession") %>%
+  mutate(gardMatch=factor(gardMatch, levels = c("Top", "Not")))
+
+gardMatchDF_plot %>%
+  ggplot(aes(x=Alignment.Length, y=Perc.Ident, color=gardMatch)) +
+  geom_point() +
+  binary_colors +
+  labs(x="Alignment Length", y="Percent Identiy", color="Gardnerella Alignment")
+#ggsave(file.path(figureOut, "20200912_16SBlastResults.png"))
+```
+  Same figure but with Environmental Sample information:
+```{r}
+gardMatchDF_plot %>%
+  left_join(gardDF[,c("GenBank_accession", "environmental_sample")], by="GenBank_accession") %>%
+  replace_na(list(environmental_sample=FALSE)) %>%
+  ggplot(aes(x=Alignment.Length, y=Perc.Ident, color=gardMatch, shape=environmental_sample)) +
+  geom_point() +
+  binary_colors +
+  labs(x="Alignment Length", y="Percent Identiy", color="Gardnerella Alignment", shape="Environmental Sample")
+#ggsave(file.path(figureOut, "20200912_16SBlastResults_envSample.png"))
+```
+
+  Asses the two assemblies that did not have a top match with *Gardnerella* and five that did not match any 16S sequence, and the environmental sample that had the <96% identity alignment with *Gardnerella*.  
+
+Assembly with <96% identity alignment with *Gardnerella* 16S sequence:
+```{r}
+gardMatchDF %>%
+  group_by(GenBank_accession) %>%
+  filter(Bits==max(Bits)) %>%
+  unique %>%
+  filter(Perc.Ident<96) %>%
+  .$GenBank_accession
+```
+
+# Blastn against nr/nt database
+## Set up
+  Genome assemblies to re-align
+```{r}
+reBlastGenomes <- gardMatchDF %>%
+  group_by(GenBank_accession) %>%
+  filter(Bits==max(Bits)) %>%
+  select(GenBank_accession, SubjectID, Name, Perc.Ident, Alignment.Length, Bits) %>%
+  unique %>%
+  filter(Perc.Ident<96) %>%
+  .$GenBank_accession %>%
+  c(., notTopMatches, noMatchNames)
+length(reBlastGenomes)
+reBlastGenomes
+
+reBlastGenomes0 <- paste(reBlastGenomes, collapse = "|")
+
+reBlastFastas <- gardFastaFiles[str_detect(gardFastaFiles, reBlastGenomes0)]
+```
+
+## Perform alignments  
+  Use `-remote` tag to perform on NCBI servers
+  `blastn -db nt -query <in> -out <out> -outfmt 7 -remote`
+  
+## Assess results
+
+* GCA_000178355.1: is *Gardnerella*
+* GCA_000414705.1: is *Gardnerella*
+* GCA_002871555.1: may be *Lactobacillus vaginalis*
+* GCA_003240925.1: is *Gardnerella* (meta-assembly from environmental sample)
+* GCA_003240955.1: is *Gardnerella* (meta-assembly from environmental sample)
+* GCA_003408745.1: is *Gardnerella*
+* GCA_902362445.1: may be *Lactobacillus vaginalis*
+* GCA_902373565.1: is *Gardnerella* (meta-assembly from environmental sample)
+
+# Session Info
+```{r}
+sessionInfo()
+```

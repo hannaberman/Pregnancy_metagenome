@@ -1,0 +1,72 @@
+
+
+Using BFGS method to optimize GTR rate parameters, to disable this specify "--no-bfgs" 
+
+
+
+This is RAxML version 8.2.12 released by Alexandros Stamatakis on May 2018.
+
+With greatly appreciated code contributions by:
+Andre Aberer      (HITS)
+Simon Berger      (HITS)
+Alexey Kozlov     (HITS)
+Kassian Kobert    (HITS)
+David Dao         (KIT and HITS)
+Sarah Lutteropp   (KIT and HITS)
+Nick Pattengale   (Sandia)
+Wayne Pfeiffer    (SDSC)
+Akifumi S. Tanabe (NRIFS)
+Charlie Taylor    (UF)
+
+
+Alignment has 21241 distinct alignment patterns
+
+Proportion of gaps and completely undetermined characters in this alignment: 3.43%
+
+RAxML rapid hill-climbing mode
+
+Using 1 distinct models/data partitions with joint branch length optimization
+
+
+Executing 1 inferences on the original alignment using 1 distinct randomized MP trees
+
+All free model parameters will be estimated by RAxML
+GAMMA model of rate heterogeneity, ML estimate of alpha-parameter
+
+GAMMA Model parameters will be estimated up to an accuracy of 0.1000000000 Log Likelihood units
+
+Partition: 0
+Alignment Patterns: 21241
+Name: No Name Provided
+DataType: DNA
+Substitution Matrix: GTR
+
+
+
+
+RAxML was called as follows:
+
+raxmlHPC-PTHREADS-SSE3 -w /home/hlberman/VMMG/gard_phylogeny/20201005_ml_phylogeny -T 16 -p 732790 -m GTRGAMMA -s /home/hlberman/VMMG/gard_phylogeny/core_gene_alignment.aln -n gardTree 
+
+
+Partition: 0 with name: No Name Provided
+Base frequencies: 0.251 0.218 0.258 0.273 
+
+Inference[0]: Time 121.379873 GAMMA-based likelihood -698556.694263, best rearrangement setting 10
+alpha[0]: 0.170043 rates[0] ac ag at cg ct gt: 1.136299 3.516754 1.229862 0.144957 5.556226 1.000000 
+
+
+Conducting final model optimizations on all 1 trees under GAMMA-based models ....
+
+Inference[0] final GAMMA-based Likelihood: -698556.671511 tree written to file /home/hlberman/VMMG/gard_phylogeny/20201005_ml_phylogeny/RAxML_result.gardTree
+
+
+Starting final GAMMA-based thorough Optimization on tree 0 likelihood -698556.671511 .... 
+
+Final GAMMA-based Score of best tree -698556.671511
+
+Program execution info written to /home/hlberman/VMMG/gard_phylogeny/20201005_ml_phylogeny/RAxML_info.gardTree
+Best-scoring ML tree written to: /home/hlberman/VMMG/gard_phylogeny/20201005_ml_phylogeny/RAxML_bestTree.gardTree
+
+Overall execution time: 172.439446 secs or 0.047900 hours or 0.001996 days
+
