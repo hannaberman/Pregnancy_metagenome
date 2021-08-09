@@ -17,32 +17,39 @@ theme_set(theme_bw()+
           theme(panel.grid = element_blank()))
 ```
 
-
+# Phenotype Files
 ```{r}
+# SRA run table from dbGaP
 mgsRunTable <- read_csv("/Users/hlberman/mnt/cluster/home6/callah_momspi/SRAruntable.txt") %>%
   filter(body_site=="Vagina",
          LibrarySource=="METAGENOMIC")
-
 #write_lines(mgsRunTable$Run, "/Users/hlberman/Desktop/MGSsras.txt")
 
-phenFilePath <- "/Users/hlberman/mnt/cluster/home6/callah_momspi/Phenotypefiles"
-phenFileTxts <- list.files(phenFilePath, pattern = "txt", full.names = TRUE)
+phenFilePath <- "/Users/hlberman/mnt/cluster/home6/callah_momspi/Phenotypefiles" # directory for phenotype files
+phenFileTxts <- list.files(phenFilePath, pattern = "txt", full.names = TRUE) # list of phenotype (metadata) files
 
+# read in phenotype dataframes and store object as list
 txts <- phenFileTxts %>%
   map(~read_tsv(.x, comment="#"))
 
+# name dataframes with filenames
 names(txts) <- phenFileTxts <- list.files(phenFilePath, pattern = "txt")
-
+#preview dataframes
 map(txts, head)
 ```
 
+## Get sample attributes
 ```{r}
+#dataframe of sample attributes from MGS and MTS samples
 vsamples <- txts$`phs001523.v1.pht007515.v1.p1.c1.MOMS_PI_Sample_Attributes.DS-PREG-COM-IRB-PUB-MDS.txt` %>%
   filter(HISTOLOGICAL_TYPE=="Vagina", omic!="16S")
+
+# Reported trimester from subject at each visit
 reported_ga <- txts$`phs001523.v1.pht007510.v1.p1.c1.phenotype_clinical.DS-PREG-COM-IRB-PUB-MDS.txt` %>%
   select(dbGaP_Subject_ID, SUBJECT_ID, visit_ID, visit_num, reported_ga)
 
-df <- vsamples %>%
+# add 
+attrDF <- vsamples %>% # dataframe of sample attributes
   left_join(reported_ga, by = c("visit_ID", "visit_num"))
 
 mgsRunTable0 <- mgsRunTable %>%
@@ -50,88 +57,53 @@ mgsRunTable0 <- mgsRunTable %>%
 ```
 
 ```{r}
-n_distinct(df$SAMPLE_ID)
-n_distinct(df$SUBJECT_ID)
+n_distinct(attrDF$SAMPLE_ID)
+n_distinct(attrDF$SUBJECT_ID)
 
-df %>%
+attrDF %>%
   group_by(SUBJECT_ID) %>%
   summarize(n_visits=n_distinct(visit_num)) %>%
   ggplot(aes(x=n_visits)) +
   geom_histogram()
 
-df %>%
-  group_by(omic) %>%
-  tally %>%
+attrDF %>%
+  count(omic) %>%
   formattable()
 ```
-MGS/MTS 1,227 samples from 234 subjects with 1 to 8 visits each.
-297 MTS samples and 930 MGS samples. 
+  MGS/MTS 1,227 samples from 234 subjects with 1 to 8 visits each.
+  297 MTS samples and 930 MGS samples. 
 
-Trimester of samples
+  Reported Trimester of samples
 ```{r}
-df %>%
+attrDF %>%
   ggplot(aes(x=reported_ga, y=SUBJECT_ID, color=omic)) +
   geom_jitter(alpha=0.5) +
   theme(axis.text.y = element_blank()) +
   labs(x="Trimester", y="Subject ID")
 ```
 
-
-Visits with paired MGS/MTS
-```{r}
-MGSvisits <- df %>%
-  filter(omic=="Metagenomics") %>%
-  .$visit_ID
-
-MTSvisits <- df %>%
-  filter(omic=="Metatranscriptomics") %>%
-  .$visit_ID
-
-matchedVisits <- intersect(MGSvisits, MTSvisits)
-length(matchedVisits)
-
-df %>%
-  filter(visit_ID %in% matchedVisits) %>%
-  .$SUBJECT_ID %>%
-  n_distinct
-```
-277 visits from 174 subjects have matched samples
-
-Trimesters from matched samples
-```{r}
-df %>%
-  filter(visit_ID %in% matchedVisits) %>%
-  select(visit_ID, reported_ga, SUBJECT_ID) %>%
-  unique %>%
-  ggplot(aes(x=reported_ga, y=SUBJECT_ID)) +
-  geom_jitter(alpha=0.5) +
-  theme(axis.text.y = element_blank()) +
-  labs(x="", y="Subject ID")
-```
-Most matched samples are in the third trimester.
-
-Remaining questions:
-1. Term vs. Preterm?
-2. Gestational age at collection beyond trimester
-
-## Subject metadata
+# Metagenomic sample and subject metadata
   Lists of samples and subjects IDs in MGS data for convenience
 ```{r}
 #MGS samples
-MGSsamps <- df %>%
+MGSsamps <- attrDF %>%
   filter(omic=="Metagenomics") %>%
   .$SAMPLE_ID %>%
   unique
 #MGS Subjects
-MGSsubs <- df %>%
+MGSsubs <- attrDF %>%
   filter(omic=="Metagenomics") %>%
   .$SUBJECT_ID %>%
   unique
+#Visits where MGS samples were collected to match dataframes of surveys taken per visit to samples
+MGSvisits <- attrDF %>%
+  filter(omic=="Metagenomics") %>%
+  .$visit_ID %>%
+  unique
 ```
 
-
   Assess a few variables from clinical and health history surveys
-### Health History
+## Health History Survey
 ```{r}
 hxDF <- txts$`phs001523.v1.pht007512.v1.p1.c1.phenotype_healthHistorySurvey.DS-PREG-COM-IRB-PUB-MDS.txt` %>%
   filter(SUBJECT_ID %in% MGSsubs)
@@ -161,33 +133,25 @@ setdiff(MGSsubs, hxDF$SUBJECT_ID)
   Add all subjects
 ```{r}
 hxDF <- hxDF %>%
-  full_join(df[,c("dbGaP_Subject_ID", "SUBJECT_ID")], by=c("dbGaP_Subject_ID", "SUBJECT_ID"))
+  full_join(attrDF[,c("dbGaP_Subject_ID", "SUBJECT_ID")], by=c("dbGaP_Subject_ID", "SUBJECT_ID"))
 ```
 
-**Maternal Age**
-```{r}
-hxDF %>%
-  count(age) %>%
-  mutate(n=round((n/sum(n)*100), 2),
-         age=factor(age, levels=c("Below_18", "18", "18_to_28", "29-38", "Above_38"))) %>%
-  dplyr::rename(`%`=n) %>%
-  formattable()
-```
-
-**Maternal Race**
-Stanford and UAB levels: White, Black, Asian, American Indian, Pacific Islander, Unknown, Other
+### Maternal race
+  Get reported maternal race and create column standardized with Stanford and UAB cohorts. Categories based on US census race categories, with Native American and Native Hawaiian listed as Other due to small n
 ```{r}
 # create race data frame
 raceDF0 <- hxDF %>%
-  mutate(Race=case_when(african_american=="Yes"&american_indian_or_alaska_native=="No"&asian=="No"&caucasian=="No"&hispanic_or_latino=="No"&native_hawaiian=="No"~"Black",
-                        african_american=="No"&american_indian_or_alaska_native=="No"&asian=="No"&caucasian=="Yes"&hispanic_or_latino=="No"&native_hawaiian=="No"~"White",
-                        african_american=="No"&american_indian_or_alaska_native=="No"&asian=="Yes"&caucasian=="No"&hispanic_or_latino=="No"&native_hawaiian=="No"~"Asian",
-                        african_american=="No"&american_indian_or_alaska_native=="Yes"&asian=="No"&caucasian=="No"&hispanic_or_latino=="No"&native_hawaiian=="No"~"American Indian",
-                        african_american=="No"&american_indian_or_alaska_native=="No"&asian=="No"&caucasian=="No"&hispanic_or_latino=="No"&native_hawaiian=="Yes"~"Native Hawaiian",
-                        african_american=="No"&american_indian_or_alaska_native=="No"&asian=="No"&caucasian=="No"&hispanic_or_latino=="Yes"&native_hawaiian=="No"~"Hispanic or Latino",
-                        is.na(african_american)&is.na(american_indian_or_alaska_native)&is.na(asian)&is.na(caucasian)&is.na(hispanic_or_latino)&is.na(native_hawaiian)~"Unknown")) %>%
-  replace_na(list(Race="Other")) %>%
-  select(dbGaP_Subject_ID, Race) %>%
+  mutate(Ethnicity=case_when(hispanic_or_latino=="Yes"~"Hispanic",
+                             hispanic_or_latino=="No"~"Non-Hispanic"),
+    Race=case_when(african_american=="Yes"&american_indian_or_alaska_native=="No"&asian=="No"&caucasian=="No"&native_hawaiian=="No"~"Black",
+                        african_american=="No"&american_indian_or_alaska_native=="No"&asian=="No"&caucasian=="Yes"&native_hawaiian=="No"~"White",
+                        african_american=="No"&american_indian_or_alaska_native=="No"&asian=="Yes"&caucasian=="No"&native_hawaiian=="No"~"Asian",
+                        african_american=="No"&american_indian_or_alaska_native=="Yes"&asian=="No"&caucasian=="No"&native_hawaiian=="No"~"Other",
+                        african_american=="No"&american_indian_or_alaska_native=="No"&asian=="No"&caucasian=="No"&native_hawaiian=="Yes"~"Other",
+                        african_american=="No"&american_indian_or_alaska_native=="No"&asian=="No"&caucasian=="No"&native_hawaiian=="No"~"Other",
+                        is.na(african_american)&is.na(american_indian_or_alaska_native)&is.na(asian)&is.na(caucasian)&is.na(hispanic_or_latino)&is.na(native_hawaiian)~"Other")) %>%
+  replace_na(list(Ethnicity="Unknown", Race="Other")) %>%
+  select(dbGaP_Subject_ID, Race, Ethnicity) %>%
   dplyr::rename(SubjectID=dbGaP_Subject_ID) %>%
   unique
 
@@ -195,7 +159,7 @@ raceDF0 <- hxDF %>%
 # check that there is only one race category per subject
 nrow(raceDF0)==n_distinct(raceDF0$SubjectID)
 ```
-  There is at least one subject with multiple races. Check which subject(s) and why:
+  Number of rows in the race dataframe do not equal the number of distinct subjects. There is at least one subject with multiple races. Check which subject(s) and why:
   
 ```{r}
 multiRaceSubject <- raceDF0 %>%
@@ -210,18 +174,18 @@ hxDF %>%
   filter(dbGaP_Subject_ID %in% multiRaceSubject) %>%
   unique
 ```
-  One subject has indicated races differently at two different visits. Indicate subject as unknown race.
-
+  One subject has indicated races differently at two different visits. Indicate subject as other race (for unknown).
+  Create a dataframe with subject race:
 ```{r}
 raceDF <- raceDF0 %>%
-  mutate(Race=case_when(SubjectID==multiRaceSubject~"Unknown",
+  mutate(Race=case_when(SubjectID==multiRaceSubject~"Other",
                    SubjectID!=multiRaceSubject~Race)) %>%
   unique()
 
 # test again that there is only one entry per subject
 nrow(raceDF)==n_distinct(raceDF$SubjectID)
 ```
-
+  Observe percent in each category:
 ```{r}
 raceDF %>%
   count(Race) %>%
@@ -230,157 +194,8 @@ raceDF %>%
   formattable()
 ```
 
-**BV**
-```{r}
-hxDF %>%
-  group_by(bv) %>%
-  tally %>%
-  mutate(n=round((n/sum(n)*100), 2)) %>%
-  dplyr::rename(`%`=n) %>%
-  formattable()
-```
-
-**BV history**
-```{r}
-hxDF %>%
-  group_by(bv_history) %>%
-  tally %>%
-  mutate(n=round((n/sum(n)*100), 2)) %>%
-  dplyr::rename(`%`=n) %>%
-  formattable()
-```
-
-**BV Lifetime Number**
-```{r}
-hxDF %>%
-  group_by(bv_lifetime_number) %>%
-  tally %>%
-  mutate(n=round((n/sum(n)*100), 2)) %>%
-  dplyr::rename(`%`=n) %>%
-  formattable()
-```
-
-**Yeast**
-```{r}
-hxDF %>%
-  group_by(yeast) %>%
-  tally %>%
-  mutate(n=round((n/sum(n)*100), 2)) %>%
-  dplyr::rename(`%`=n) %>%
-  formattable()
-```
-
-**Yeast History**
-```{r}
-hxDF %>%
-  group_by(yeast_infection_history) %>%
-  tally %>%
-  mutate(n=round((n/sum(n)*100), 2)) %>%
-  dplyr::rename(`%`=n) %>%
-  formattable()
-```
-
-**Yeast Infection Lifetime Number**
-```{r}
-hxDF %>%
-  group_by(yeast_infection_lifetime_number) %>%
-  tally %>%
-  mutate(n=round((n/sum(n)*100), 2)) %>%
-  dplyr::rename(`%`=n) %>%
-  formattable()
-```
-
-
-  **Dataframe with age and race**
-```{r}
-df2015 <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/metagenome_gardnerella/pregnancy_metagenome/metadata_files/sampledata_VaginalSwabs_Pregnancy_DiGiulio2015.tsv" %>%
-  read_tsv()
-df2017 <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/metagenome_gardnerella/pregnancy_metagenome/metadata_files/MAP_MANUSCRIPT_IL02-IL09_ToBen_20170404_fixed.txt" %>%
-  read_tsv()
-
-ageDF <- hxDF %>%
-  select(SUBJECT_ID, visit_ID, age)
-```
-
-### Clinical
-```{r}
-clinDF <- txts$`phs001523.v1.pht007510.v1.p1.c1.phenotype_clinical.DS-PREG-COM-IRB-PUB-MDS.txt` %>%
-  filter(visit_ID %in% MGSvisits)
-colnames(clinDF)
-nrow(clinDF)
-n_distinct(clinDF$SUBJECT_ID)
-n_distinct(clinDF$visit_ID)
-```
-
-**vaginal pH**
-```{r}
-clinDF %>%
-  group_by(vaginal_pH) %>%
-  tally %>%
-  #mutate(n=round((n/sum(n)*100), 2)) %>%
-  #dplyr::rename(`%`=n) %>%
-  #formattable()
-  ggplot(aes(x=vaginal_pH, y=n)) +
-  geom_col(stat="identity")
-
-count(hxDF, mom_delivery_method)
-```
-
-### Review of Systems Survey
-```{r}
-rssDF <- txts$`phs001523.v1.pht007511.v1.p1.c1.phenotype_reviewOfSystemsSurvey.DS-PREG-COM-IRB-PUB-MDS.txt` %>%
-  filter(visit_ID %in% MGSvisits)
-nrow(rssDF)
-```
-
-  Have this survey for 660/930 visits where MGS samples were collected
-```{r}
-rssDF %>%
-  group_by(antibiotics_current) %>%
-  tally %>%
-  mutate(n=round((n/sum(n)*100), 2)) %>%
-  dplyr::rename(`%`=n) %>%
-  formattable()
-```
-
-```{r}
-rssDF %>%
-  group_by(antibiotics_since_last_visit) %>%
-  tally %>%
-  mutate(n=round((n/sum(n)*100), 2)) %>%
-  dplyr::rename(`%`=n) %>%
-  formattable()
-```
-
-**BV since last visit**
-```{r}
-rssDF %>%
-  group_by(bv_since_last_visit) %>%
-  tally %>%
-  mutate(n=round((n/sum(n)*100), 2)) %>%
-  dplyr::rename(`%`=n) %>%
-  formattable()
-```
-
-**UTI since last visit**
-```{r}
-rssDF %>%
-  group_by(yeast_infection_since_last_visit) %>%
-  tally %>%
-  mutate(n=round((n/sum(n)*100), 2)) %>%
-  dplyr::rename(`%`=n) %>%
-  formattable()
-```
-
-```{r}
-txts %>%
-  map(colnames) %>%
-  map(~str_detect(.x, "Weight")) %>%
-  map(unique)
-```
-
-
-### additional information from Greg Buck
+### Gestational age at collection and delivery
+  Additional tables provided from Greg Buck for gestational age at sample collection and delivery.
 ```{r}
 gaacGaad0 <- read_tsv("/Users/hlberman/mnt/cluster/home6/callah_momspi/gaAtCollecNDel_4_PTB_042121.txt")
 head(gaacGaad0)
@@ -392,7 +207,7 @@ gaacGaad0 %>%
 ```
   503 samples of 930, from 135 subjects of 234
 
-  Clean up to match other DF
+  Clean up entries to match other DF
 ```{r}
 # fix ga at sampling and delivery
 gaacGaad <- gaacGaad0 %>%
@@ -417,7 +232,18 @@ gaacGaad <- gaacGaad0 %>%
   select(-`case/control`, -participantID)
 head(gaacGaad)
 ```
-
+  First pass check how reported_ga column (reported trimester) matches up with gestational age at collection 
+```{r}
+sgDF1 %>%
+  filter(Cohort=="HMP2") %>%
+  filter(!is.na(GDcoll)) %>%
+  filter(!is.na(reported_ga)) %>%
+  ggplot(aes(x=reported_ga, y=GDcoll)) +
+  geom_jitter() +
+  geom_hline(aes(yintercept=91), linetype="dashed") +
+  geom_hline(aes(yintercept=189), linetype="dashed")
+```
+  Separate trimesters at 91 days and 189 days and change trimesters to match GDcoll in samples where reported_ga and gestational age at collection in days (GDcoll) do not match based on those trimester cutoffs. For samples where GDcoll is not provided, use reported_ga for trimester.
 
 # Download MGS files
 ## Download .sra files
@@ -488,6 +314,7 @@ head(gaacGaad)
 # missingmgsFastq
 ```
 
+
 # Filtering fastq files
 ## Filter and Trim
   Filter and trim with sickle. Check progress:
@@ -510,7 +337,8 @@ length(filtmgsFastq)
 ```
 
 
-## Count reads in filtered and unfiltered fastq files
+
+# Count reads in filtered and unfiltered fastq files
 ```{r, warning=FALSE}
 # read in count fastq file:
 readCountDF0 <- read_delim("/Users/hlberman/mnt/cluster/home6/hlberman/VMMG/bbmap_human/hmp2mgs_fastq_counts_bbmap.txt", delim = "\ ") %>%
@@ -543,78 +371,36 @@ readCountDF0 %>%
   table
 ```
 
-  Distribution sequenced, trimmed, and human filtered reads
-```{r}
-summary(readCountDF0$uploadCount1)
-summary(readCountDF0$trimmedCount1)
-summary(readCountDF0$filteredCount1)
-```
-
-
-### Test alternative QC filtering stats
-```{r}
-# altQCCounts <- read_delim("/Users/hlberman/mnt/cluster/home6/callah_momspi/filter_trim/mgs_qc_filter_test_fastq_counts_bbmap.txt", delim=" ", col_names = c("SampleID", "q15Count1", "q15Count2", "l50Count1", "l50Count2")) %>%
-#   mutate_if(is.numeric, ~.x/4)
-# nrow(altQCCounts)
-# 
-# altQCCounts$q15Count1==altQCCounts$q15Count2
-# 
-# altQCCounts$l50Count1==altQCCounts$l50Count2
-# 
-# compareReadsDF %>%
-#   spread(seqStep, pairs) %>%
-#   right_join(altQCCounts, by="SampleID") %>%
-#   select(-q15Count2, -l50Count2) %>%
-#   dplyr::rename(q15_pairs=q15Count1,
-#                 l50_pairs=l50Count1) %>%
-#   gather("sickle_params", "pairs", c(TotalPairs, Sickle_pairs, q15_pairs, l50_pairs)) %>%
-#   mutate(sickle_params=factor(sickle_params, levels=c("TotalPairs", "Sickle_pairs", "q15_pairs", "l50_pairs"), labels=c("Total Pairs", "q20, l100", "q15, l100", "q20, l50"))) %>%
-#   ggplot(aes(x=sickle_params, y=pairs, color=sickle_params)) +
-#   geom_boxplot() +
-#   labs(x=NULL, y="Read Pairs", color="Sickle Parameters")
-# 
-# compareReadsDF %>%
-#   spread(seqStep, pairs) %>%
-#   right_join(altQCCounts, by="SampleID") %>%
-#   select(-q15Count2, -l50Count2) %>%
-#   dplyr::rename(q15_pairs=q15Count1,
-#                 l50_pairs=l50Count1) %>%
-#   mutate_at(c("Sickle_pairs", "q15_pairs", "l50_pairs"), ~.x/TotalPairs) %>%
-#   summarise_at(c("Sickle_pairs", "q15_pairs", "l50_pairs"), median) %>%
-#   dplyr::rename(`q20, l100`=Sickle_pairs,
-#                 `q15, l100`=q15_pairs,
-#                 `q20, l50`=l50_pairs) %>%
-#   formattable()
-```
-
-
+  Make dataframe to add readcount information to metadata
 ```{r}
 readCountDF <- readCountDF0 %>%
   dplyr::rename(TotalPairs=uploadCount1,
                 Sickle_pairs=trimmedCount1,
                 bbmapFiltered_pairs=filteredCount1) %>%
-  mutate(pctHuman=((Sickle_pairs-bbmapFiltered_pairs)/Sickle_pairs)*100,
-         bacLoad=bbmapFiltered_pairs/(Sickle_pairs-bbmapFiltered_pairs)) %>%
-  select(SampleID, TotalPairs, Sickle_pairs,bbmapFiltered_pairs, pctHuman, bacLoad)
-
-summary(readCountDF$bacLoad)
-
-readCountDF %>%
-  ggplot(aes(x=bacLoad)) +
-  geom_histogram()
+  select(SampleID, TotalPairs, Sickle_pairs, bbmapFiltered_pairs)
 ```
 
-
 # Save Metagenome metadata
+  Create and save metadata table
 ```{r}
-mgsMetadata <- df %>%
+mgsMetadata <- attrDF %>%
   right_join(mgsRunTable0[,c("SAMPLE_ID", "Run")], by="SAMPLE_ID") %>%
   dplyr::rename(SampleID=Run,
                 SubjectID=dbGaP_Subject_ID,
-                hmp2_Sample_ID=SAMPLE_ID,
-                hmp2_Subject_ID=SUBJECT_ID) %>%
+                hmp2_SampleID=SAMPLE_ID,
+                hmp2_SubjectID=SUBJECT_ID,
+                reportedTrimester=reported_ga) %>%
   left_join(gaacGaad, by="visit_ID") %>%
   left_join(readCountDF, by="SampleID") %>%
+    mutate(sampleTrimester=case_when(!is.na(GDcoll)~case_when(GDcoll<=91~"First", # add trimester information based on GDcoll if present or reported trimester if not
+                                   GDcoll>=92&GDcoll<=189~"Second",
+                                   GDcoll>=190~"Third"),
+                                   is.na(GDcoll)~reportedTrimester)) %>%
+  select(-reportedTrimester) %>%
+  group_by(SubjectID) %>%
+  mutate(sampleOrder=str_extract(visit_num, "[0-9]"),
+         sampleOrder=rank(sampleOrder)) %>%
+  ungroup(SubjectID) %>%
   left_join(raceDF, by="SubjectID") %>%
   mutate(SampleID=str_extract(SampleID, "[0-9]{7}"),
          SampleID=as.character(SampleID))
@@ -648,8 +434,43 @@ humann2outs <- list.files("/Users/hlberman/mnt/cluster/home6/hlberman/VMMG/human
 length(humann2outs)
 ```
 
+# MTS
+Visits with paired MGS/MTS
+```{r}
+MGSvisits <- attrDF %>%
+  filter(omic=="Metagenomics") %>%
+  .$visit_ID
 
-# Download MTS files
+MTSvisits <- attrDF %>%
+  filter(omic=="Metatranscriptomics") %>%
+  .$visit_ID
+
+matchedVisits <- intersect(MGSvisits, MTSvisits)
+length(matchedVisits)
+
+attrDF %>%
+  filter(visit_ID %in% matchedVisits) %>%
+  .$SUBJECT_ID %>%
+  n_distinct
+```
+277 visits from 174 subjects have matched samples
+
+Trimesters from matched samples
+```{r}
+attrDF %>%
+  filter(visit_ID %in% matchedVisits) %>%
+  select(visit_ID, reported_ga, SUBJECT_ID) %>%
+  unique %>%
+  ggplot(aes(x=reported_ga, y=SUBJECT_ID)) +
+  geom_jitter(alpha=0.5) +
+  theme(axis.text.y = element_blank()) +
+  labs(x="", y="Subject ID")
+```
+Most matched samples are in the third trimester.
+
+## Download MTS files
+
+
   Download using cart file on 3/31/2021. Check if all files downloaded:
 ```{r}
 mtssraDir <- "/Users/hlberman/mnt/cluster/home6/callah_momspi/mts_files/sra" 

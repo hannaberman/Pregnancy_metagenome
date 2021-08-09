@@ -332,7 +332,7 @@ samplingSched <- sgDF1 %>%
   mutate(GWcoll=GDcoll/7) %>%
   split(.$Cohort) %>%
   map2(names(.), ~ggplot(.x) +
-    geom_point(aes(x=floor(GWcoll), y=SubjectID), size=1) +
+    geom_point(aes(x=ceiling(GWcoll), y=SubjectID), size=1) +
     geom_point(aes(x=(GWdel+0.5), y=SubjectID), shape=")") +
     labs(y="Subject ID", x="GW", title = .y))
 samplingSched
@@ -413,7 +413,6 @@ sgDF %>%
   count(Cohort, Race) %>%
   spread(Cohort, n) %>%
   replace_na(list(Stanford=0, UAB=0, `HMP2 Enriched`=0, HMP2=0)) %>%
-  View 
   mutate(Stanfordpct=round((Stanford/20)*100, 2), # make percentages
          UABpct=round((UAB/15)*100, 2),
          `HMP2pct Enriched`=round((`HMP2 Enriched`/45)*100, 2),
@@ -530,6 +529,7 @@ sgDF1 %>%
   geom_vline(xintercept = 195.5) +
   labs(x="Gestation Days at Collection", y="Subject ID")
 ```
+
 
   2) Randomly select one sample per subject from the second trimester
     It seems that is the best way to maintain a small range of gestation days at collection of each range while excluding the least number of samples (will only exclude one sample)
