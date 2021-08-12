@@ -5,11 +5,9 @@ date: "3/15/2021"
 output: html_document
 ---
 
-```{r}
+```{r, message=FALSE}
 library(tidyverse)
-library(xml2)
 library(formattable)
-library(ggExtra)
 
 `%!in%` <- negate(`%in%`)
 
@@ -234,8 +232,9 @@ head(gaacGaad)
 ```
   First pass check how reported_ga column (reported trimester) matches up with gestational age at collection 
 ```{r}
-sgDF1 %>%
-  filter(Cohort=="HMP2") %>%
+attrDF %>%
+  select(visit_ID, reported_ga) %>%
+  left_join(gaacGaad[,c("visit_ID", "GDcoll")], by="visit_ID") %>%
   filter(!is.na(GDcoll)) %>%
   filter(!is.na(reported_ga)) %>%
   ggplot(aes(x=reported_ga, y=GDcoll)) +
@@ -315,7 +314,7 @@ sgDF1 %>%
 ```
 
 
-# Filtering fastq files
+# Filtering MGS fastq files
 ## Filter and Trim
   Filter and trim with sickle. Check progress:
 ```{r}
@@ -338,7 +337,7 @@ length(filtmgsFastq)
 
 
 
-# Count reads in filtered and unfiltered fastq files
+# Count reads in filtered and unfiltered MGS fastq files
 ```{r, warning=FALSE}
 # read in count fastq file:
 readCountDF0 <- read_delim("/Users/hlberman/mnt/cluster/home6/hlberman/VMMG/bbmap_human/hmp2mgs_fastq_counts_bbmap.txt", delim = "\ ") %>%
@@ -380,6 +379,7 @@ readCountDF <- readCountDF0 %>%
   select(SampleID, TotalPairs, Sickle_pairs, bbmapFiltered_pairs)
 ```
 
+
 # Save Metagenome metadata
   Create and save metadata table
 ```{r}
@@ -392,7 +392,8 @@ mgsMetadata <- attrDF %>%
                 reportedTrimester=reported_ga) %>%
   left_join(gaacGaad, by="visit_ID") %>%
   left_join(readCountDF, by="SampleID") %>%
-    mutate(sampleTrimester=case_when(!is.na(GDcoll)~case_when(GDcoll<=91~"First", # add trimester information based on GDcoll if present or reported trimester if not
+  mutate(reportedTrimester=str_extract(reportedTrimester, "[:alpha:]*(?=[:space:]Trimester)"),
+        sampleTrimester=case_when(!is.na(GDcoll)~case_when(GDcoll<=91~"First", # add trimester information based on GDcoll if present or reported trimester if not
                                    GDcoll>=92&GDcoll<=189~"Second",
                                    GDcoll>=190~"Third"),
                                    is.na(GDcoll)~reportedTrimester)) %>%
@@ -469,25 +470,23 @@ attrDF %>%
 Most matched samples are in the third trimester.
 
 ## Download MTS files
-
-
-  Download using cart file on 3/31/2021. Check if all files downloaded:
-```{r}
-mtssraDir <- "/Users/hlberman/mnt/cluster/home6/callah_momspi/mts_files/sra" 
+  Download using cart file on 8/10/2021. Check if all files downloaded against list of runs in run table:
+```{r, message=FALSE}
+mtssraDir <- "/Users/hlberman/mnt/cluster/scratch/hlberman/mts_files/sra" #directory path for sra files. Directory location is encrypted and access limited
 downloadedmtsSRAfiles <- list.files(mtssraDir)
 head(downloadedmtsSRAfiles)
 length(downloadedmtsSRAfiles)
 
+mtsRunTable <- read_csv("/Users/hlberman/mnt/cluster/home6/callah_momspi/SRAruntable.txt") %>% # file path for run table 
+  filter(body_site=="Vagina",
+         LibrarySource=="METATRANSCRIPTOMIC")
+```
+
+```{r}
 downloadedmtsSRAs <- downloadedmtsSRAfiles %>%
   str_extract("SRR[0-9]{7}")
 head(downloadedmtsSRAs)
 length(downloadedmtsSRAs)
-```
-
-```{r}
-mtsRunTable <- read_csv("/Users/hlberman/mnt/cluster/home6/callah_momspi/SRAruntable.txt") %>%
-  filter(body_site=="Vagina",
-         LibrarySource=="METATRANSCRIPTOMIC")
 
 missingMTS <- mtsRunTable %>%
   filter(!(Run %in% downloadedmtsSRAs))
@@ -497,36 +496,17 @@ downloaded <- mtsRunTable %>%
 
 missing <- mtsRunTable %>%
   filter(Run %!in% downloadedmtsSRAs)
+length(missing$Run)
 
 #write_lines(missing$Run, "/Users/hlberman/Desktop/missingSRAs.txt") 
 ```
-  Copy list of missing SRAs into download script `/Users/hlberman/mnt/cluster/home6/callah_momspi/download_scripts/download_mts.sh`
 
-  List of all MTS SRAs
-```{r}
-mtsSRAs <- mtsRunTable$Run
-#write_lines(mtsSRAs, "/Users/hlberman/Desktop/mtsSRAs.txt")
-```
-  Copy list of all SRAs to `/Users/hlberman/mnt/cluster/home6/calla_momspi/download_scripts/decrypt_mts.sh`
-
-  Check that all SRAs were downloaded
-```{r}
-mtssraDir <- "/Users/hlberman/mnt/cluster/home6/callah_momspi/mts_files/sra" 
-downloadedmtsSRAfiles <- list.files(mtssraDir)
-head(downloadedmtsSRAfiles)
-length(downloadedmtsSRAfiles)
-
-downloadedmtsSRAs <- downloadedmtsSRAfiles %>%
-  str_extract("SRR[0-9]{7}")
-head(downloadedmtsSRAs)
-length(downloadedmtsSRAs)
-```
   All sra files were downloaded. 
 
 ## Decrypt and get fastq files
   Check which fastq files have been downloaded:
 ```{r}
-downloadedmtsFastqfiles <- list.files("/Users/hlberman/mnt/cluster/home6/callah_momspi/mts_files/fastq")
+downloadedmtsFastqfiles <- list.files("/Users/hlberman/mnt/cluster/scratch/hlberman/mts_files/fastq")
 head(downloadedmtsFastqfiles)
 length(downloadedmtsFastqfiles)
 length(downloadedmtsFastqfiles)/2
