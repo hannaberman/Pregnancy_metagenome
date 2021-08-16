@@ -153,7 +153,6 @@ raceDF0 <- hxDF %>%
   dplyr::rename(SubjectID=dbGaP_Subject_ID) %>%
   unique
 
-
 # check that there is only one race category per subject
 nrow(raceDF0)==n_distinct(raceDF0$SubjectID)
 ```
