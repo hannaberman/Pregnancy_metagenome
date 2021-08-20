@@ -1,4 +1,4 @@
----
+"---
 title: "Qaulity, Completeness, and Dereplication of *Gardnerella* Genome Assemblies"
 author: "HLB"
 date: "September 2020"
@@ -34,7 +34,7 @@ gardFastasDir <- file.path(dataPath, "_ncbi_downloads/genomes/")
 genomeAssemblyPaths <- gardFastasDir %>%
   list.files(pattern = ".fna", full.names = TRUE)
 
-figureOut <- file.path(dataPath, "FIGURES/reference_genome_qc")
+figureOut <- file.path(dataPath, "FIGURES/V1_manuscript_figures/reference_genome_qc")
 blastDB <- "/Users/hlberman/Desktop/Mende40/Mende40"
 gardDF0 <-  file.path(repoPath, "GardnerellaMetadata.csv") %>%
   read_csv
@@ -49,7 +49,14 @@ prokkaOutDir <- file.path(dataPath, "prokka_annotated_genomes/")
 
 ## ggplot settings
 ```{r}
-theme_set(theme_bw())
+# theme
+theme_set(theme_bw()+
+          theme(panel.grid = element_blank(),
+                axis.text = element_text(size=10),
+                axis.title = element_text(size=15),
+                legend.text = element_text(size=12),
+                legend.title = element_text(size=14)))
+#colors
 binary_colors <- scale_color_manual(values=c("#0072B2", "#D55E00"))
 RefSeq_colors <- list(scale_color_manual(values=c("#0072B2", "#CC79A7", "#56B4E9",  "#009E73", "#D55E00", "#E69F00", "#F0E442")),scale_fill_manual(values=c("#0072B2", "#CC79A7", "#56B4E9",  "#009E73", "#D55E00", "#E69F00", "#F0E442")))
 ```

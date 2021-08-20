@@ -13,10 +13,10 @@ Use blastn to verify the identity of *Gardnerella* sequences in GenBank. 124 *Ga
 
 # Set up
 ## Packages
-```{r, warning=FALSE}
+```{r, message=FALSE, warning=FALSE}
 library(tidyverse)
 ```
-```{r, warning=FALSE, message=FALSE}
+```{r, message=FALSE}
 library(rBLAST)
 library(R.utils)
 library(Biostrings)
@@ -26,7 +26,7 @@ library(Biostrings)
 ## File Paths
 ```{r}
 gardFastasDir <- "../../../gardPhylogeny/_ncbi_downloads/genomes"
-figureOut <- "../../../FIGURES/reference_genome_qc"
+figureOut <- "../../../FIGURES/V1_manuscript_figures/reference_genome_qc"
 blastDB_16S <- "/Users/hlberman/Desktop/16S_db/16S_ribosomal_RNA"
 gardDF <- "../GardnerellaMetadata.csv" %>%
   read_csv
@@ -35,7 +35,14 @@ blastResults16SPath <- "../../../gardPhylogeny/assembly_quality_control/gard_bla
 
 ## ggplot settings
 ```{r}
-theme_set(theme_bw())
+#theme
+theme_set(theme_bw()+
+          theme(panel.grid = element_blank(),
+                axis.text = element_text(size=10),
+                axis.title = element_text(size=15),
+                legend.text = element_text(size=12),
+                legend.title = element_text(size=14)))
+#colors
 binary_colors <- scale_color_manual(values=c("#0072B2", "#D55E00"))
 ```
 

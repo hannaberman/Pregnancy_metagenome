@@ -20,6 +20,8 @@ library(ape)
 library(Biostrings)
 library(formattable)
 library(ggdendro)
+library(kableExtra)
+library(magick)
 `%!in%` <- negate(`%in%`)
 ```
 
@@ -54,17 +56,22 @@ assemblyDistDF <- mashDists
 remove(mashDists)
 
 # output paths
-figureOut <- "/Volumes/GoogleDrive/My\ Drive/Callahan\ Lab/metagenome_gardnerella/FIGURES/gard_phyl"
+figureOut <- "/Volumes/GoogleDrive/My\ Drive/Callahan\ Lab/metagenome_gardnerella/FIGURES/V1_manuscript_figures/gard_phyl"
 coreGeneFastasDir <- file.path(dataPath, "core_gene_fastas")
-#dir.create(coreGeneFastasDir)
 assemblyCoreGenesDir <- file.path(dataPath, "assembly_core_genes")
-#dir.create(assemblyCoreGenesDir)
 ```
 
 ## ggplot
 ```{r}
+# theme
 theme_set(theme_bw()+
-          theme(panel.grid = element_blank()))
+          theme(panel.grid = element_blank(),
+                axis.text = element_text(size=10),
+                axis.title = element_text(size=15),                                                                                                  
+                legend.text = element_text(size=12),
+                legend.title = element_text(size=14)))
+
+# Colors
 cladeColors <- list(scale_color_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#000000"), labels=c("C1", "C2", "C3", "C4", "C5", "C6", bquote('Total'~italic(Gardnerella)))),
                      scale_fill_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73", "#000000"), labels=c("C1", "C2", "C3", "C4", "C5", "C6", bquote('Total'~italic(Gardnerella)))))
 
@@ -73,7 +80,6 @@ binaryColors <- list(scale_color_manual(values=c("#0072B2", "#D55E00")),
 
 okabeIto <- c("#E69F00", "#F0E442", "#0072B2", "#009E73", "#56B4E9", "#D55E00", "#CC79A7", "#000000")
 ```
-
 
 # Gardnerella Assembly Summary Stats
 ## Genome sizes
@@ -115,18 +121,22 @@ sum(pangenomeStats$count)
 ```{r}
 # Donut chart
 pangenomeStats %>%
-  ggplot(aes(x=2, y=count, label=count)) +
-  geom_bar(aes(fill=gene_type), stat = "identity") +
-  scale_fill_manual(values=okabeIto[1:4], labels=c("Core genes (99% ≤ strains ≤ 100%)",
-                                                   "Soft core genes (95% ≤ strains < 99%)", 
-                                                   "Shell genes (15% ≤ strains < 95%)",
-                                                   "Cloud genes (0% ≤ strains < 15%)")) +
-  coord_polar("y", start=-100, direction = -1) +
-  #geom_label(aes(label = count, x = 2, y = (count/2))) +
+  mutate(fraction=count/sum(count), # compute percentages
+         ymax=cumsum(fraction), # cumulative percentages (top of each rectangle)
+         ymin=c(0, head(ymax, n=-1)), # bottom of each rectangle
+         labelPosition=((ymax+ymin)/2), # label position
+         label=paste(gene_type, definition, count, sep="\n")) %>% 
+  ggplot(aes(ymax=ymax, ymin=ymin, xmax=20, xmin=1, fill=gene_type)) +
+  geom_rect() +
+  #geom_text_repel(x=21, aes(y=labelPosition, label=label), size=5) + # x here controls label position (inner / outer)
+  scale_fill_manual(values=okabeIto[1:4], labels=paste0(pangenomeStats$gene_type, "\n", pangenomeStats$definition, ":\n", pangenomeStats$count)) +
+  coord_polar(theta="y") +
+  xlim(c(-20, 20)) +
   theme_void() +
-  labs(x="", y="", fill="") +
-  xlim(.2,2.5)
-#ggsave(file.path(figureOut, "20201009_corePanGenesFraction.png"))
+  theme(legend.position = "right",
+        legend.text = element_text(size=13)) +
+  labs(fill=NULL)
+ggsave(file.path(figureOut, "20210819_corePanGenesFraction.png"))
 ```
 
 # Gardnerella Phylogeny
@@ -162,22 +172,22 @@ outgroupRootTree %>%
 ## Clades
 ```{r}
 C1 <- outgroupRootTree %>%
-  tree_subset("JCP7275", levels_back=3) %>%
+  tree_subset("JCP7275", levels_back=2) %>%
   .$tip.label
 C1
 
 C2 <- outgroupRootTree %>%
-   tree_subset("W11", levels_back=3) %>%
+   tree_subset("W11", levels_back=2) %>%
   .$tip.label
 C2
 
 C3 <- outgroupRootTree %>%
-  tree_subset("NR010", levels_back=3) %>%
+  tree_subset("NR010", levels_back=2) %>%
   .$tip.label
 C3
 
 C4 <- outgroupRootTree %>%
-  tree_subset("6420B", levels_back=3) %>%
+  tree_subset("6420B", levels_back=2) %>%
   .$tip.label
 C4
 
@@ -185,6 +195,23 @@ C5 <- c("KA00735", "CMW7778B")
 
 C6 <- "KA00225"
 ```
+
+```{r}
+
+testClades <- function(clade, cladeList) {
+  a <- test %>%
+    filter(Clade==clade) %>%
+    .$Strain
+  b <- setdiff(a, cladeList)
+  #b <- setdiff(cladeList, a)
+  return(b)
+}
+
+map2(list("C1", "C2", "C3", "C4", "C5", "C6"),
+     list(C1, C2, C3, C4, C5, C6),
+     testClades)
+```
+
 
 ## Genomospecies
 ### Unclear genomospecies NR010? W11? N160?
@@ -211,8 +238,7 @@ smallestANI("W11")
 ```{r}
 smallestANI("NR010")
 ```
-  Smallest approximate ANI is ~90%. Label this genomospecies "X" for now.
-  
+  Smallest approximate ANI is ~90%. Genomospecies 14.
   *N160*
   N160 appears to be in GS9 based on this phylogeny, by Khan et al. appears to place it in GS10. Unsure their method, but possibly by *cpn60* sequence.
 ```{r}
@@ -223,20 +249,20 @@ smallestANI("N160")
 ### Define genomospecies identities
 ```{r}
 GS1 <- outgroupRootTree %>%
-  tree_subset("N165", levels_back=2) %>%
+  tree_subset("N165", levels_back=1) %>%
   .$tip.label
 GS2 <-c("JCP7275", "41V", "55152", "1400E", "JCP8108")
 GS3 <- outgroupRootTree %>%
-  tree_subset("00703C2mash", levels_back=5) %>%
+  tree_subset("00703C2mash", levels_back=4) %>%
   .$tip.label
 GS4 <- outgroupRootTree %>%
-  tree_subset("JCP8070", levels_back=2) %>%
+  tree_subset("JCP8070", levels_back=1) %>%
   .$tip.label
 GS5 <- outgroupRootTree %>%
-  tree_subset("6420B", levels_back=2) %>%
+  tree_subset("6420B", levels_back=1) %>%
   .$tip.label
 GS6 <- outgroupRootTree %>%
-  tree_subset("UMB0264", levels_back=2) %>%
+  tree_subset("UMB0264", levels_back=1) %>%
   .$tip.label
 GS7 <- c("JCP8481A", "PSS_7772B")
 GS8 <- c("101", "00703Dmash", "UMB1686")
@@ -247,6 +273,7 @@ GS12 <- c("KA00735", "CMW7778B")
 GS13 <- "KA00225"
 GS14 <- "NR010"
 ```
+
 
 ## Clade and genomoospecies dataframe
 ```{r}
@@ -462,6 +489,27 @@ coreRefDB_DF <- coreRefDB %>%
 # save files
 #writeXStringSet(coreRefDB, filepath = "../clade_assignments/ref_genes/refGenes.fasta") # fasta of sequences
 #write_csv(coreRefDB_DF, "../clade_assignments/ref_genes/refGenesDF.csv") #data frame
+```
+
+# Table of Reference Gardnerella Genomes
+```{r}
+gardTable <- gardDF %>%
+  select(Strain, Genus, GenBank_accession) %>%
+  left_join(cladeGSDF, by="Strain") %>%
+  mutate(Species=case_when(Genomospecies=="GS1"~"vaginalis",
+                           Genomospecies=="GS4"~"piotii",
+                           Genomospecies=="GS5"~"leopoldii",
+                           Genomospecies=="GS6"~"swidsinskii"),
+         `In Mapping DB`=(Strain %in% includeCoreGenomes),
+         Genomospecies=factor(Genomospecies, levels=c("GS1", "GS2", "GS3", "GS4", "GS5", "GS6", "GS7", "GS8", "GS9", "GS10", "GS11", "GS12", "GS13", "GS14"))) %>%
+  dplyr::rename(Accession=GenBank_accession) %>%
+  select(Strain, Genus, Species, Genomospecies, Clade, `In Mapping DB`, Accession) %>%
+  arrange(Genomospecies) %>%
+  kbl(caption = "Table 1. Reference Gardnerella Genomes") %>%
+  kable_classic(full_width=TRUE, html_font = "Arial") %>%
+  row_spec(0, bold = TRUE)
+gardTable
+#save_kable(gardTable, file = file.path(figureOut, "GardRefTable.png"))
 ```
 
 
