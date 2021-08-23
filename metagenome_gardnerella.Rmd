@@ -9,6 +9,7 @@ output: html_document
 ## Load Packages
 ```{r}
 library(tidyverse)
+library(kableExtra)
 library(broom)
 library(formattable)
 library(reshape2)
@@ -22,7 +23,7 @@ set.seed(7334)
 
 ## Define file paths
 ```{r, message=FALSE}
-figureOut <- "../FIGURES/V1_manuscript_figures"
+figureOut <- "../FIGURES/V1_manuscript_figures/cohorts_and_analyses"
 
 suDF <- "./sumgsDF.tsv" %>% # metadata for Stanford and UAB
   read_tsv %>%
@@ -35,8 +36,8 @@ hmp2DF <- "./hmp2mgsDF.tsv" %>%
 
 # sample data
 sgDF0 <- suDF %>%
-  select("SampleID", "SubjectID", "Cohort", "sampleTrimester", "GDcoll", "GWdel", "Race", "TermPre", "TotalPairs", "Sickle_pairs", "bbmapFiltered_pairs") %>%
-  full_join(hmp2DF[,c("SampleID", "SubjectID", "Cohort", "sampleTrimester", "GDcoll", "GWdel", "Race", "TermPre", "TotalPairs", "Sickle_pairs", "bbmapFiltered_pairs")], by = c("SampleID", "SubjectID", "Cohort", "sampleTrimester", "GDcoll", "GWdel", "Race", "TermPre", "TotalPairs", "Sickle_pairs", "bbmapFiltered_pairs")) %>%
+  select("SampleID", "SubjectID", "Cohort", "sampleTrimester", "GDcoll", "GWdel", "Race", "Ethnicity", "TermPre", "TotalPairs", "Sickle_pairs", "bbmapFiltered_pairs") %>%
+  full_join(hmp2DF[,c("SampleID", "SubjectID", "Cohort", "sampleTrimester", "GDcoll", "GWdel", "Race", "Ethnicity", "TermPre", "TotalPairs", "Sickle_pairs", "bbmapFiltered_pairs")], by = c("SampleID", "SubjectID", "Cohort", "sampleTrimester", "GDcoll", "GWdel", "Race", "Ethnicity", "TermPre", "TotalPairs", "Sickle_pairs", "bbmapFiltered_pairs")) %>%
   mutate(Cohort=factor(Cohort, levels = c("Stanford", "UAB", "HMP2")),
          SampleID=as.character(SampleID), 
          SubjectID=as.character(SubjectID),
@@ -363,12 +364,89 @@ head(hmp2SubjectsWDel)
 length(hmp2SubjectsWDel)
 ```
 
-## Term vs. preterm
+## Demographic and Clinical data
 ```{r}
-sgDF1 %>%
-  group_by(Cohort, TermPre) %>%
-  summarize(nSubjects=n_distinct(SubjectID), nSamples=n_distinct(SampleID)) %>%
-  formattable()
+#GAAD 
+gaadDF <- sgDF1 %>%
+  select(SubjectID, Cohort, TermPre, GWdel) %>%
+  unique() %>%
+  add_count(Cohort, TermPre) %>%
+  group_by(Cohort, TermPre, n) %>%
+  summarize(mean=round(mean(GWdel, na.rm=TRUE), 1), 
+            sd=round(sd(GWdel, na.rm = TRUE), 1)) %>%
+  replace_na(list(mean="-",
+                  sd="-")) %>%
+  ungroup() %>%
+  mutate(TermPre=case_when(TermPre=="T"~"Term",
+                           TermPre=="P"~"Preterm",
+                           is.na(TermPre)~"Unknown"),
+         cat=paste0(Cohort, "\n", TermPre, " (n=", n, ")"),
+         `Mean gestational age in weeks at delivery (±SD)`=paste0(mean, " (", sd, ")")) %>%
+  replace_na(list(`Mean gestational age in weeks at delivery (±SD)`="-")) %>%
+  select(cat, `Mean gestational age in weeks at delivery (±SD)`) %>%
+  column_to_rownames(var="cat") %>%
+  t %>%
+  as.data.frame %>%
+  rownames_to_column(var="Variable") %>%
+  select("Variable", "Stanford\nTerm (n=11)", "Stanford\nPreterm (n=9)", "UAB\nTerm (n=5)", "UAB\nPreterm (n=10)", "HMP2\nTerm (n=90)", "HMP2\nPreterm (n=43)", "HMP2\nUnknown (n=98)")
+  
+demDF <- sgDF1 %>%
+  select(SubjectID, Cohort, TermPre, Race, Ethnicity) %>%
+  unique() %>%
+  add_count(Cohort, TermPre, name="term_count") %>%
+  add_count(Cohort, TermPre, Race, name="race_count") %>%
+  add_count(Cohort, TermPre, Ethnicity, name="eth_count") %>%
+  select(-SubjectID) %>%
+  unique %>%
+  mutate(TermPre=case_when(TermPre=="T"~"Term",
+                           TermPre=="P"~"Preterm",
+                           is.na(TermPre)~"Unknown"),
+         cat=paste0(Cohort, "\n", TermPre, " (n=", term_count, ")")) %>%
+  select(cat, Race, race_count, Ethnicity, eth_count) %>%
+  ungroup
+
+# demographics
+raceDF <- demDF %>%
+  select(cat, Race, race_count) %>%
+  unique() %>%
+  group_by(cat) %>%
+  mutate(pct=round((race_count/sum(race_count))*100),
+         race_count=paste0(race_count, " (", pct, "%)"),
+         Race=factor(Race, levels=c("Asian", "Black", "White", "Other"))) %>%
+  select(-pct) %>%
+  spread(cat, race_count) %>%
+  mutate_all(~replace_na(.x, 0)) %>%
+  mutate_if(is.numeric, ~paste0(.x, " (", round(.x/sum(.x)), "%)")) %>%
+  arrange(Race) %>%
+  dplyr::rename(Variable=Race) %>%
+  select("Variable", "Stanford\nTerm (n=11)", "Stanford\nPreterm (n=9)", "UAB\nTerm (n=5)", "UAB\nPreterm (n=10)", "HMP2\nTerm (n=90)", "HMP2\nPreterm (n=43)", "HMP2\nUnknown (n=98)")
+
+ethDF <- demDF %>%
+  select(cat, Ethnicity, eth_count) %>%
+  unique() %>%
+  group_by(cat) %>%
+  mutate(pct=round((eth_count/sum(eth_count))*100),
+         eth_count=paste0(eth_count, " (", pct, "%)"),
+         Ethnicity=factor(Ethnicity, levels=c("Hispanic", "Non-Hispanic", "Unknown"))) %>%
+  select(-pct) %>%
+  spread(cat, eth_count) %>%
+  mutate_all(~replace_na(.x, 0)) %>%
+  mutate_if(is.numeric, ~paste0(.x, " (", round(.x/sum(.x)), "%)")) %>%
+  arrange(Ethnicity) %>%
+  dplyr::rename(Variable=Ethnicity) %>%
+  select("Variable", "Stanford\nTerm (n=11)", "Stanford\nPreterm (n=9)", "UAB\nTerm (n=5)", "UAB\nPreterm (n=10)", "HMP2\nTerm (n=90)", "HMP2\nPreterm (n=43)", "HMP2\nUnknown (n=98)")
+
+demTable <- gaadDF %>%
+  rbind(raceDF) %>%
+  rbind(ethDF) %>%
+  dplyr::rename_at(2:8, ~str_extract(.x, "(?<=\\n).*")) %>%
+  kbl(caption = "Table 2. Sampling Cohorts") %>%
+  kable_classic(full_width=TRUE, html_font = "Arial") %>%
+  add_header_above(c(" ", "Stanford" = 2, "UAB" = 2, "HMP2" = 3)) %>%
+  pack_rows("Race", 2, 5,) %>%
+  pack_rows("Ethnicity", 6, 8)
+demTable
+#save_kable(demTable, file = file.path(figureOut, "demTable.png"))
 ```
 
 ## Demographic Data
@@ -408,6 +486,7 @@ sgDF1 %>%
   dplyr::rename(Delivery=TermPre) %>%
   formattable()
 ```
+
 
 # Set up taxa data frames
   Organize and set up tables from MetaPhlAn2 and *Gardnerella* mapping method.
