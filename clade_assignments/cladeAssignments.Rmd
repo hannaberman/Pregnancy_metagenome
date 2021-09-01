@@ -34,7 +34,7 @@ refGardDF <- file.path(repoDir, "refGardnerellaCladesGenomos.csv") %>%
   read_csv(); head(refGardDF)
 
 # shotgun metadata
-sgDF <- file.path(repoDir, "shotgunMetadata.tsv") %>%
+sgDF <- file.path(repoDir, "sumgsDF.tsv") %>%
   read_delim(delim="\t") %>%
   mutate(SampleID=as.character(SampleID), 
          SubjectID=as.character(SubjectID)); head(sgDF)
@@ -82,7 +82,6 @@ alns0 <- alns %>%
   map(~left_join(.x, refGenesDF, by="reference")) %>%
   map(~left_join(.x, sgDF[,c("SampleID", "SubjectID", "RNAlater", "GWcoll", "PaperCohort")], by="SampleID")) #add sample metadata
 ```
-
 
 ## Some descriptives
 ```{r}

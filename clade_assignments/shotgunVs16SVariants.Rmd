@@ -17,13 +17,13 @@ library(formattable)
 ```{r}
 repoDir <- ".."
 dataDir <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/metagenome_gardnerella/"
-figureOut <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/metagenome_gardnerella/FIGURES/clade_assignments"
+figureOut <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/metagenome_gardnerella/FIGURES/V1_manuscript_figures/clade_assignments"
 
 #shotgun metadata
-sgDF <- file.path(repoDir, "shotgunMetadata.tsv") %>%
-  read_delim(delim = "\t") %>%
+sgDF <- file.path(repoDir, "sumgsDF.tsv") %>%
+  read_tsv %>%
   mutate(SampleID=as.character(SampleID),
-         SampleID_a=as.character(SampleID_a))
+         SubjectID=as.character(SubjectID))
 
 #ASVs from Callahan et al., 2017 PNAS Replication and Refinement
 S16_path <- file.path(dataDir, "16S_data/RepRefine_Scripts/input/processed.rda")
@@ -339,7 +339,7 @@ gardAllVarDFThresholds %>%
   facet_wrap(~SampleID) +
   #guides(color=guide_legend(override.aes=list(shape=c(rep(16, 6), rep(5, 5)), size=c(rep(2, 6), rep(4, 5))))) +
   labs(x="Threshold (reads ≥ n)", y="Proportion of Gardnerella")
-ggsave(file.path(figureOut, "variantsByThreshold1_50.png"))
+#ggsave(file.path(figureOut, "variantsByThreshold1_50.png"))
 
 # plot - thresholds 1 to 5
 gardAllVarDFThresholds %>%
@@ -352,7 +352,7 @@ gardAllVarDFThresholds %>%
   facet_wrap(~SampleID) +
   #guides(color=guide_legend(override.aes=list(shape=c(rep(16, 6), rep(5, 5)), size=c(rep(2, 6), rep(4, 5))))) +
   labs(x="Threshold (reads ≥ n)", y="Proportion of Gardnerella")
-ggsave(file.path(figureOut, "variantsByThreshold1_5.png"))
+#ggsave(file.path(figureOut, "variantsByThreshold1_5.png"))
 ```
   View count of variants over ranges of thresholds
 ```{r, fig.height=5, fig.width=6}
@@ -413,7 +413,7 @@ nV4 <- gardAllVarDF %>% # number of v4 variants
   select(SampleID, Var) %>%
   nrow
 
- # Number of Clades at each threshold
+ # Number of Clades found in all samples at each threshold up to 5
 nClades <- gardAllVarDFThresholds %>%
   filter(Method=="Shotgun Clade",
          Threshold <= 5) %>%
@@ -421,7 +421,7 @@ nClades <- gardAllVarDFThresholds %>%
   group_by(Threshold) %>%
   summarise(Total=n())
 
-#  Number of Genomospecies at each threshold
+#  Number of Genomospecies found in all samples at each threshold up to 5
 nGenomos <- gardAllVarDFThresholds %>%
   filter(Method=="Shotgun Genomospecies",
          Threshold <= 5) %>%
@@ -585,8 +585,8 @@ data.frame(testSample=rep(testSamples, 5), # set variables for testSens function
   formattable
 ```
 
-## Specificity
-  Specificity as number of clades or genomospecies that are not supported by a V4 variant
+## Precision
+  Precision as number of clades or genomospecies that are not supported by a V4 variant
 ```{r}
 # define function to determine the number of clades or genomospecies that are not supported by a V4 variant
 testSpec <- function(testSample, comparison, thresh) {
