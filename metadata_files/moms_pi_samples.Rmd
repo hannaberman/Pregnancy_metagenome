@@ -518,7 +518,13 @@ downloadedmtsFastqs <- downloadedmtsFastqfiles %>%
   unique
 setdiff(downloadedmtsSRAs, downloadedmtsFastqs)
 ```
-  Rerun for missing fastq files
+  All fastq files are downloaded
+  
+## Filter and trim with sickle
+```{r}
+
+```
+
 
 ```{r}
 sessionInfo()

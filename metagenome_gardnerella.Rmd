@@ -912,10 +912,14 @@ sgDF %>%
 sampleSubset <- read_lines("./sampleSubsets.txt")
 
 #number of samples per cohort in subset
-sgDF %>%
+subsetNs <- sgDF %>%
   filter(SampleID %in% sampleSubset) %>%
   count(Cohort) %>%
-  formattable()
+  dplyr::rename(N=n) %>%
+  kbl(caption = "Table S3. One Sample Per Subject Subset") %>%
+  kable_classic(full_width=TRUE, html_font = "Arial")
+subsetNs
+#save_kable(subsetNs, file = file.path(figureOut, paste(Sys.Date(), "subsetNsTable.png", sep="_")))
 ```
 
 
@@ -1111,7 +1115,7 @@ gardCladeAbU %>%
 ### Genomospecies
 ```{r, fig.height=3, fig.width=7}
 gardGenomoAbU %>%
-  mutate(var=factor(var, levels=c(genomos, "Uncharacterized_Gardnerella", "Gardnerella_vaginalis"), labels=c(genomos, "Unch.", "Total")),
+  mutate(var=factor(var, levels=c(genomos, "Uncharacterized_Gardnerella", "Gardnerella_vaginalis"), labels=c(genomoNames, "Unch.", "Total")),
          Cohort=factor(Cohort, levels = c("Stanford", "UAB", "HMP2 Enriched", "HMP2"), labels = c("Stanford", "UAB", "HMP2 E", "HMP2"))) %>%
   #ggplot(aes(x=Cohort, y=relativeAbundance, color=var, fill=var)) +
   ggplot(aes(x=var, y=relativeAbundance, color=var, fill=var)) +
@@ -1960,8 +1964,7 @@ relativeWilcoxResults <- gardCladeAbU %>%
   map(~wilcox.test(.x$meanRelativeAbundance~.$TermPre, alternative="greater")) %>%
   map(broom::tidy) %>%
   map2(., names(.), ~mutate(.x, cohort_var=.y)) %>%
-  purrr::reduce(~full_join(.x, .y, by = c("statistic", "p.value", "method", "alternative", "cohort_var"))) %>%
-  mutate(BH.adjust=p.adjust(p.value, method="BH"))
+  purrr::reduce(~full_join(.x, .y, by = c("statistic", "p.value", "method", "alternative", "cohort_var")))
 
 relativeWilcoxResults %>%
   arrange(p.value) %>%
