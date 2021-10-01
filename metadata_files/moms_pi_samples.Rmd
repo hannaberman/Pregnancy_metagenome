@@ -18,7 +18,7 @@ theme_set(theme_bw()+
 # Phenotype Files
 ```{r}
 # SRA run table from dbGaP
-mgsRunTable <- read_csv("/Users/hlberman/mnt/cluster/home6/callah_momspi/SRAruntable.txt") %>%
+mgsRunTable <- read_csv("/Users/hlberman/mnt/cluster/home6/hlberman/momspi_data/SRAruntable.txt") %>%
   filter(body_site=="Vagina",
          LibrarySource=="METAGENOMIC")
 #write_lines(mgsRunTable$Run, "/Users/hlberman/Desktop/MGSsras.txt")
@@ -434,6 +434,7 @@ humann2outs <- list.files("/Users/hlberman/mnt/cluster/home6/hlberman/VMMG/human
 length(humann2outs)
 ```
 
+
 # MTS
 Visits with paired MGS/MTS
 ```{r}
@@ -476,7 +477,7 @@ downloadedmtsSRAfiles <- list.files(mtssraDir)
 head(downloadedmtsSRAfiles)
 length(downloadedmtsSRAfiles)
 
-mtsRunTable <- read_csv("/Users/hlberman/mnt/cluster/home6/callah_momspi/SRAruntable.txt") %>% # file path for run table 
+mtsRunTable <- read_csv("/Users/hlberman/mnt/cluster/home6/hlberman/momspi_data/SRAruntable.txt") %>% # file path for run table 
   filter(body_site=="Vagina",
          LibrarySource=="METATRANSCRIPTOMIC")
 ```
@@ -521,8 +522,28 @@ setdiff(downloadedmtsSRAs, downloadedmtsFastqs)
   All fastq files are downloaded
   
 ## Filter and trim with sickle
+  List of MTS files
 ```{r}
+#write_lines(downloadedmtsSRAs, "/Users/hlberman/Desktop/mtsSRAs.txt")
+```
 
+  Check number of files processedy by sickle
+```{r}
+filteredSRAs <- "/Users/hlberman/mnt/cluster/scratch/hlberman/hmp2mts_filt_fastq" %>%
+  list.files %>%
+  str_extract("SRR[0-9]*") %>%
+  unique
+length(filteredSRAs)
+```
+
+## Filter human 
+  Filter human reads from fastq files. Check filtering progress.
+```{r}
+filtmgsFastqDir <- "/Users/hlberman/mnt/cluster/home6/hlberman/VMMT/bbmap_human/hmp2mts_filt_fastq"
+filtmgsFastq <- list.files(filtmgsFastqDir) %>%
+  str_extract("SRR[0-9]+") %>%
+  unique
+length(filtmgsFastq)
 ```
 
 

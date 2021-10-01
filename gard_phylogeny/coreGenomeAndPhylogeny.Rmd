@@ -216,7 +216,7 @@ map2(list("C1", "C2", "C3", "C4", "C5", "C6"),
 ## Genomospecies
 ### Unclear genomospecies NR010? W11? N160?
   *W11*
-    W11 genomospecies identity is unclear by placement on phylogeny. It was labeled genomospecies 3 by Khan et al., 2020 "A generalist lifestyle allows rare Gardnerella spp. to persist at low levels in the vaginal microbiome" (preprint on *BioRXiV*).
+    W11 genomospecies identity is unclear by placement on phylogeny. It was labeled genomospecies 3 by Khan et al., 2020 "A generalist lifestyle allows rare Gardnerella spp. to persist at low levels in the vaginal microbiome" *Microbial Ecology*.
 ```{r}
 # closest whole genome mash distance function
 smallestANI <- function(STRAIN){
