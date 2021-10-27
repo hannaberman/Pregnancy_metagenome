@@ -546,6 +546,11 @@ filtmgsFastq <- list.files(filtmgsFastqDir) %>%
 length(filtmgsFastq)
 ```
 
+## Count Reads
+```{r}
+
+```
+
 
 ```{r}
 sessionInfo()
