@@ -61,6 +61,20 @@ coreGeneFastasDir <- file.path(dataPath, "core_gene_fastas")
 assemblyCoreGenesDir <- file.path(dataPath, "assembly_core_genes")
 ```
 
+## Read in genomes
+```{r}
+refAssemblies <- ffnDir %>%
+  list.files(pattern = ".ffn", full.names = TRUE) %>%
+  map(~readDNAStringSet(.x))
+
+names(refAssemblies) <- ffnDir %>%
+  list.files(pattern = ".ffn") %>%
+  str_extract(".*(?=\\.ffn)")
+
+# take a look at what sequence names look like
+head(names(refAssemblies$`00703Bmash`))
+```
+
 ## ggplot
 ```{r}
 # theme
@@ -197,19 +211,18 @@ C6 <- "KA00225"
 ```
 
 ```{r}
-
-testClades <- function(clade, cladeList) {
-  a <- test %>%
-    filter(Clade==clade) %>%
-    .$Strain
-  b <- setdiff(a, cladeList)
-  #b <- setdiff(cladeList, a)
-  return(b)
-}
-
-map2(list("C1", "C2", "C3", "C4", "C5", "C6"),
-     list(C1, C2, C3, C4, C5, C6),
-     testClades)
+# testClades <- function(clade, cladeList) {
+#   a <- test %>%
+#     filter(Clade==clade) %>%
+#     .$Strain
+#   b <- setdiff(a, cladeList)
+#   #b <- setdiff(cladeList, a)
+#   return(b)
+# }
+# 
+# map2(list("C1", "C2", "C3", "C4", "C5", "C6"),
+#      list(C1, C2, C3, C4, C5, C6),
+#      testClades)
 ```
 
 
@@ -245,6 +258,74 @@ smallestANI("NR010")
 smallestANI("N160")
 ```
   Closest by whole genome mash distance is strain 6119V5 (GS9) with ~98% ANI. 
+
+  Check *cpn60* sequence
+```{r}
+cpn60s <- refAssemblies %>%
+  map(~.x[str_detect(names(.x), "60 kDa chaperonin")])
+
+names(cpn60s) <- NULL #remove list names to flatten string set
+
+cpn60s <- cpn60s %>% # flatten string set
+  do.call(c,.)
+
+names(cpn60s) <- str_extract(names(cpn60s), ".*(?=_[0-9]{5}.*)") # remove annotation from DNA String set names to get just strain names
+
+cpn60s# print
+```
+  Calculate distances
+```{r}
+cpn60Dists <- cpn60s %>%
+  rMSA::distAlignment(cpn60s) %>%
+  as.matrix() %>%
+  data.frame(check.names = FALSE) %>%
+  rownames_to_column("strain1") %>%
+  gather("strain2", "dist", 2:ncol(.)) %>% #flatten matrix
+  filter(strain1!=strain2) #remove diagonal
+```
+
+  Get minimum distance:
+```{r}
+cpn60Dists %>%
+  filter(strain1=="N160") %>%
+  filter(dist==min(dist))
+```
+  Using full-length *cpn60* sequence N160 would be placed into GS10, as its *cpn60* sequence is closest to N160.
+  Compare distances to 1500E (GS10) and 6119V5 (GS9)
+```{r}
+cpn60Dists %>%
+  filter(strain1=="N160",
+         strain2 %in% c("6119V5", "1500E"))
+```
+  The sequences are close, and they are also close phylogenetically.
+  
+  Check placement based on the UT region, which would be used in PCR:
+```{r}
+cpn60UTDists <- cpn60s %>%
+  substr(241, 847) %>% #substring to UT region
+  rMSA::distAlignment(cpn60s) %>%
+  as.matrix() %>%
+  data.frame(check.names = FALSE) %>%
+  rownames_to_column("strain1") %>%
+  gather("strain2", "dist", 2:ncol(.)) %>% #flatten matrix
+  filter(strain1!=strain2) #remove diagonal
+```
+
+  Get minimum distance:
+```{r}
+cpn60Dists %>%
+  filter(strain1=="N160") %>%
+  filter(dist==min(dist))
+```
+  Same result of placement in GS10.
+
+  Compare distances to 1500E (GS10) and 6119V5 (GS9)
+```{r}
+cpn60Dists %>%
+  filter(strain1=="N160",
+         strain2 %in% c("6119V5", "1500E"))
+```
+  Again, same result as full-length.
 
 ### Define genomospecies identities
 ```{r}
@@ -344,21 +425,6 @@ nrow(singleCopyCoreGenes)
 
 # Dereplicate sequences within clades/genomospeices
   Remove replicate sequences within clades or genomospecies by identifying replicate sequences
-## Organize files for M
-## Read in genomes
-```{r}
-refAssemblies <- ffnDir %>%
-  list.files(pattern = ".ffn", full.names = TRUE) %>%
-  map(~readDNAStringSet(.x))
-
-names(refAssemblies) <- ffnDir %>%
-  list.files(pattern = ".ffn") %>%
-  str_extract(".*(?=\\.ffn)")
-
-# take a look at what sequence names look like
-head(names(refAssemblies$`00703Bmash`))
-```
-
 ## Make list of single-copy core genes for each reference genome assembly
 ```{r}
 strains <- gardDF$Strain

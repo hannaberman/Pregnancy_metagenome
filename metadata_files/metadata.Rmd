@@ -219,37 +219,6 @@ ggplot() +
 #ggsave("./collectionPlot.svg", height=8, width=8.5) 
 ```
 
-## paired sequencing
-```{r}
-SHOT2 <- sgDF %>%
-  select(SubjectID, GDcoll, Cohort, PaperCohort, RNAlater) %>%
-  filter(PaperCohort=="2015"|PaperCohort=="2017") %>%
-  mutate(Method=case_when(RNAlater=="No"~"Paired amplicon and shotgun",
-                          RNAlater=="Yes"~"Paired meta-omic")) %>%
-  unique.data.frame() 
-
-SHOT <- sgDF1 %>% 
-  select(SubjectID, GDcoll, Cohort, PaperCohort) %>%
-  filter(PaperCohort=="2015"|PaperCohort=="2017") %>%
-  mutate(Method="Shotgun") %>%
-  unique.data.frame()
-
-ggplot() +
-  geom_point(data=AMP, aes(x=GDcoll, y=as.character(SubjectID), shape=Method, color=Cohort, size=Method), alpha=.5) +
-  geom_point(data=SHOT2, aes(x=GDcoll, y=as.character(SubjectID), shape=Method, size=Method), color="black") +
-  xlim(0,280) +
-     labs(x = "Gestation Days",
-          y = "Subject") +
-     scale_color_manual(values=c("olivedrab", "steelblue", "black"))+
-     scale_shape_manual(values=c(19, 15,0)) +
-     scale_size_manual(values=c(1,2,2)) +
-     #theme_classic()+
-     theme(axis.ticks.y = element_blank(),
-     axis.text.y  = element_blank())
-#ggsave("/Users/hlberman/Desktop/prelimPlot.svg", height=8, width=8.5) 
-```
-
-
 # Session Info
 ```{r}
 sessionInfo()

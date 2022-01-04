@@ -191,6 +191,13 @@ raceDF %>%
   formattable()
 ```
 
+```{r}
+raceDF %>%
+  count(Ethnicity) %>%
+  mutate(n=n/sum(n)*100)
+```
+
+
 ### Gestational age at collection and delivery
   Additional tables provided from Greg Buck for gestational age at sample collection and delivery.
 ```{r}
@@ -547,10 +554,61 @@ length(filtmgsFastq)
 ```
 
 ## Count Reads
-```{r}
-
+```{r, warning=FALSE}
+# read in count fastq file:
+mtsReadCountDF0 <- read_delim("/Users/hlberman/mnt/cluster/home6/hlberman/VMMT/bbmap_human/hmp2mts_fastq_counts_bbmap.txt", delim = "\ ") %>%
+  mutate_if(is.numeric, ~(.x/4))
+  
+nrow(mtsReadCountDF0)
 ```
 
+  Do number of forward and reverse downloaded reads match?
+```{r}
+mtsReadCountDF0 %>%
+  mutate(test=uploadCount1==uploadCount2) %>%
+  .$test %>%
+  table
+```
+
+  Do number of forward and reverse trimmed reads match?
+```{r}
+mtsReadCountDF0 %>%
+  mutate(test=trimmedCount1==trimmedCount2) %>%
+  .$test %>%
+  table
+```
+
+  Do number of forward and reverse filtered reads match?
+```{r}
+mtsReadCountDF0 %>%
+  mutate(test=filteredCount1==filteredCount2) %>%
+  .$test %>%
+  table
+```
+
+  Make dataframe to add readcount information to metadata
+```{r}
+mtsReadCountDF <- mtsReadCountDF0 %>%
+  dplyr::rename(TotalPairs=uploadCount1,
+                Sickle_pairs=trimmedCount1,
+                bbmapFiltered_pairs=filteredCount1) %>%
+  select(SampleID, TotalPairs, Sickle_pairs, bbmapFiltered_pairs) %>%
+  mutate(pctTrim=((TotalPairs-Sickle_pairs)/TotalPairs),
+         pctHuman=((Sickle_pairs-bbmapFiltered_pairs)/Sickle_pairs))
+
+
+mtsReadCountDF %>%
+  gather("Step", "Pairs", c(TotalPairs, Sickle_pairs, bbmapFiltered_pairs)) %>%
+  mutate(Step=factor(Step, levels=c("TotalPairs", "Sickle_pairs", "bbmapFiltered_pairs"), labels=c("Total", "Sickle", "BBmap"))) %>%
+  ggplot(aes(x=Step, y=Pairs, color=Step)) +
+    geom_jitter() +
+    geom_boxplot(alpha=0)
+
+mtsReadCountDF %>%
+  summarise(meanTrim=mean(pctTrim), 
+            meanFilter=mean(pctHuman))
+```
+  About 80% of reads were retained after QC filtering and 33% of QC-filtered reads were human reads.
 
 ```{r}
 sessionInfo()
