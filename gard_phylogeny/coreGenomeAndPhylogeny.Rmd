@@ -56,7 +56,7 @@ assemblyDistDF <- mashDists
 remove(mashDists)
 
 # output paths
-figureOut <- "/Volumes/GoogleDrive/My\ Drive/Callahan\ Lab/metagenome_gardnerella/FIGURES/V1_manuscript_figures/gard_phyl"
+figureOut <- "/Volumes/GoogleDrive/My\ Drive/Callahan\ Lab/metagenome_gardnerella/FIGURES/V3_manuscript_figures/gard_phyl"
 coreGeneFastasDir <- file.path(dataPath, "core_gene_fastas")
 assemblyCoreGenesDir <- file.path(dataPath, "assembly_core_genes")
 ```
@@ -565,7 +565,8 @@ gardTable <- gardDF %>%
   mutate(Species=case_when(Genomospecies=="GS1"~"vaginalis",
                            Genomospecies=="GS4"~"piotii",
                            Genomospecies=="GS5"~"leopoldii",
-                           Genomospecies=="GS6"~"swidsinskii"),
+                           Genomospecies=="GS6"~"swidsinskii",
+                           Genomospecies %!in% c("GS1", "GS4", "GS5", "GS6")~paste0("sp. ", str_extract(Genomospecies, "(?<=GS)[0-9]+"))),
          `In Mapping DB`=(Strain %in% includeCoreGenomes),
          Genomospecies=factor(Genomospecies, levels=c("GS1", "GS2", "GS3", "GS4", "GS5", "GS6", "GS7", "GS8", "GS9", "GS10", "GS11", "GS12", "GS13", "GS14"))) %>%
   dplyr::rename(Accession=GenBank_accession) %>%
@@ -575,7 +576,7 @@ gardTable <- gardDF %>%
   kable_classic(full_width=TRUE, html_font = "Arial") %>%
   row_spec(0, bold = TRUE)
 gardTable
-#save_kable(gardTable, file = file.path(figureOut, "GardRefTable.png"))
+save_kable(gardTable, file = file.path(figureOut, paste(Sys.Date(), "GardRefTable.png", sep="_")))
 ```
 
 

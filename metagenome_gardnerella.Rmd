@@ -16,14 +16,16 @@ library(reshape2)
 library(vegan)
 library(ggbeeswarm)
 library(ggExtra)
-library(cowplot)
+library(ggpubr)
+#library(cowplot)
+library(rstatix)
 `%!in%` <- negate(`%in%`)
 set.seed(7334)
 ```
 
 ## Define file paths
 ```{r, message=FALSE}
-figureOut <- "../FIGURES/V2_manuscript_figures/cohorts_and_analyses"
+figureOut <- "../FIGURES/V3_manuscript_figures/cohorts_and_analyses"
 
 suDF <- "./sumgsDF.tsv" %>% # metadata for Stanford and UAB
   read_tsv %>%
@@ -36,9 +38,9 @@ hmp2DF <- "./hmp2mgsDF.tsv" %>%
 
 # sample data
 sgDF0 <- suDF %>%
-  select("SampleID", "SubjectID", "Cohort", "sampleTrimester", "GDcoll", "GWdel", "Race", "Ethnicity", "TermPre", "TotalPairs", "Sickle_pairs", "bbmapFiltered_pairs") %>%
+  select("SampleID", "SubjectID", "Cohort", "sampleTrimester", "GDcoll", "GWdel", "Age", "Income", "Education", "deliveryMode", "Race", "Ethnicity", "TermPre", "TotalPairs", "Sickle_pairs", "bbmapFiltered_pairs") %>%
   mutate(Cohort=paste(Cohort, "Enriched")) %>%
-  full_join(hmp2DF[,c("SampleID", "SubjectID", "Cohort", "sampleTrimester", "GDcoll", "GWdel", "Race", "Ethnicity", "TermPre", "TotalPairs", "Sickle_pairs", "bbmapFiltered_pairs")], by = c("SampleID", "SubjectID", "Cohort", "sampleTrimester", "GDcoll", "GWdel", "Race", "Ethnicity", "TermPre", "TotalPairs", "Sickle_pairs", "bbmapFiltered_pairs")) %>%
+  full_join(hmp2DF[,c("SampleID", "SubjectID", "Cohort", "sampleTrimester", "GDcoll", "GWdel", "Age", "Income", "Education", "deliveryMode", "Race", "Ethnicity", "TermPre", "TotalPairs", "Sickle_pairs", "bbmapFiltered_pairs")], by = c("SampleID", "SubjectID", "Cohort", "sampleTrimester", "GDcoll", "GWdel", "Age", "Income", "Education", "deliveryMode", "Race", "Ethnicity", "TermPre", "TotalPairs", "Sickle_pairs", "bbmapFiltered_pairs")) %>%
   mutate(Cohort=factor(Cohort, levels = c("Stanford Enriched", "UAB Enriched", "MOMS-PI")), # Stanford and UAB samples were selected for enrichment in Gardnerella, label them has Enriched.
          SampleID=as.character(SampleID), 
          SubjectID=as.character(SubjectID),
@@ -185,16 +187,14 @@ taxColorsOther <-   list(scale_color_manual(values=c("#808080", "#CC79A7", "#D55
 binaryColors <- list(scale_color_manual(values = c("#D55E00", "#56B4E9")),
                      scale_fill_manual(values=c("#D55E00", "#56B4E9")))
 
-trinaryColors <- list(scale_color_manual(values = c("#D55E00", "#009E73", "#56B4E9")),
-                     scale_fill_manual(values=c("#D55E00","#009E73", "#56B4E9")))
+trinaryColors <- list(scale_color_manual(values = c("#F77754", "#018790", "#0A516D")),
+                      scale_fill_manual(values = c(c("#F77754", "#018790", "#0A516D"))))
 
-quadColors <- list(scale_color_manual(values=c("#D55E00", "#009E73", "#CC79A7", "#56B4E9")),
-                   scale_fill_manual(values=c("#D55E00", "#009E73", "#CC79A7", "#56B4E9")))
+quadColors <- list(scale_color_manual(values = c("#F77754", "#018790", "#0A516D", "#2B2726")),
+                      scale_fill_manual(values = c(c("#F77754", "#018790", "#0A516D", "#2B2726")))) 
 
-#003f5c
-#7a5195
-#ef5675
-#ffa600
+quadColors2 <- list(scale_color_manual(values = c("#D55E00", "#009E73", "#CC79A7", "#56B4E9")),
+                     scale_fill_manual(values=c("#D55E00","#009E73", "#CC79A7", "#56B4E9")))
 ```
 
 ## Other shortcuts
@@ -302,24 +302,62 @@ sgDF1 %>%
 
   Will proceed with a total of 888 samples, 62 from Stanford, 45 from UAB, and 781 from MOMS-PI
 
+  Library sizes and percent filtered at each step post QC sample removal:
+```{r, fig.height=2, fig.width=4}
+sgDF1 %>%
+  gather("Step", "paired_reads", c(TotalPairs, Sickle_pairs, bbmapFiltered_pairs)) %>%
+  mutate(Step=factor(Step, levels=c("TotalPairs", "Sickle_pairs", "bbmapFiltered_pairs"), labels=c("Library Size", "Sickle Filtered", "Bacterial Reads")),
+         Cohort=factor(Cohort, levels = c("Stanford Enriched", "UAB Enriched", "MOMS-PI"), labels=c("Sanford\nEnriched", "UAB\nEnriched", "MOMS-PI"))) %>%
+  ggplot(aes(x=Cohort, y=paired_reads, fill=Cohort, color=Cohort)) +
+  geom_quasirandom(dodge.width = 0.9, alpha=0.5, size=1, show.legend = FALSE) +
+  geom_boxplot(alpha=0, position=position_dodge(width=0.9), color="black", show.legend = FALSE) +
+  scale_y_continuous(n.breaks = 10, minor_breaks = waiver()) +
+  facet_wrap(~Step) +
+  trinaryColors +
+  theme_bw() +
+  theme(axis.text.x = element_text(size=10),
+        axis.text.y=element_text(size=13),
+        strip.text = element_text(size=10),
+        axis.title = element_text(size=16)) +
+  labs(x=NULL, y="Paired Reads")
+#ggsave(filename = file.path(figureOut, paste(Sys.Date(), "pairedReadsAtSteps.png", sep="_")))
+```
+
 ## Percent Human Reads
 ```{r}
 sgDF1 %>%
   group_by(Cohort) %>%
   ggplot(aes(pctHuman)) +
   geom_histogram(aes(y=stat(width*density))) +
+  scale_y_continuous(limits = c(0,0.4), n.breaks=9) +
   facet_wrap(~Cohort) +
-  labs(x="Percent Human", y="Proportion of Samples")
+  theme(axis.text = element_text(size=13),
+        axis.title = element_text(size=16),
+        strip.text = element_text(size=13)) +
+  labs(x="Percent Human Reads", y="Proportion of Samples")
 #ggsave(filename = file.path(figureOut, paste(Sys.Date(), "percentHumanHist.png", sep="_")))
-
-sgDF1 %>%
-  group_by(Cohort) %>%
-  summarise_at("pctHuman", list(min=min, mean=mean, median=median, max=max)) %>%
-  mutate_if(is.numeric, ~round(.x, 2)) %>%
-  formattable()
 ```
 
   MOMS-PI samples had greatest percent of human reads overall. They were not selected for enrichment in *Gardnerella*. Samples in UAB cohort had the smallest percent of human reads.
+
+## Summary table of library sizes and percent human reads of QC filtered samples
+```{r}
+readsTable <- sgDF1 %>%
+  group_by(Cohort) %>%
+  summarise_at(vars(TotalPairs, Sickle_pairs, bbmapFiltered_pairs, pctHuman), list(mean=mean, sd=sd)) %>%
+  mutate_at(vars(pctHuman_mean, pctHuman_sd), ~round(.x, 2)) %>%
+  mutate_if(is.numeric, ~prettyNum(.x, big.mark = ",")) %>%
+  transmute(Cohort=Cohort,
+            `Library Size`=paste0(TotalPairs_mean, " (", TotalPairs_sd, ")"),
+            `Sickle Filtered`=paste0(Sickle_pairs_mean, " (", Sickle_pairs_sd, ")"),
+            `Bacterial Reads`=paste0(bbmapFiltered_pairs_mean, " (", bbmapFiltered_pairs_sd, ")"),
+            `Percent Human Reads`=paste0(pctHuman_mean, " (", pctHuman_sd, ")")) %>%
+  kbl() %>%
+  kable_classic(full_width=TRUE, html_font = "Arial")
+readsTable
+#save_kable(readsTable, file = file.path(figureOut, paste(Sys.Date(), "readsTable.png", sep="_")))
+```
+
 
 # Metadata
   Description of cohorts and sample collection schemes
@@ -436,66 +474,54 @@ gaadDF <- sgDF1 %>%
   column_to_rownames(var="cat") %>%
   t %>%
   as.data.frame %>%
-  rownames_to_column(var="Variable") %>%
-  select("Variable", "Stanford Enriched\nTerm (n=11)", "Stanford Enriched\nPreterm (n=9)", "UAB Enriched\nTerm (n=5)", "UAB Enriched\nPreterm (n=10)", "MOMS-PI\nTerm (n=90)", "MOMS-PI\nPreterm (n=43)", "MOMS-PI\nUnknown (n=98)")
-  
+  rownames_to_column(var="x") %>%
+  select("x", "Stanford Enriched\nTerm (n=11)", "Stanford Enriched\nPreterm (n=9)", "UAB Enriched\nTerm (n=5)", "UAB Enriched\nPreterm (n=10)", "MOMS-PI\nTerm (n=90)", "MOMS-PI\nPreterm (n=43)", "MOMS-PI\nUnknown (n=98)")
+
+# Demographics
 demDF <- sgDF1 %>%
-  select(SubjectID, Cohort, TermPre, Race, Ethnicity) %>%
+  select(SubjectID, Cohort, TermPre, Age, Race, Ethnicity, Education, Income, deliveryMode) %>%
   unique() %>%
+  mutate(Cohort=as.character(Cohort)) %>%
   add_count(Cohort, TermPre, name="term_count") %>%
-  add_count(Cohort, TermPre, Race, name="race_count") %>%
-  add_count(Cohort, TermPre, Ethnicity, name="eth_count") %>%
-  select(-SubjectID) %>%
-  unique %>%
   mutate(TermPre=case_when(TermPre=="T"~"Term",
                            TermPre=="P"~"Preterm",
                            is.na(TermPre)~"Unknown"),
          cat=paste0(Cohort, "\n", TermPre, " (n=", term_count, ")")) %>%
-  select(cat, Race, race_count, Ethnicity, eth_count) %>%
-  ungroup
+  select(-SubjectID, -TermPre, -Cohort, -term_count) %>%
+  map2_df(., data.frame(matrix(rep(.$cat, 7), ncol=7)), ~count(data.frame(x=.x, y=.y), x, y), .id="z") %>%
+  filter(z!="cat") %>%
+  group_by(z,y) %>%
+  mutate(n=paste0(n, " (", round(n/sum(n)*100, 0), "%)")) %>%
+  ungroup %>%
+  spread(y, n) %>%
+  mutate_all(~replace_na(.x, "0 (0%)")) %>%
+  mutate(x=paste(x,z, sep="_"), #add variable category for arranging purposes because "unknown" appears multiple times and therefore causes an error when making x a factor class.
+         x=factor(x, c("Below 18_Age", "18 to 28_Age", "29 to 38_Age", "Above 38_Age", "Unknown_Age", "Asian_Race", "Black_Race", "White_Race", "Other_Race", "Hispanic_Ethnicity", "Non-Hispanic_Ethnicity", "Unknown_Ethnicity", "Less than high school_Education", "High school diploma or GED_Education", "Some college_Education", "Bachelor or undergraduate degree_Education", "Post-undergraduate degree_Education", "Unknown_Education", "No income_Income", "Under $10,000_Income", "$10,000 - $30,000_Income", "$30,000 - $50,000_Income", "$50,000 - $60,000_Income", "$80,000 - $100,000_Income", "$150,000 - $200,000_Income", "$250,000 or more_Income", "Under $15,000_Income", "$15,000 - $19,999_Income", "$20,000 - $39,999_Income", "$40,000 - $59,999_Income", "$60,000 - $79,999_Income", "$80,000 or more_Income", "Unknown_Income", "Vaginal_deliveryMode", "Cesarean_deliveryMode", "Unknown_deliveryMode"))) %>%
+  arrange(x) %>% # order rows
+  mutate(x=str_extract(x, ".*(?=_)")) %>% # remove category label now that rows are arranged 
+  mutate_at(c("Stanford Enriched\nTerm (n=11)", "Stanford Enriched\nPreterm (n=9)", "UAB Enriched\nTerm (n=5)", "UAB Enriched\nPreterm (n=10)"), # remove 0's from income rows where they don't belong due to different levels in Stanford/UAB vs. MOMS-PI for income
+            ~case_when(x %in% c("Under $15,000", "$15,000 - $19,999", "$20,000 - $39,999", "$40,000 - $59,999", "$60,000 - $79,999", "$80,000 or more")~"-",
+                       x %!in% c("Under $15,000", "$15,000 - $19,999", "$20,000 - $39,999", "$40,000 - $59,999", "$60,000 - $79,999", "$80,000 or more")~.x)) %>%
+  mutate_at(c("MOMS-PI\nTerm (n=90)", "MOMS-PI\nPreterm (n=43)", "MOMS-PI\nUnknown (n=98)"), # remove 0's from income rows where they don't belong due to different levels in Stanford/UAB vs. MOMS-PI for income
+            ~case_when(x %in% c("No income", "Under $10,000", "$10,000 - $30,000", "$30,000 - $50,000", "$50,000 - $60,000", "$80,000 - $100,000", "$150,000 - $200,000", "$250,000 or more")~"-",
+                       x %!in% c("No income", "Under $10,000", "$10,000 - $30,000", "$30,000 - $50,000", "$50,000 - $60,000", "$80,000 - $100,000", "$150,000 - $200,000", "$250,000 or more")~.x)) %>% 
+  select(x, `Stanford Enriched\nTerm (n=11)`, `Stanford Enriched\nPreterm (n=9)`, `UAB Enriched\nTerm (n=5)`, `UAB Enriched\nPreterm (n=10)`, `MOMS-PI\nTerm (n=90)`, `MOMS-PI\nPreterm (n=43)`, `MOMS-PI\nUnknown (n=98)`) # order columns
 
-# demographics
-raceDF <- demDF %>%
-  select(cat, Race, race_count) %>%
-  unique() %>%
-  group_by(cat) %>%
-  mutate(pct=round((race_count/sum(race_count))*100),
-         race_count=paste0(race_count, " (", pct, "%)"),
-         Race=factor(Race, levels=c("Asian", "Black", "White", "Other"))) %>%
-  select(-pct) %>%
-  spread(cat, race_count) %>%
-  mutate_all(~replace_na(.x, 0)) %>%
-  mutate_if(is.numeric, ~paste0(.x, " (", round(.x/sum(.x)), "%)")) %>%
-  arrange(Race) %>%
-  dplyr::rename(Variable=Race) %>%
-  select("Variable", "Stanford Enriched\nTerm (n=11)", "Stanford Enriched\nPreterm (n=9)", "UAB Enriched\nTerm (n=5)", "UAB Enriched\nPreterm (n=10)", "MOMS-PI\nTerm (n=90)", "MOMS-PI\nPreterm (n=43)", "MOMS-PI\nUnknown (n=98)")
-
-ethDF <- demDF %>%
-  select(cat, Ethnicity, eth_count) %>%
-  unique() %>%
-  group_by(cat) %>%
-  mutate(pct=round((eth_count/sum(eth_count))*100),
-         eth_count=paste0(eth_count, " (", pct, "%)"),
-         Ethnicity=factor(Ethnicity, levels=c("Hispanic", "Non-Hispanic", "Unknown"))) %>%
-  select(-pct) %>%
-  spread(cat, eth_count) %>%
-  mutate_all(~replace_na(.x, 0)) %>%
-  mutate_if(is.numeric, ~paste0(.x, " (", round(.x/sum(.x)), "%)")) %>%
-  arrange(Ethnicity) %>%
-  dplyr::rename(Variable=Ethnicity) %>%
-  select("Variable", "Stanford Enriched\nTerm (n=11)", "Stanford Enriched\nPreterm (n=9)", "UAB Enriched\nTerm (n=5)", "UAB Enriched\nPreterm (n=10)", "MOMS-PI\nTerm (n=90)", "MOMS-PI\nPreterm (n=43)", "MOMS-PI\nUnknown (n=98)")
-  
 demTable <- gaadDF %>%
-  rbind(raceDF) %>%
-  rbind(ethDF) %>%
+  rbind(demDF) %>%
+  dplyr::rename("  "=x) %>%
   dplyr::rename_at(2:8, ~str_extract(.x, "(?<=\\n).*")) %>%
   kbl(caption = "Table 2. Sampling Cohorts") %>%
   kable_classic(full_width=TRUE, html_font = "Arial") %>%
   add_header_above(c(" ", "Stanford Enriched" = 2, "UAB Enriched" = 2, "MOMS-PI" = 3)) %>%
-  pack_rows("Race", 2, 5,) %>%
-  pack_rows("Ethnicity", 6, 8)
+  pack_rows("Age", 2, 6) %>%
+  pack_rows("Race", 7, 10) %>%
+  pack_rows("Ethnicity", 11, 13) %>%
+  pack_rows("Education", 14, 19) %>%
+  pack_rows("Income", 20, 34) %>%
+  pack_rows("Delivery Mode", 35, 37)
 demTable
-#save_kable(demTable, file = file.path(figureOut, "demTable.png"))
+#save_kable(demTable, file = file.path(figureOut, paste(Sys.Date(), "demTable.png", sep="_")))
 ```
 
 
@@ -742,27 +768,6 @@ anyNA(mDF1) # check for remaining NAs
 ```
 
 # Gardnerella variants
-  Proportion *Gardnerella* in samples by cohort:
-```{r}
-mDF1 %>%
-  select(SampleID, Cohort, Gardnerella_vaginalis) %>%
-  ggplot(aes(x=Gardnerella_vaginalis, color=Cohort, fill=Cohort, group=Cohort)) +
-  geom_density(alpha=0.5) +
-  trinaryColors +
-  labs(x="Proportion Gardnerella")
-#ggsave(filename = file.path(figureOut, paste(Sys.Date(), "samplePropGardbyCohort.png", sep="_")))
-
-mDF1 %>%
-  select(SampleID, Cohort, Gardnerella_vaginalis) %>%
-  group_by(Cohort) %>%
-  summarize(min=min(Gardnerella_vaginalis),
-            `1stQu`=summary(Gardnerella_vaginalis)[2],
-            median=median(Gardnerella_vaginalis),
-            mean=mean(Gardnerella_vaginalis),
-            `3rdQu`=summary(Gardnerella_vaginalis)[5],
-            max=max(Gardnerella_vaginalis)) %>%
-  formattable()
-```
     Proportion *Gardnerella* in samples by study:
 ```{r}
 mDF1 %>%
@@ -1066,15 +1071,16 @@ gardGenomoAbU %>%
 ## Variant Relative abundance
 
 ### Clades
-  Create table for prevalences
+  Calculate clade prevalences
 ```{r}
 #p = # times clade is present, n = number samples, m=mean relative abundance
 prevTable <- gardCladeAbU %>%
   with_groups(c(Cohort, var), summarize, p = sum(relativeAbundance > 0), n = n(), m=mean(relativeAbundance), sd=sd(relativeAbundance)) %>% 
-  mutate(prevalence=round(p/n, 2))
+  mutate(prevalence=round(p/n, 2),
+         var=factor(var, levels = c(clades, "Uncharacterized_Gardnerella",  "Gardnerella_vaginalis"), labels=c(clades, "Unch.", "Total")))
 ```
 
-
+  Sample relative abundances with prevalence
 ```{r, fig.width=7, fig.height=3.5}
 gardCladeAbU %>%
   left_join(prevTable[,c("Cohort", "var", "prevalence")], by=c("Cohort", "var")) %>%
@@ -1084,7 +1090,7 @@ gardCladeAbU %>%
   geom_quasirandom(alpha=0.5) +
   geom_boxplot(color="black", alpha=0) +
   geom_text(aes(y=1.2, x=var, label=prevalence), color="black", size=5) +
-  scale_y_continuous(breaks = seq(0,1,0.25), limits = c(0,1.3)) +
+  scale_y_continuous(breaks = c(0, 0.25, 0.50, 0.75, 1, 1.2), limits = c(0,1.3), labels=c("0.00", "0.25", "0.50", "0.75", "1.00", "prevalence")) +
   cladeColorsTotalUnch +
   facet_grid(Cohort~.) +
   theme(legend.position = "none",
@@ -1096,27 +1102,20 @@ gardCladeAbU %>%
 #ggsave(file.path(figureOut, paste(Sys.Date(), "cladeRelativeAbundanceByCohort.png", sep="_")))
 ```
   Mean abundance per cohort:
-```{r, fig.width=6, fig.height=3}
-gardCladeAbU %>%
-  group_by(Cohort, var) %>%
-  summarise(avgAbundance=mean(relativeAbundance)) %>%
-  mutate(var=factor(var, levels = c(clades, "Uncharacterized_Gardnerella",  "Gardnerella_vaginalis"), labels=c(clades, "Unch.", "Total")),
-         Cohort=factor(Cohort, levels = cohorts, labels=cohortAbbrevs)) %>%
-  ungroup %>%
-  #ggplot(aes(x=Cohort, y=avgAbundance, color=var, fill=var)) +
-  ggplot(aes(x=var, fill=var, y=avgAbundance)) +
+```{r, fig.width=7, fig.height=3.5}
+prevTable %>%
+  mutate(Cohort=factor(Cohort, levels = cohorts, labels=cohortAbbrevs)) %>%
+  ggplot(aes(x=var, fill=var, y=m)) +
   geom_bar(stat="identity") +
+  geom_text(aes(y=0.72, x=var, label=prevalence), color="black", size=5) +
   cladeColorsTotalUnch +
-  #facet_wrap(~var,nrow=1) +
   facet_grid(Cohort~.) +
-  #scale_y_continuous(limits = c(0,0.6), n.breaks = 7) +
-  scale_y_continuous(limits=c(0,0.6), n.breaks = 4) +
+  scale_y_continuous(breaks=c(0.0,0.2,0.4,0.6,0.75), limits=c(0,0.8), labels=c("0.0","0.2","0.4","0.6","prevalence")) +
   theme(legend.position = "none",
-        #axis.text.x = element_text(angle=45, hjust=1, size=13),
-        axis.text.x = element_text(size = 13),
-        axis.text.y = element_text(size=13),
-        axis.title.y = element_text(size=20),
-        strip.text = element_text(size=13)) +
+        axis.text.x = element_text(size = 16),
+        axis.text.y = element_text(size=16),
+        axis.title.y = element_text(size=23),
+        strip.text = element_text(size=17)) +
   labs(x=NULL, y="Mean Relative Abundance")
 #ggsave(file.path(figureOut, paste(Sys.Date(), "cladeCohortAvgAb.png", sep = "_")))
 ```
@@ -1126,7 +1125,6 @@ gardCladeAbU %>%
   Prevalence vs relative abundance of *Gardnerella* clades
 ```{r}
 prevTable %>%
-  mutate(var=factor(var, levels = c(clades, "Uncharacterized_Gardnerella",  "Gardnerella_vaginalis"))) %>%
   ggplot(aes(x=prevalence, y=m, color=var)) +
   geom_point(size=3, alpha=0.75) +
   scale_x_continuous(limits=c(0,1), breaks=seq(0,1,0.2)) +
@@ -1138,47 +1136,99 @@ prevTable %>%
   labs(x="Prevalence", y="Mean Relative Abundance", color="Clade")
 #ggsave(file.path(figureOut, paste(Sys.Date(), "meanRelAbundanceVsPrevalence.png", sep="_")))
 ```
-
+  Mean relative abundance and prevalence with binomial test
 ```{r}
-tmp <- gardCladeAbU %>%
+prevTabBinom <- gardCladeAbU %>%
   with_groups(c(Cohort, var), summarize, p = sum(relativeAbundance > 0), n = n(), m=mean(relativeAbundance)) %>% # p = # times clade is present, n = number samples, m=mean relative abundance
   mutate(
     test = map2(p, n, binom.test),
     test = map(test, tidy)) %>%
-  unnest(test)
-  
-tmp   %>%
-  mutate(var=factor(var, levels=c("Gardnerella_vaginalis", "Uncharacterized_Gardnerella", rev(clades)), labels=c("Gv", "Unch.", rev(clades)))) %>%
-  ggplot() +
-  geom_pointrange(aes(y=var, x=estimate, xmin=conf.low, xmax=conf.high, group=Cohort, color=Cohort), position=position_dodge2(width=1, reverse=TRUE)) +
-  theme_bw() +
-  labs(x="Prevalence", y=NULL)
+  unnest(test) %>%
+  gather("measure", "value", c(m, estimate)) %>%
+    mutate(var=factor(var, levels=c("Gardnerella_vaginalis", "Uncharacterized_Gardnerella", rev(clades)), labels=c("Total", "Unch.", rev(clades))),
+           measure=factor(measure, levels=c("m", "estimate"), labels=c("Mean Relative Abundance", "Prevalence"))) 
 
+ggplot() +
+  geom_pointrange(data=subset(prevTabBinom, measure=="Prevalence"), aes(y=var, x=value, xmin=conf.low, xmax=conf.high, group=Cohort, color=Cohort), position=position_dodge2(width=1, reverse=TRUE)) +
+  geom_bar(data=subset(prevTabBinom, measure=="Mean Relative Abundance"), aes(y=var, x=value, group=Cohort, fill=Cohort), position=position_dodge2(width = 1, reverse=TRUE), stat="identity") +
+  scale_x_continuous(breaks=seq(0,1,0.25), labels = c("0", "0.25", "0.5", "0.75", "1")) +
+  facet_wrap(~measure) +
+  quadColors +
+  theme(axis.text.x = element_text(size = 14),
+        axis.text.y = element_text(size=14),
+        strip.text = element_text(size=13)) +
+  labs(x=NULL, y=NULL)
+#ggsave(file.path(figureOut, paste(Sys.Date(), "meanRelAbundanceAndPrevBimom.png", sep="_")))
+```
+
+  All sample relative abundance and prevalence with binomial test
+```{r}
+prevTabBinom2 <- gardCladeAbU %>%
+  with_groups(c(Cohort, var), summarize, p = sum(relativeAbundance > 0), n = n(), m=mean(relativeAbundance)) %>% # p = # times clade is present, n = number samples, m=mean relative abundance
+  mutate(
+    test = map2(p, n, binom.test),
+    test = map(test, tidy)) %>%
+  unnest(test) %>%
+  select(Cohort, var, estimate, conf.low, conf.high) %>%
+  full_join(gardCladeAbU, by=c("Cohort", "var")) %>%
+  gather("measure", "value", c(relativeAbundance, estimate)) %>%
+    mutate(var=factor(var, levels=c("Gardnerella_vaginalis", "Uncharacterized_Gardnerella", rev(clades)), labels=c("Total", "Unch.", rev(clades))),
+           measure=factor(measure, levels=c("relativeAbundance", "estimate"), labels=c("Relative Abundance", "Prevalence")),
+           Cohort=factor(Cohort, levels=cohorts)) %>%
+  select(-SampleID) %>%
+  unique
+
+ggplot() +
+  geom_pointrange(data=subset(prevTabBinom2, measure=="Prevalence"), aes(y=var, x=value, xmin=conf.low, xmax=conf.high, color=Cohort), position=position_dodge2(width=1, reverse=TRUE)) +
+  geom_boxplot(data=subset(prevTabBinom2, measure=="Relative Abundance"), aes(y=var, x=value, color=Cohort, fill=Cohort), alpha=0.5, position=position_dodge2(reverse=TRUE)) +
+  scale_x_continuous(breaks=seq(0,1,0.25), labels = c("0", "0.25", "0.5", "0.75", "1")) +
+  facet_wrap(~measure) +
+  quadColors +
+  theme(axis.text.x = element_text(size = 14),
+        axis.text.y = element_text(size=14),
+        strip.text = element_text(size=13)) +
+  labs(x=NULL, y=NULL)
+#ggsave(file.path(figureOut, paste(Sys.Date(), "claderelAbundanceAndPrevBimom.png", sep="_")))
+```
+
+  Sample relative abundance and prevalence
+```{r, fig.width=2.5, fig.height=4}
 gardCladeAbU %>%
-  mutate(var=factor(var, levels=c("Gardnerella_vaginalis", "Uncharacterized_Gardnerella", rev(clades)), labels=c("Gv", "Unch.", rev(clades)))) %>%
+  mutate(var=factor(var, levels=c("Gardnerella_vaginalis", "Uncharacterized_Gardnerella", rev(clades)), labels=c("Total", "Unch.", rev(clades)))) %>%
   ggplot(aes(x=relativeAbundance, y=var, fill=Cohort, color=Cohort)) +
-  geom_quasirandom(alpha=0.5) +
-  geom_boxplot(alpha=0) +
-  #geom_boxplot(alpha=0.5, position=position_dodge2(reverse = TRUE)) +
-  geom_text(data=prevTable, aes(x=1.25, label=prevalence), position=position_dodge2(width=1, reverse = TRUE), size=3) +
+  geom_boxplot(alpha=0.5, position=position_dodge2(reverse = TRUE)) +
+  geom_text(data=prevTable, aes(x=1.25, label=prevalence), position=position_dodge2(width=0.75, reverse = TRUE), size=3.5, show.legend = FALSE) +
+  scale_x_continuous(breaks = c(0,0.25,0.5,0.75,1,1.25), labels=c("0", "0.25", "0.5", "0.25", "1", "Prev."), limits=c(0,1.3)) +
   theme_bw() +
-  quadColors
-  
-  ggdraw() + 
-    draw_text("prevalence", x = 0.893, y = 0.072, hjust = 1, vjust = 0,
-    size = 11)
-  quadColors 
+  quadColors +
+  theme(axis.text.x = element_text(size = 14),
+        axis.text.y = element_text(size=14),
+        axis.title.x = element_text(size=15),
+        legend.text = element_text(size=14),
+        legend.title = element_text(size = 15)) +
+  labs(x="Relative Abundance", y=NULL)
+#ggsave(file.path(figureOut, paste(Sys.Date(), "cladeRelativeAbundanceAndPrevByClade.png", sep = "_")))
 ```
 
 ### Genomospecies
+  Calculate genomospecies prevalences
+```{r}
+genomosPrevTable <- gardGenomoAbU %>%
+  with_groups(c(Cohort, var), summarize, p = sum(relativeAbundance > 0), n = n(), m=mean(relativeAbundance), sd=sd(relativeAbundance)) %>% 
+  mutate(prevalence=round(p/n, 2))
+```
+
+  Sample relative abundance with prevalence
 ```{r, fig.height=3, fig.width=7}
 gardGenomoAbU %>%
+  left_join(genomosPrevTable[,c("Cohort", "var", "prevalence")], by=c("Cohort", "var")) %>%
   mutate(var=factor(var, levels=c(genomosCladeOrder, "Uncharacterized_Gardnerella", "Gardnerella_vaginalis"), labels = c(genomoNamesCladeOrder, "Unch.", "Total")),
-         Cohort=factor(Cohort, levels = cohorts, labels = cohortAbbrevs)) %>%
+         Cohort=factor(Cohort, levels=cohorts, labels = cohortAbbrevs)) %>%
   ggplot(aes(x=var, y=relativeAbundance, color=var, fill=var)) +
-  #geom_jitter(alpha=0.5) +
   geom_quasirandom(alpha=0.5) +
   geom_boxplot(color="black", alpha=0) +
+  geom_text(aes(y=1.2, x=var, label=prevalence), color="black", size=5) +
+  scale_y_continuous(breaks = c(0, 0.25, 0.50, 0.75, 1, 1.2), limits = c(0,1.3), labels=c("0.00", "0.25", "0.50", "0.75", "1.00", "prevalence")) +
   facet_grid(Cohort~.) +
   genomoColorsTotalUnch +
   theme(axis.text.x = element_text(size=11),
@@ -1189,6 +1239,28 @@ gardGenomoAbU %>%
   labs(x=NULL, y="Relative Abundance")
 #ggsave(file.path(figureOut, paste(Sys.Date(), "genomoRelativeAbundanceByCohort.png", sep = "_")))
 ```
+ 
+```{r}
+gardCladeAbU %>%
+  left_join(prevTable[,c("Cohort", "var", "prevalence")], by=c("Cohort", "var")) %>%
+  mutate(var=factor(var, levels = c(clades, "Uncharacterized_Gardnerella",  "Gardnerella_vaginalis"), labels=c(clades, "Unch.", "Total")),
+         Cohort=factor(Cohort, levels=cohorts, labels = cohortAbbrevs)) %>%
+  ggplot(aes(x=var, y=relativeAbundance, color=var, fill=var)) +
+  geom_quasirandom(alpha=0.5) +
+  geom_boxplot(color="black", alpha=0) +
+  geom_text(aes(y=1.2, x=var, label=prevalence), color="black", size=5) +
+  scale_y_continuous(breaks = c(0, 0.25, 0.50, 0.75, 1, 1.2), limits = c(0,1.3), labels=c("0.00", "0.25", "0.50", "0.75", "1.00", "prevalence")) +
+  cladeColorsTotalUnch +
+  facet_grid(Cohort~.) +
+  theme(legend.position = "none",
+        axis.text.x = element_text(size = 16),
+        axis.text.y = element_text(size=16),
+        axis.title.y = element_text(size=23),
+        strip.text = element_text(size=17)) +
+  labs(x=NULL, y="Relative Abundance")
+```
+ 
+ 
  Mean abundance per cohort
 ```{r, fig.height=3, fig.width=6}
 gardGenomoAbU %>%
@@ -1209,24 +1281,11 @@ gardGenomoAbU %>%
 ```
   Prevalence vs relative abundance of *Gardnerella* genomospecies
 ```{r}
-genomosPrevTable <- gardGenomoAbU %>%
-  spread(var, relativeAbundance) %>%
-  mutate_if(is.numeric, ~case_when(.x>0~1,
-                                   .x==0~0)) %>%
-  group_by(Cohort) %>%
-  summarize_if(is.numeric, ~sum(.x)/n()) %>%
-  gather("Genomospecies", "prevalence", c(genomos, "Uncharacterized_Gardnerella", "Gardnerella_vaginalis"))
-
-genomosPrevTable %>%
-  mutate(prevalence=round(prevalence, 2)) %>%
-  arrange(Cohort) %>%
-  formattable
-
 gardGenomoAbU %>%
-  dplyr::rename(Genomospecies=var) %>%
-  group_by(Cohort, Genomospecies) %>%
+  group_by(Cohort, var) %>%
   summarise(avgAbundance=mean(relativeAbundance)) %>%
-  left_join(genomosPrevTable, by=c("Cohort", "Genomospecies")) %>%
+  left_join(genomosPrevTable, by=c("Cohort", "var")) %>%
+  dplyr::rename(Genomospecies=var) %>%
   mutate(Genomospecies=factor(Genomospecies, levels = c(genomosCladeOrder, "Uncharacterized_Gardnerella", "Gardnerella_vaginalis"))) %>%
   ggplot(aes(x=prevalence, y=avgAbundance, color=Genomospecies)) +
   geom_point(size=3, alpha=0.75) +
@@ -1240,24 +1299,9 @@ gardGenomoAbU %>%
 #ggsave(file.path(figureOut, paste(Sys.Date(), "meanRelAbundanceVsPrevalenceGenomos.png", sep="_")))
 ```
 
-
-
 ## Bacterial Load
   Compare bacterial load across the four cohorts:
 ```{r}
-# density plot with outliers
-sgDF %>%
-  mutate(Cohort2=case_when(Cohort=="Stanford Enriched"|Cohort=="UAB Enriched"~"Stanford & UAB",
-                           Cohort=="MOMS-PI"|Cohort=="MOMS-PI Enriched"~"MOMS-PI"),
-         Cohort2=factor(Cohort2, levels=c("Stanford & UAB", "MOMS-PI"))) %>%
-  ggplot(aes(x=bacLoad, fill=Cohort, color=Cohort)) +
-  geom_density(alpha=0.5) +
-  facet_grid(Cohort2~., scales = "free") +
-  quadColors +
-  #scale_x_log10() +  
-  labs(x="Bacterial Load")
-#ggsave(filename = file.path(figureOut, paste(Sys.Date(), "bacLoadDensOutLog.png", sep="_")))
-
 # table of descriptive statistics with outliers
 sgDF %>%
   group_by(Cohort) %>%
@@ -1277,8 +1321,8 @@ sgDF %>%
   mutate(Cohort=factor(Cohort, levels=cohorts, labels=cohortAbbrevs)) %>%
   ggplot(aes(x=bacLoad, fill=Cohort, color=Cohort)) +
   geom_density(alpha=0.5) +
-  quadColors +
-  theme(legend.position = "bottom") +
+  quadColors2 +
+  theme(legend.position = c(0.85,0.8)) +
   labs(x="Bacterial Load")
 #ggsave(filename = file.path(figureOut, paste(Sys.Date(), "bacLoadDensNoOut.png", sep="_")))
 
@@ -1294,6 +1338,7 @@ sgDF %>%
 
 ## Absolute abundance
 ### Clade aboslute abundance
+  All samples absolute abundance
 ```{r, fig.width=7, fig.height=3.5}
 gardCladeAbU %>%
   left_join(bacLoad, by="SampleID") %>%
@@ -1301,16 +1346,13 @@ gardCladeAbU %>%
   mutate(absoluteAbundance=relativeAbundance*bacLoad, 
          var=factor(var, levels = c(clades, "Uncharacterized_Gardnerella", "Gardnerella_vaginalis"), labels = c(clades, "Unch.", "Total")),
          Cohort=factor(Cohort, levels = cohorts, labels=cohortAbbrevs)) %>%
-  #ggplot(aes(x=Cohort, y=absoluteAbundance, color=var)) +
   ggplot(aes(x=var, y=absoluteAbundance, color=var)) +
-  #geom_jitter(alpha=0.5) +
   geom_quasirandom(alpha=0.5) +
   geom_boxplot(color="black", alpha=0) +
   cladeColorsTotalUnch +
   scale_y_continuous(limits=c(0,1), n.breaks = 5) +
   facet_grid(Cohort~.) +
   theme(legend.position = "none",
-        #axis.text.x = element_text(angle=45, hjust=1, size=16),
         axis.text.x = element_text(size=16),
         axis.text.y = element_text(size=16),
         axis.title.y = element_text(size=23),
@@ -1319,7 +1361,7 @@ gardCladeAbU %>%
 #ggsave(file.path(figureOut, file.path(paste(Sys.Date(), "cladeAbsoluteAbundanceByCohort.png", sep="_"))))
 ```
   Clades 3 and 4 appear to show the greatest absolute abundance.
-  
+  Mean absolute abundance.
 ```{r, fig.width=6, fig.height=3}
 gardCladeAbU %>%
   left_join(bacLoad, by="SampleID") %>%
@@ -1329,11 +1371,9 @@ gardCladeAbU %>%
          Cohort=factor(Cohort, levels=cohorts, labels = cohortAbbrevs)) %>%
   group_by(Cohort,var) %>%
   summarize(avgAbundance=mean(absoluteAbundance)) %>%
-  #ggplot(aes(x=Cohort, y=avgAbundance, fill=var, color=var)) +
   ggplot(aes(x=var, y=avgAbundance, fill=var, color=var)) +
   geom_bar(stat = "identity") +
   cladeColorsTotalUnch +
-  #facet_wrap(~var, nrow = 1) +
   facet_grid(Cohort~.) +
   theme(legend.position = "none",
         #axis.text.x = element_text(angle=45, hjust=1, size=13),
@@ -1346,6 +1386,7 @@ gardCladeAbU %>%
 ```
 
 ### Genomospecies aboslute abundance
+  All samples absolute abundance
 ```{r, fig.height=3, fig.width=7}
 gardGenomoAbU %>%
   left_join(bacLoad, by="SampleID") %>%
@@ -1354,7 +1395,7 @@ gardGenomoAbU %>%
          var=factor(var, levels=c(genomosCladeOrder, "Uncharacterized_Gardnerella", "Gardnerella_vaginalis"), labels = c(genomoNamesCladeOrder, "Unch.", "Total")),
          Cohort=factor(Cohort, levels = cohorts, labels = cohortAbbrevs)) %>%
   ggplot(aes(x=var, y=absoluteAbundance, color=var)) +
-  geom_jitter(alpha=0.5) +
+  geom_quasirandom(alpha=0.5) +
   geom_boxplot(color="black", alpha=0) +
   facet_grid(Cohort~.) +  
   genomoColorsTotalUnch +
@@ -1367,7 +1408,7 @@ gardGenomoAbU %>%
 #ggsave(file.path(figureOut, file.path(paste(Sys.Date(), "genomoAbsoluteAbundanceByCohort.png", sep="_"))))
 ```
   Genomospecies *G. swidsinskii* and genomospecies 7 appear to show the greatest absolute abundance.
-  
+  Mean absolute abundance
 ```{r, fig.height=3, fig.width=7}
 gardGenomoAbU %>%
   left_join(bacLoad, by="SampleID") %>%
@@ -1377,13 +1418,11 @@ gardGenomoAbU %>%
          Cohort=factor(Cohort, levels = cohorts, labels = cohortAbbrevs)) %>%
   group_by(Cohort,var) %>%
   summarize(avgAbundance=mean(absoluteAbundance)) %>%
-  #ggplot(aes(x=Cohort, y=avgAbundance, color=var, fill=var)) +
   ggplot(aes(x=var, y=avgAbundance, color=var, fill=var)) +
   geom_bar(stat = "identity") +
-  #facet_wrap(~var, nrow = 1) +
   facet_grid(Cohort~.) +
-  theme(#axis.text.x = element_text(angle=45, hjust=1, size=10),
-        axis.text.x = element_text(size=10),
+  genomoColorsTotalUnch +
+  theme(axis.text.x = element_text(size=10),
         axis.text.y = element_text(size=10),
         legend.position="none") +
   labs(x=NULL, y="Mean Absolute Abundance")
@@ -1549,7 +1588,6 @@ mDFtoiClades %>%
   left_join(dominantTax, by=c("SampleID", "Cohort")) %>%
   left_join(dominantTaxOrder, by="dominantTax") %>%
   group_by(SampleID) %>%
-  #ggplot(aes(x=SampleID, y=relativeAbundance, fill=Taxon)) +
   ggplot(aes(x=reorder(reorder(SampleID, relativeAbundance, na.rm=TRUE), dominantTaxOrder, FUN=min), y=relativeAbundance, color=Taxon, fill=Taxon)) +
   geom_bar(stat = "identity") +
   theme(axis.text.x = element_blank()) +
@@ -1681,15 +1719,6 @@ jaccards <- mDFtoiClades %>%
 ```
 
 ```{r}
-# colnames(jaccards$`Stanford Enriched`) <- abbrevs
-# rownames(jaccards$`Stanford Enriched`) <- abbrevs
-# 
-# (1 - jaccards$`Stanford Enriched`) %>%
-#   corrplot(type="lower", is.corr = FALSE, diag = FALSE, tl.col = "black")
-```
-
-
-```{r}
 jaccards$`Stanford Enriched`[lower.tri(jaccards$`Stanford Enriched`, diag = TRUE)] <- NA
 jaccards$`UAB Enriched`[lower.tri(jaccards$`UAB Enriched`, diag = TRUE)] <- NA
 jaccards$`MOMS-PI Enriched`[lower.tri(jaccards$`MOMS-PI Enriched`, diag = TRUE)] <- NA
@@ -1717,7 +1746,6 @@ jaccards %>%
 
 ### Short List
 ```{r} 
-#, fig.height=4, fig.width=6.5
 jaccards <- mDFtoiClades %>%
   select(SampleID, Cohort, Gardnerella_vaginalis, clades, lactos, anaerobesSL) %>%
   mutate_if(is.numeric, ~case_when(.x>=0.001~1, 
@@ -1809,8 +1837,6 @@ mDFtoiClades %>%
   ggplot(aes(x=relativeAbundance, y=bacLoad)) +
   geom_violin(aes(color=relativeAbundance, fill=relativeAbundance), alpha=0.5) +
   binaryColors +
-  #scale_color_manual(values=c("grey", "black")) +
-  #scale_fill_manual(values=c("grey", "black")) +
   facet_grid(Cohort~Taxon) +
   scale_y_log10() +
   theme(text = element_text(size=15),
@@ -1867,145 +1893,164 @@ mDFtoiClades %>%
 #ggsave(file.path(figureOut, paste(Sys.Date(), "presAbsVsBacLoadSampleSubset.png", sep="_")))
 ```
 # Gardnerella clades by PTB status:
-## Subject average relative abundance by PTB status
+  Due to enrichment in *Gardnerella* in Stanford and UAB clades. The following analyses will focus on the MOMS-PI cohorts.
+  Create data frame:
 ```{r}
-gardCladeAbU %>%
-  left_join(sgDF[,c("SampleID", "SubjectID", "TermPre")], by="SampleID") %>%
-  filter(!is.na(TermPre)) %>%
-  group_by(SubjectID, Cohort, TermPre, var) %>%
-  summarise(meanRelativeAbundance=mean(relativeAbundance)) %>%
-  mutate(var=factor(var, levels = c(clades, "Uncharacterized_Gardnerella",  "Gardnerella_vaginalis"), labels = c(clades, "Unch.", "Total")),
-         Cohort=factor(Cohort, levels = cohorts, labels=cohortAbbrevs)) %>%
-  ggplot(aes(x=TermPre, y=meanRelativeAbundance, color=TermPre, fill=TermPre)) +
-  #geom_violin(alpha=0.5) +
-  geom_jitter(alpha=0.5) +
-  geom_boxplot(color="black", alpha=0) +
-  binaryColors +
-  facet_grid(Cohort~var) +
-  theme(legend.position = "none") +
-  labs(x=NULL, y="Relative Abundance")
-#ggsave(file.path(figureOut, paste(Sys.Date(), "cladeRelativeAbundancePTB.png", sep="_")))
+momsptbDF <- gardCladeAbU %>%
+    left_join(sgDF[,c("SampleID", "SubjectID", "TermPre")], by="SampleID") %>%
+    filter(str_detect(Cohort, "MOMS-PI"),
+        !is.na(TermPre)) %>%
+  mutate(Cohort=as.character(Cohort))
 ```
 
-###  Wilcox rank-sum
+## Subject average  abundance by PTB status
+  Wilcoxon rank-sum: Relative abundance
 ```{r}
-relativeWilcoxResults <- gardCladeAbU %>%
-  left_join(sgDF[,c("SampleID", "SubjectID", "TermPre")], by="SampleID") %>%
-  filter(!is.na(TermPre)) %>%
-  group_by(SubjectID, Cohort, TermPre, var) %>%
-  summarise(meanRelativeAbundance=mean(relativeAbundance)) %>%
-  split(list(.$var, .$Cohort)) %>%
-  map(~wilcox.test(.x$meanRelativeAbundance~.$TermPre, alternative="greater")) %>%
-  map(broom::tidy) %>%
-  map2(., names(.), ~mutate(.x, cohort_var=.y)) %>%
-  purrr::reduce(~full_join(.x, .y, by = c("statistic", "p.value", "method", "alternative", "cohort_var")))
-
+relativeWilcoxResults <- momsptbDF %>%
+  filter(Cohort=="MOMS-PI") %>%
+  with_groups(c(SubjectID, Cohort, TermPre, var), summarize, meanRA=mean(relativeAbundance)) %>%
+  group_by(var) %>%
+  wilcox_test(meanRA~TermPre, alternative="greater") %>%
+  adjust_pvalue(method = "BH")
+  
 relativeWilcoxResults %>%
-  arrange(p.value) %>%
+  arrange(p.adj) %>%
   formattable()
 ```
 
-
-## Subject average absolute abundance by PTB status
+  Wilcoxon rank-sum test: Absolute abundance
 ```{r}
-gardCladeAbU %>%
-  left_join(sgDF[,c("SampleID", "SubjectID", "TermPre", "bacLoad")], by="SampleID") %>%
-  filter(!is.na(TermPre),
-         bacLoad<2) %>%
+absoluteWilcoxResults <- momsptbDF %>%
+  left_join(sgDF[,c("SampleID", "bacLoad")], by="SampleID") %>%
+  filter(Cohort=="MOMS-PI", bacLoad<2) %>%
   mutate(absoluteAbundance=relativeAbundance*bacLoad) %>%
-  group_by(SubjectID, Cohort, TermPre, var) %>%
-  summarise(meanAbsoluteAbundance=mean(absoluteAbundance)) %>%
-  mutate(var=factor(var, levels = c(clades, "Uncharacterized_Gardnerella",  "Gardnerella_vaginalis"), labels = c(clades, "Unch.", "Total")),
-         Cohort=factor(Cohort, levels = cohorts, labels=cohortAbbrevs)) %>%
-  ggplot(aes(x=TermPre, y=meanAbsoluteAbundance, color=TermPre, fill=TermPre)) +
-  #geom_violin(alpha=0.5) +
-  geom_jitter(alpha=0.5) +
+  with_groups(c(SubjectID, Cohort, TermPre, var), summarize, meanAA=mean(absoluteAbundance)) %>%
+  group_by(var) %>%
+  wilcox_test(meanAA~TermPre, alternative="greater") %>%
+  adjust_pvalue(method = "BH")
+  
+absoluteWilcoxResults %>%
+  arrange(p.adj) %>%
+  formattable()
+```
+
+  Plot
+```{r, fig.height=2, fig.width=6}
+momsptbDF %>%
+  filter(Cohort=="MOMS-PI") %>%
+  left_join(sgDF[,c("SampleID", "bacLoad")], by="SampleID") %>%
+  filter(Cohort=="MOMS-PI", bacLoad<2) %>%
+  mutate(absoluteAbundance=relativeAbundance*bacLoad) %>%
+  with_groups(c(SubjectID, Cohort, TermPre, var), summarize, Relative=mean(relativeAbundance), Absolute=mean(absoluteAbundance)) %>%
+  gather("measure", "abundance", c(Relative, Absolute)) %>%
+  mutate(var=factor(var, levels = c(clades, "Uncharacterized_Gardnerella",  "Gardnerella_vaginalis"), labels = c(clades, "Unch.", "Total"))) %>%
+  ggplot(aes(x=TermPre, y=abundance, color=TermPre, fill=TermPre)) +
+  geom_quasirandom(alpha=0.5) +
   geom_boxplot(color="black", alpha=0) +
   binaryColors +
-  facet_grid(Cohort~var) +
-  theme(legend.position = "none") +
-  labs(x=NULL, y="Absolute Abundance")
-#ggsave(file.path(figureOut, paste(Sys.Date(), "cladeAbsoluteAbundancePTB.png", sep="_")))
-```
-
-```{r}
-absoluteWilcoxResults <- gardCladeAbU %>%
-  left_join(sgDF[,c("SampleID", "SubjectID", "TermPre", "bacLoad")], by="SampleID") %>%
-  filter(!is.na(TermPre),
-         bacLoad<2) %>%
-  mutate(absoluteAbundance=relativeAbundance*bacLoad) %>%
-  group_by(SubjectID, Cohort, TermPre, var) %>%
-  summarise(meanAbsoluteAbundance=mean(absoluteAbundance)) %>%
-  split(list(.$var, .$Cohort)) %>%
-  map(~wilcox.test(.x$meanAbsoluteAbundance~.$TermPre, alternative="greater")) %>%
-  map(broom::tidy) %>%
-  map2(., names(.), ~mutate(.x, cohort_var=.y)) %>%
-  purrr::reduce(~full_join(.x, .y, by = c("statistic", "p.value", "method", "alternative", "cohort_var")))
-
-absoluteWilcoxResults %>%
-  arrange(p.value) %>%
-  formattable()
+  facet_grid(measure~var) +
+  theme(legend.position = "none",
+        axis.text = element_text(size=13),
+        strip.text = element_text(size=13),
+        axis.title=element_text(size=16)) +
+  labs(x=NULL, y="Abundance")
+ggsave(file.path(figureOut, paste(Sys.Date(), "cladeAbundancePTB.png", sep="_")))
 ```
 
 
 ## Number of clades by PTB
-```{r}
-gardCladeAbU %>%
-  left_join(sgDF[,c("SampleID", "TermPre")], by="SampleID") %>%
-  spread(var, relativeAbundance) %>%
-  mutate_at(clades, ~case_when(.x>0~1,
-                               .x==0~0)) %>%
-  mutate(nClades=C1+C2+C3+C4+C5+C6,
-         nClades=as.character(nClades),
-         nClades=case_when(Uncharacterized_Gardnerella!="0"~"U",
-                           Uncharacterized_Gardnerella=="0"~nClades)) %>%
-  count(Cohort, TermPre, nClades) %>%
-  replace_na(list(TermPre="Unknown")) %>%
-  group_by(Cohort) %>%
-  mutate(n=n/sum(n)) %>%
-  ungroup() %>%
-  ggplot(aes(x=nClades, y=n, fill=TermPre)) +
-  geom_histogram(stat="identity") +
-  scale_fill_manual(values=c("#D55E00", "#56B4E9", "grey")) +
-  facet_wrap(~Cohort) +
-  labs(x="Clades per Sample", y="Proportion of Samples") 
-```
   Mean clades per sample in term vs. preterm birth patients
 ```{r}
-gardCladeAbU %>%
-  left_join(sgDF[,c("SampleID", "SubjectID", "TermPre")], by="SampleID") %>%
-  filter(!is.na(TermPre)) %>%
+nCladesWilcox <- momsptbDF %>%
+  filter(Cohort=="MOMS-PI") %>%
   spread(var, relativeAbundance) %>%
-  mutate_at(clades, ~case_when(.x>0~1,
-                               .x==0~0)) %>%
+  mutate_at(clades, ~case_when(.x>=0.001~1,
+                               .x<0.001~0)) %>%
   filter(Uncharacterized_Gardnerella==0) %>%
   mutate(nClades=C1+C2+C3+C4+C5+C6) %>%
-  replace_na(list(TermPre="Unknown")) %>%
-  group_by(SubjectID, Cohort, TermPre) %>%
-  summarise(meanNClades=mean(nClades)) %>%
-  ungroup %>%
-  ggplot(aes(x=TermPre, y=meanNClades, color=TermPre, fill=TermPre)) +
-  geom_violin(alpha=0.5) +
-  facet_wrap(~Cohort) +
-  binaryColors
+  with_groups(c(SubjectID, Cohort, TermPre), summarize, meanNClades=mean(nClades)) %>%
+  wilcox_test(meanNClades~TermPre, alternative="greater")
+
+nCladesWilcox %>%
+  formattable()
 ```
-  Bacterial load by PTB
+  
+
 ```{r}
-sgDF %>%
-  filter(!is.na(TermPre),
-         bacLoad<2) %>%
-  group_by(SubjectID, Cohort, TermPre) %>%
-  summarize(meanBacLoad=mean(bacLoad)) %>%
-  ggplot(aes(x=TermPre, color=TermPre, fill=TermPre, y=meanBacLoad)) +
-  #geom_violin(alpha=0.5) +
-  geom_jitter(alpha=0.5) +
-  geom_boxplot(color="black", alpha=0.5) +
+momsptbDF %>%
+  filter(Cohort=="MOMS-PI") %>%
+  spread(var, relativeAbundance) %>%
+  mutate_at(clades, ~case_when(.x>=0.001~1,
+                               .x<0.001~0)) %>%
+  filter(Uncharacterized_Gardnerella==0) %>%
+  mutate(nClades=C1+C2+C3+C4+C5+C6) %>%
+  with_groups(c(SubjectID, Cohort, TermPre), summarize, meanNClades=mean(nClades)) %>%
+  ggplot(aes(x=TermPre, y=meanNClades, color=TermPre)) +
+  geom_boxplot(alpha=0, color="black", show.legend=FALSE) +
+  geom_beeswarm(alpha=0.5, cex = 3, show.legend = FALSE) +
+  ylim(0,7) +
   binaryColors +
-  facet_wrap(~Cohort) +
-  theme(legend.position = "none") +
-  labs(x=NULL, y="Bacterial Load")
+  theme(axis.text = element_text(size=13),
+        strip.text = element_text(size=13),
+        axis.title = element_text(size=16)) +
+  labs(x=NULL, y="Mean Gestational Clade Count") +
+  stat_pvalue_manual(nCladesWilcox, label="p", y.position = 6.7)
+#ggsave(file.path(figureOut, paste(Sys.Date(), "cladeCountPTB.png", sep="_")))
+```
+## Bacterial load by PTB
+```{r}
+bacloadWilcox <- momsptbDF %>%
+  filter(Cohort=="MOMS-PI") %>%
+  left_join(sgDF[,c("SampleID", "bacLoad")], by="SampleID") %>%
+  filter(Cohort=="MOMS-PI", bacLoad<2) %>%
+  with_groups(c(SubjectID, Cohort, TermPre), summarize, meanBacLoad=mean(bacLoad)) %>%
+  wilcox_test(meanBacLoad~TermPre, alternative="greater")
+
+bacloadWilcox %>%
+  formattable
+```
+
+
+```{r}
+momsptbDF %>%
+  filter(Cohort=="MOMS-PI") %>%
+  left_join(sgDF[,c("SampleID", "bacLoad")], by="SampleID") %>%
+  filter(Cohort=="MOMS-PI", bacLoad<2) %>%
+  with_groups(c(SubjectID, Cohort, TermPre), summarize, meanBacLoad=mean(bacLoad)) %>%
+  ggplot(aes(x=TermPre, color=TermPre, y=meanBacLoad)) +
+  geom_boxplot(alpha=0, color="black", show.legend=FALSE) +
+  geom_beeswarm(alpha=0.5, cex = 2.1, show.legend = FALSE) +
+  ylim(0,0.75) +
+  binaryColors +
+  theme(axis.text = element_text(size=13),
+        strip.text = element_text(size=13),
+        axis.title = element_text(size=16)) +
+  labs(x=NULL, y="Mean Gestational Bacterial Load") +
+  stat_pvalue_manual(bacloadWilcox, label="p", y.position = 0.7)
 #ggsave(file.path(figureOut, paste(Sys.Date(), "bacLoadByPTB.png", sep="_")))
 ```
+
+## Enrichment for PTBs with enrichment for *Gardnerella*
+```{r}
+momsptbDF %>%
+  select(SubjectID, Cohort, TermPre) %>%
+  unique %>%
+  ggplot(aes(x=Cohort, fill=TermPre)) +
+  geom_bar(position = position_fill(), alpha=0.75, color="black") +
+  binaryColors
+#ggsave(file.path(figureOut, paste(Sys.Date(), "gardPTBenrichment.png", sep="_")))
+```
+
+```{r}
+momsptbDF %>%
+  select(SubjectID, Cohort, TermPre) %>%
+  unique %>%
+  count(Cohort, TermPre) %>%
+  group_by(Cohort) %>%
+  mutate(prop=n/sum(n))
+```
+
+  No difference between enriched vs. un-enriched births
 
 # Gardnerella Clades by Race
   Subject average abundance by self reported race

@@ -16,11 +16,6 @@ library(formattable)
 set.seed(7334)
 ```
 
-  Current metadata table:
-```{r}
-currentsgDF <- read_tsv("../shotgunMetadata.tsv")
-```
-
 ## MGS sample data table
   Data table from DG with sample information for shotgun metagenomic sequenced samples 
 ```{r}
@@ -61,7 +56,7 @@ df2015 <- "./sampledata_VaginalSwabs_Pregnancy_DiGiulio2015.tsv" %>%
 df2017 <- "./MAP_MANUSCRIPT_IL02-IL09_ToBen_20170404_fixed.txt" %>%
   read_tsv()
 
-figureOut <- "../../FIGURES/metadata"
+figureOut <- "../../V3_manuscript_figures/metadata"
 
 theme_set(theme_bw() +
           theme(panel.grid = element_blank()))
@@ -83,6 +78,9 @@ PS17 <- df2017 %>%
          Method="Amplicon",
          PaperCohort="2017") %>%
   select(SubjectID, GDcoll, Cohort, Method, PaperCohort)
+
+AMP <- rbind(PS15, PS17) %>%
+  unique.data.frame()
 
 sgDF1 <- sgDF0 %>%
   left_join(AMP[,c("SubjectID", "Cohort", "PaperCohort")], by="SubjectID") %>% # add cohort information
@@ -167,6 +165,103 @@ demo <- demo2015 %>%
   replace_na(list(Ethnicity="Unknown", Race="Other"))
 ```
 
+## Other Metadata
+  Add metadata including age, education, income, and delivery mode.
+  First, view categories in metadata of interest to make them uniform before joining.
+```{r}
+# select metadata of interest (no age data for 2015 study)
+df2015 %>%
+  select(SES_maternal_education, SES_household_income, CSection) %>%
+  map(unique)
+```
+
+```{r}
+df2017 %>%
+  select(AgeAtConsent, HighestEducationLevel, HouseholdIncome, DeliveryMode) %>%
+  map(unique)
+```
+  Edit metadata categories to make uniform and then join into one dataframe
+```{r}
+sh2015 <- df2015 %>% # sh for subject history
+  filter(SubjectID %in% sgDF2$SubjectID) %>%
+  select(SubjectID, SES_maternal_education, SES_household_income, CSection) %>%
+  unique %>%
+  dplyr::rename(Education=SES_maternal_education,
+                Income=SES_household_income,
+                deliveryMode=CSection) %>%
+  mutate(SubjectID=as.character(SubjectID),
+         Education=case_when(Education=="No high school (8th grade or less)"~"Less than high school",
+                             Education=="Some high school"~"Less than high school",
+                             Education=="High School diploma or equivalent (GED)"~"High school diploma or GED",
+                             Education=="Some college"~"Some college",
+                             Education=="Bachelor/undergraduate degree from university"~"Bachelor or undergraduate degree",
+                             Education=="Post-undergraduate degree"~"Post-undergraduate degree",
+                             Education=="Other (Specify below)"~"Other"),
+         Income=case_when(Income!="$10,000 or less"&Income!="Don't know"~Income,
+                          Income=="$10,000 or less"~"Under $10,000",
+                          Income=="Don't know"~"Unkown"),
+         deliveryMode=case_when(deliveryMode==TRUE~"Cesarean",
+                                deliveryMode==FALSE~"Vaginal"))
+  
+  
+sh2017 <- df2017 %>%
+  filter(SubjectID %in% sgDF2$SubjectID) %>%
+  select(SubjectID, AgeAtConsent, HighestEducationLevel, HouseholdIncome, DeliveryMode) %>%
+  unique %>%
+  dplyr::rename(Age=AgeAtConsent,
+                Education=HighestEducationLevel,
+                Income=HouseholdIncome,
+                deliveryMode=DeliveryMode) %>%
+  mutate(SubjectID=as.character(SubjectID),
+         Age=case_when(Age<18~"Below 18",
+                       Age>=18&Age<=28~"18 to 28",
+                       Age>=29&Age<=38~"29 to 38",
+                       Age>38~"Above 38"),
+         Education=case_when(Education=="NoHighSchool8thGradeOrLess"~"Less than high school",
+                             Education=="SomeHighSchool"~"Less than high school",
+                             Education=="HighSchoolDiplomaOrEquivalent"~"High school diploma or GED",
+                             Education=="SomeCollege"~"Some college",
+                             Education=="BachelorDegreeFromUniversity"~"Bachelor or undergraduate degree",
+                             Education=="PostUndergraduateDegree"~"Post-undergraduate degree",
+                             Education=="Other"~"Other"),
+         Income=case_when(Income=="NoIncome"~"No income",
+                          Income=="10KorLess"~"Under $10,000",
+                          Income=="10K30K"~"$10,000 - $30,000",
+                          Income=="30K50K"~"$30,000 - $50,000",
+                          Income=="50K60K"~"$50,000 - $60,000",
+                          Income=="60K80K"~"$60,000 - $80,000",
+                          Income=="80K100K"~"$80,000 - $100,000",
+                          Income=="100K150K"~"$100,000 - $150,000",
+                          Income=="150K200K"~"$150,000 - $200,000",
+                          Income=="200K250K"~"$200,000 - $250,000",
+                          Income=="250KorMore"~"$250,000 or more",
+                          Income=="DontKnow"~"Unknown",
+                          Income=="Decline"~"Unknown"),
+         deliveryMode=case_when(deliveryMode=="CesareanDelivery"~"Cesarean",
+                                deliveryMode=="NormalSpontaneousVaginalDelivery"~"Vaginal",
+                                deliveryMode=="OperativeVaginalDelivery"~"Vaginal"))
+```
+
+  Check if any subjects have duplicate entries
+```{r}
+sh2015 %>%
+  count(SubjectID) %>%
+  filter(n>1)
+
+sh2017 %>%
+  count(SubjectID) %>%
+  filter(n>1)
+```
+  No subjects have duplicate entries
+```{r}
+shDF <- sh2015 %>%
+  full_join(sh2017, by=c("SubjectID", "Education", "Income", "deliveryMode")) %>%
+  bind_rows(., c(SubjectID="10604")) %>% # add subject without demo or history data
+  mutate_all(~replace_na(.x, "Unknown")) %>%
+  select(SubjectID, Age, Education, Income, deliveryMode)
+```
+
+
 ## Reads
 ### Get read counts:
 ```{r}
@@ -183,22 +278,21 @@ readCountDF <- readCountDF0 %>%
                 bbmapFiltered_pairs=filteredCount1,
                 bowtieFiltered_pairs=uploadCount1) %>%
   mutate(SampleID=as.character(SampleID))
-  
+```
 
+# Create final metadata dataframe
+```{r}
 sgDF <- sgDF2 %>%
     select(-PctTrim, -Sickle100_pe, -Human_pairs, -Human_sngl, -PctHuman) %>% # remove unnessecary columns
     left_join(readCountDF[,c("SampleID", "bowtieFiltered_pairs", "bbmapFiltered_pairs")], by="SampleID") %>%
-    left_join(demo[,c("SubjectID", "Race", "Ethnicity")], by="SubjectID")
+    left_join(demo[,c("SubjectID", "Race", "Ethnicity")], by="SubjectID") %>%
+    left_join(shDF, by="SubjectID")
 #write_tsv(sgDF, "/Volumes/GoogleDrive/My Drive/Callahan Lab/metagenome_gardnerella/pregnancy_metagenome/sumgsDF.tsv")
 ```
 
 # Collection figure
 ## MGS
 ```{r}
-AMP <- rbind(PS15, PS17) %>%
-  unique.data.frame()
-
-
 ggplot() +
   geom_point(data=AMP, aes(x=GDcoll, y=as.character(SubjectID), shape=Method, color=Cohort, size=Method), alpha=.5) +
    geom_point(data=SHOT, aes(x=GDcoll, y=as.character(SubjectID), shape=Method, size=Method), color="black") +

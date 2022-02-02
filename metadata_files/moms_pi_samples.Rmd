@@ -197,6 +197,73 @@ raceDF %>%
   mutate(n=n/sum(n)*100)
 ```
 
+### Other Metadata
+  Add metadata including age, education, income, and delivery mode.
+```{r}
+# assess levels for each metadata category
+hxDF %>%
+  select(age, education, income, mom_delivery_method) %>%
+  map(unique)
+```
+
+```{r}
+shDF0 <- hxDF %>% # sh for subject history
+  select(dbGaP_Subject_ID, age, education, income, mom_delivery_method) %>%
+  dplyr::rename(SubjectID=dbGaP_Subject_ID,
+                Age=age,
+                Education=education,
+                Income=income,
+                deliveryMode=mom_delivery_method) %>%
+  unique() %>%
+  mutate(Age=case_when(Age=="Below_18"~"Below 18",
+                       Age=="18"~"18 to 28",
+                       Age=="18_to_28"~"18 to 28",
+                       Age=="29-38"~"29 to 38",
+                       Age=="Above_38"~"Above 38"),
+         Education=case_when(Education=="Less_than_High_School"~"Less than high school",
+                             Education=="High_School_GED"~"High school diploma or GED",
+                             Education=="Some_College"~"Some college",
+                             Education=="2_year_College_Degree"~"Bachelor or undergraduate degree",
+                             Education=="4_year_College_Degree"~"Bachelor or undergraduate degree",
+                             Education=="Masters_Degree"~"Post-undergraduate degree",
+                             Education=="Doctoral_or_Professional_Degree"~"Post-undergraduate degree"),
+         Income=case_when(Income=="Under_15_000"~"Under $15,000",
+                          Income=="15_000_19_999"~"$15,000 - $19,999",
+                          Income=="20_000_39_999"~"$20,000 - $39,999",
+                          Income=="40_000_59_999"~"$40,000 - $59,999",
+                          Income=="60_000_79_999"~"$60,000 - $79,999",
+                          Income=="80_000_or_more"~"$80,000 or more"),
+         deliveryMode=case_when(deliveryMode=="Vaginal_delivery"~"Vaginal",
+                                deliveryMode=="Cesarean_section"~"Cesarean",
+                                deliveryMode=="Not_sure"~"Unknown")) %>%
+  mutate_all(~(replace_na(.x, "Unknown")))
+```
+
+  Check if any subjects have multiple entries
+```{r}
+multipleHistorySubs <- shDF0 %>%
+  count(SubjectID) %>%
+  filter(n>1) %>%
+  .$SubjectID
+multipleHistorySubs
+```
+  Three subjects have multiple entries:
+```{r}
+shDF0 %>%
+  filter(SubjectID %in% multipleHistorySubs)
+```
+  Three subjects with multiple entries. Subject 2442605 has an entry with unknowns. Subjects 2442827 and 2443155 have two education levels. Choose higher education and fill in delivery mode for that row for subject 2442827 from other entry.
+```{r}
+shDF <- shDF0 %>%
+  filter(SubjectID %!in% multipleHistorySubs|
+         SubjectID == "2442605" & Education !="Unknown"|
+         SubjectID == "2442827" & Education == "High school diploma or GED"|
+         SubjectID == "2443155" & Education == "Some college") %>%
+  mutate(deliveryMode = case_when(SubjectID == "2442827" ~ "Vaginal",
+                                  SubjectID != "2442827" ~ deliveryMode)) %>%
+  mutate(SubjectID=as.numeric(SubjectID))
+```
+
 
 ### Gestational age at collection and delivery
   Additional tables provided from Greg Buck for gestational age at sample collection and delivery.
@@ -409,6 +476,7 @@ mgsMetadata <- attrDF %>%
          sampleOrder=rank(sampleOrder)) %>%
   ungroup(SubjectID) %>%
   left_join(raceDF, by="SubjectID") %>%
+  left_join(shDF, by="SubjectID") %>%
   mutate(SampleID=str_extract(SampleID, "[0-9]{7}"),
          SampleID=as.character(SampleID))
 #write_tsv(mgsMetadata, "../hmp2mgsDF.tsv")
