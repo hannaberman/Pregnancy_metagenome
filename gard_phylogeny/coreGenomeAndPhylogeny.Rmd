@@ -27,7 +27,7 @@ library(magick)
 
 ## File Paths
 ```{r}
-dataPath <- "/Volumes/GoogleDrive/My\ Drive/Callahan\ Lab/metagenome_gardnerella/gardPhylogeny"
+dataPath <- "/Volumes/GoogleDrive-103667279570938865306/My Drive/Callahan Lab/metagenome_gardnerella/gardPhylogeny"
 
 # Metadata
 gardDF <- "./GardnerellaMetadata.csv" %>%
@@ -56,7 +56,7 @@ assemblyDistDF <- mashDists
 remove(mashDists)
 
 # output paths
-figureOut <- "/Volumes/GoogleDrive/My\ Drive/Callahan\ Lab/metagenome_gardnerella/FIGURES/V3_manuscript_figures/gard_phyl"
+figureOut <- "/Volumes/GoogleDrive-103667279570938865306/My Drive/Callahan Lab/metagenome_gardnerella/FIGURES/V5_manuscript_figures/gard_phyl"
 coreGeneFastasDir <- file.path(dataPath, "core_gene_fastas")
 assemblyCoreGenesDir <- file.path(dataPath, "assembly_core_genes")
 ```
@@ -150,7 +150,7 @@ pangenomeStats %>%
   theme(legend.position = "right",
         legend.text = element_text(size=13)) +
   labs(fill=NULL)
-ggsave(file.path(figureOut, "20210819_corePanGenesFraction.png"))
+#ggsave(file.path(figureOut, "20210819_corePanGenesFraction.png"))
 ```
 
 # Gardnerella Phylogeny
@@ -576,7 +576,7 @@ gardTable <- gardDF %>%
   kable_classic(full_width=TRUE, html_font = "Arial") %>%
   row_spec(0, bold = TRUE)
 gardTable
-save_kable(gardTable, file = file.path(figureOut, paste(Sys.Date(), "GardRefTable.png", sep="_")))
+#save_kable(gardTable, file = file.path(figureOut, paste(Sys.Date(), "GardRefTable.png", sep="_")), zoom = 4)
 ```
 
 

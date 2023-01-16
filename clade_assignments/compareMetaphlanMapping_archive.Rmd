@@ -1,0 +1,268 @@
+---
+title: "Gardnerella mapping vs. MetaPhlAn Results"
+author: "Hanna Berman"
+date: "4/30/2021"
+output: html_document
+---
+
+# Set up
+## Packages
+```{r}
+library(tidyverse)
+library(formattable)
+library(ggpubr)
+library(cowplot)
+theme_set(theme_bw())
+```
+
+## File Paths
+```{r, message=FALSE, warning=FALSE}
+figureOut <- "/Volumes/GoogleDrive-103667279570938865306/My Drive/Callahan Lab/metagenome_gardnerella/FIGURES/V5_manuscript_figures/gardnerella_mapping"
+```
+
+
+## Abundance
+```{r}
+#Metaphlan Aabundance:
+hmp2MetaphlanPath <- "../../humann2/merged_tables/hmp2mgs_mergedMetaphlanAbundance.tsv"
+hmp2mDF <- hmp2MetaphlanPath %>%
+  read_tsv() %>%
+  filter(str_detect(ID, "s__"), !str_detect(ID, "t__")) %>%
+  mutate(Species = str_extract(ID, "(?<=s__)\\w+$")) %>%
+  select(Species, everything(), -ID) %>%
+  as.data.frame() %>%
+  dplyr::rename_at(2:ncol(.), ~str_extract(.x, "[0-9]{7}")) %>%
+  column_to_rownames(var="Species") %>%
+  t %>%
+  as.data.frame() %>%
+  mutate_all(funs(./100)) %>%
+  rownames_to_column(var="SampleID")
+hmp2mDF[1:6,1:5]
+
+metaphlanGardAbundance <- hmp2mDF %>%
+  select(SampleID, Gardnerella_vaginalis) %>%
+  dplyr::rename(metaphlanGardAbundance=Gardnerella_vaginalis)
+
+# Mapping Abundance
+mapCladeAbundance <- "../hmp2gardCladeRelativeAbundance.tsv" %>%
+  read_tsv()
+head(mapCladeAbundance)
+```
+
+### Alignments
+  Mapping
+```{r}
+mappingAlignments <- read_tsv("./hmp2cladeAlignmentsFinal.tsv")
+
+mapCladeCounts <- mappingAlignments %>%
+  group_by(SampleID) %>%
+  count(Clade)
+head(mapCladeCounts)
+
+mapGardCounts <- mapCladeCounts %>%
+  group_by(SampleID) %>%
+  summarise(mapReads=sum(n)) %>%
+  mutate(SampleID=as.character(SampleID))
+head(mapGardCounts)  
+```
+
+  Metaphlan
+```{r, message=FALSE}
+metaphlanMarkerFiles <- list.files("/Users/hlberman/mnt/cluster/home6/hlberman/VMMG/humann2/hmp2mgs_gard_marker_counts", full.names = TRUE)
+length(metaphlanMarkerFiles)
+
+# metaphlanMarkerCounts <- metaphlanMarkerFiles %>%
+#     map(read_tsv) %>%
+#     map(., ~mutate(.x, Metaphlan2_Analysis=as.numeric(Metaphlan2_Analysis)))
+
+metaphlanGardCounts <- "/Users/hlberman/mnt/cluster/home6/hlberman/VMMG/humann2/merged_tables/hmp2mgs_gardMarkerCounts.csv" %>%
+  read_csv %>%
+  mutate(SampleID=str_extract(SampleID, "(?<=SRR)[0-9]{7}"))
+
+nrow(metaphlanGardCounts)
+```
+
+  Check for missing samples:
+```{r}
+missingMetaphlan <- setdiff(str_extract(metaphlanMarkerFiles, "[0-9]{7}(?=gard_marker_reads.tsv)"), metaphlanGardCounts$SampleID)
+missingMetaphlan
+
+metaphlanMarkerFiles %>%
+  keep(~str_detect(.x, paste(missingMetaphlan, collapse = "|"))) %>%
+  map(read_tsv)
+```
+
+  No *Gardnerlla* reads in sample `r missingMetaphlan`
+
+  Set up tables for comparison
+```{r}
+compareDF <- data.frame(SampleID=missingMetaphlan, # add missing rows
+                        metaphlanReads=0) %>%
+  rbind(., metaphlanGardCounts) %>%
+  full_join(mapGardCounts, by="SampleID") %>%
+  replace_na(list(mapReads=0)) %>%
+  full_join(metaphlanGardAbundance, by="SampleID")
+head(compareDF)
+```
+
+# Reference genes
+## Files
+```{r}
+refGard <- "../gard_phylogeny/GardnerellaMetadata.csv" %>%
+  read_csv
+
+refClades <- "../refGardnerellaCladesGenomos.csv" %>%
+  read_csv
+```
+### Mapping References files
+```{r}
+refGenes <- "./ref_genes/refGenesDF.csv" %>%
+  read_csv
+```
+
+### Metaphlan References
+```{r}
+# Genomes 
+metaphlanMarkerGenomes <- "/Users/hlberman/mnt/cluster/home6/hlberman/Applications/metaphlan2/utils/species2genomes.txt" %>%
+  read_lines() %>%
+  .[str_detect(., "s__Gardnerella_vaginalis")] %>%
+  str_split(., "\t") %>%
+  unlist() %>%
+  .[3:length(.)]
+length(metaphlanMarkerGenomes)
+
+# Genes
+metaphlanMarkerIDs <-  "/Users/hlberman/mnt/cluster/home6/hlberman/Applications/metaphlan2/utils/gardnerella_vaginalis_marker_IDs.txt" %>%
+  read_lines()
+length(metaphlanMarkerIDs)
+```
+  36 genomes with 200 genes total
+
+```{r}
+metaphlanRefClades0 <- refGard %>%
+  filter(str_extract(RefSeq_accession, "GCF_[0-9]{9}") %in% metaphlanMarkerGenomes) %>%
+  left_join(refClades, by="Strain") %>%
+  select(Strain, RefSeq_accession, in_phylogeny, Genomospecies, Clade)
+head(metaphlanRefClades0)
+```
+
+  Strains that do not have a clade assignment:
+```{r}
+metaphlanRefClades0 %>%
+  filter(in_phylogeny==FALSE)
+```
+   Look at Mash distances for 6420LIT placement
+```{r}
+#minhash distances from Mash
+resultsPath <- "/Volumes/GoogleDrive-103667279570938865306/My Drive/Callahan Lab/metagenome_gardnerella/gardPhylogeny/assembly_quality_control/completeness_quality_dereplication"
+load(file.path(resultsPath, "mashDists.Rdata"))
+```
+
+```{r}
+GB6420Lit <- refGard %>% #genbank accession of 6420Lit
+  filter(Strain=="6420LIT") %>%
+  .$GenBank_accession
+GB6420Lit
+
+assembly1s <- mashDists %>%
+  filter(assembly1==GB6420Lit) %>%
+  select(-assembly1) %>%
+  dplyr::rename(GenBank_accession=assembly2)
+
+assembly2s <- mashDists %>%
+  filter(assembly2==GB6420Lit) %>%
+  select(-assembly2) %>%
+  dplyr::rename(GenBank_accession=assembly1)
+
+DF6420LitMash <- assembly1s %>%
+  full_join(assembly2s, by = c("GenBank_accession", "distance", "p", "Matching_hashes")) %>%
+  left_join(refGard[,c("Strain", "GenBank_accession")], by="GenBank_accession") %>%
+  left_join(refClades, by="Strain") %>%
+  filter(!is.na(Clade))
+
+DF6420LitMash %>%
+  filter(distance==min(distance))
+
+DF6420LitMash %>%
+  ggplot(aes(x=Clade, y=distance)) +
+  geom_boxplot() +
+  geom_jitter() +
+  theme_bw()
+```
+
+6420Lit is from clade 4
+```{r}
+metaphlanRefClades <- metaphlanRefClades0 %>%
+  mutate(Clade=case_when(Strain=="ATCC_14018"~"C1",
+                         Strain=="JCP8481B"~"C3",
+                         Strain=="JCP8017B"~"C2",
+                         Strain=="6420LIT"~"C4",
+                         Strain!="ATCC_14018|JCP8481B|JCP8017B|6420LIT"~Clade)) 
+```
+
+  Summarize clades represented in Metaphlan2 marker genes
+```{r}
+metaphlanRefClades %>%
+  group_by(Clade) %>%
+  tally %>%
+  formattable()
+```
+
+  Summarize clades represented in mapping method marker genes
+```{r}
+refGenes %>%
+  select(Strain, Clade) %>%
+  unique() %>%
+  group_by(Clade) %>%
+  tally %>%
+  formattable
+```
+
+# Compare alignments
+ Reads vs. Reads
+```{r}
+compareDF %>%
+  ggplot(aes(x=mapReads, y=metaphlanReads)) +
+  geom_abline(color="grey", linetype=2) +
+  geom_point(alpha=0.75, size=2) +
+  geom_smooth(method="lm", se=FALSE, color="blue", linetype=1) +
+  stat_cor(method = "pearson", alternative = "greater", label.sep = "\n") + 
+  xlim(0,1000000) +
+  coord_fixed() +
+  labs(x=bquote('Aligned'~italic("Gardnerella") ~'Marker Reads - Our Method'), y=bquote('Aligned'~italic("Gardnerella") ~'Marker Reads - Metaphlan2'))
+```
+
+  
+```{r, message=FALSE, warning=FALSE}
+readsVreadsPlot <- compareDF %>%
+  ggplot(aes(x=mapReads, y=metaphlanReads)) +
+  geom_abline(color="grey", linetype=2) +
+  geom_point(alpha=0.5, size=2) +
+  geom_smooth(method="lm", se=FALSE, color="blue", linetype=1) +
+  stat_cor(method = "pearson", alternative = "greater", label.sep = "\n") + 
+  labs(x=bquote('Aligned'~italic("Gardnerella") ~'Marker Reads - Our Method'), y=bquote('Aligned'~italic("Gardnerella") ~'Marker Reads - Metaphlan2'))
+```
+  Reads vs Gardnerella abundance
+```{r, message=FALSE, warning=FALSE}
+abVreadsPlot <- compareDF %>%
+  ggplot(aes(x=mapReads, y=metaphlanGardAbundance)) +
+  geom_point(alpha=0.5, size=2) +
+  geom_smooth(method="lm", se=FALSE, color="blue", linetype=1) +
+  stat_cor(method = "pearson", alternative = "greater", label.sep = "\n", label.x = 20000, label.y = 0.125)  +
+  ylim(0,1) +
+  labs(x=bquote('Aligned'~italic("Gardnerella") ~'Marker Reads - Our Method'), y=bquote(italic("Gardnerella") ~'Relative Abundance - MetaPhlAn2'))
+```
+
+## Figure 2DE: Gardnerella mapping vs MetaPhlAn
+```{r, message=FALSE, warning=FALSE, fig.width=5, fig.height=2}
+plot_grid(readsVreadsPlot, abVreadsPlot, nrow=1, labels = c("D", "E"), label_size = 15)
+#ggsave(filename = file.path(figureOut, paste(Sys.Date(), "Figure2DE_mappingVsMetaphlan.png", sep="_")))
+```
+
+
+# Session info
+```{r}
+#save.image("/Users/hlberman/Desktop/saveImage.Rdata")
+#load("/Users/hlberman/Desktop/saveImage.Rdata")
+sessionInfo()
+```
