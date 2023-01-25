@@ -162,6 +162,7 @@ readsVreadsPlot <- compareDF %>%
   geom_smooth(method="lm", se=FALSE, color="blue", linetype=1) +
   stat_cor(method = "pearson", alternative = "greater", label.sep = "\n") + 
   labs(x=bquote('Aligned'~italic("Gardnerella") ~'Marker Reads - Our Method'), y=bquote('Aligned'~italic("Gardnerella") ~'Marker Reads - Metaphlan2'))
+readsVreadsPlot
 ```
   Reads vs Gardnerella abundance
 ```{r, message=FALSE, warning=FALSE}
@@ -172,12 +173,13 @@ abVreadsPlot <- compareDF %>%
   stat_cor(method = "pearson", alternative = "greater", label.sep = "\n", label.x = 20000, label.y = 0.125)  +
   ylim(0,1) +
   labs(x=bquote('Aligned'~italic("Gardnerella") ~'Marker Reads - Our Method'), y=bquote(italic("Gardnerella") ~'Relative Abundance - MetaPhlAn2'))
+abVreadsPlot
 ```
 
-## Figure 2DE: Gardnerella mapping vs MetaPhlAn
+## Figure 2D: Gardnerella mapping vs MetaPhlAn
 ```{r, message=FALSE, warning=FALSE, fig.width=5, fig.height=2}
-plot_grid(readsVreadsPlot, abVreadsPlot, nrow=1, labels = c("D", "E"), label_size = 15)
-#ggsave(filename = file.path(figureOut, paste(Sys.Date(), "Figure2DE_mappingVsMetaphlan.png", sep="_")))
+plot_grid(readsVreadsPlot, nrow=1, labels = c("D",), label_size = 15)
+#ggsave(filename = file.path(figureOut, paste(Sys.Date(), "Figure2D_mappingVsMetaphlan.png", sep="_")))
 ```
 
 # Session info

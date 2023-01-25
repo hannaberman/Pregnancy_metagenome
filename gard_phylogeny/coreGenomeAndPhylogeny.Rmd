@@ -7,6 +7,7 @@ output:
     toc: true
     toc_float: true
 ---
+
 # Set up
 ## Packages
 ```{r, warning=FALSE}
@@ -183,6 +184,7 @@ outgroupRootTree %>%
   geom_treescale()
 ```
 # Define Clade and Genomospecies Dataframe
+
 ## Clades
 ```{r}
 C1 <- outgroupRootTree %>%
@@ -210,26 +212,11 @@ C5 <- c("KA00735", "CMW7778B")
 C6 <- "KA00225"
 ```
 
-```{r}
-# testClades <- function(clade, cladeList) {
-#   a <- test %>%
-#     filter(Clade==clade) %>%
-#     .$Strain
-#   b <- setdiff(a, cladeList)
-#   #b <- setdiff(cladeList, a)
-#   return(b)
-# }
-# 
-# map2(list("C1", "C2", "C3", "C4", "C5", "C6"),
-#      list(C1, C2, C3, C4, C5, C6),
-#      testClades)
-```
-
 
 ## Genomospecies
 ### Unclear genomospecies NR010? W11? N160?
-  *W11*
-    W11 genomospecies identity is unclear by placement on phylogeny. It was labeled genomospecies 3 by Khan et al., 2020 "A generalist lifestyle allows rare Gardnerella spp. to persist at low levels in the vaginal microbiome" *Microbial Ecology*.
+  **W11**  
+  W11 genomospecies identity is unclear by placement on phylogeny. It was labeled genomospecies 3 by Khan et al., 2020 "A generalist lifestyle allows rare Gardnerella spp. to persist at low levels in the vaginal microbiome" *Microbial Ecology*.
 ```{r}
 # closest whole genome mash distance function
 smallestANI <- function(STRAIN){
@@ -247,12 +234,12 @@ smallestANI("W11")
 ```
   Closest by approximate whole genome ANI is 00703C2mash (GS3) at about 98%.
   
-  *NR010*
+  **NR010**
 ```{r}
 smallestANI("NR010")
 ```
   Smallest approximate ANI is ~90%. Genomospecies 14.
-  *N160*
+  **N160**
   N160 appears to be in GS9 based on this phylogeny, by Khan et al. appears to place it in GS10. Unsure their method, but possibly by *cpn60* sequence.
 ```{r}
 smallestANI("N160")
@@ -290,7 +277,7 @@ cpn60Dists %>%
   filter(strain1=="N160") %>%
   filter(dist==min(dist))
 ```
-  Using full-length *cpn60* sequence N160 would be placed into GS10, as its *cpn60* sequence is closest to N160.
+  Using full-length *cpn60* sequence N160 would be placed into GS10, as its *cpn60* sequence is closest to 1500E.
   Compare distances to 1500E (GS10) and 6119V5 (GS9)
 ```{r}
 cpn60Dists %>%

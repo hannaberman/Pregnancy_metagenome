@@ -32,3 +32,4 @@ Use `./scripts/usearch.sh`
 
 ## Run Metaphlan2 to assess which samples have uncharacterized *Gardnerella*, when *Gardnerella* is detected by Metaphlan2 but not mapping method
 Use `./scripts/metaphlan2.sh`
+Merge MetaPhlAn outputs with `/scripts/merge_metaphlan_tables.sh`

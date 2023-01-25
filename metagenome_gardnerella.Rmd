@@ -847,6 +847,33 @@ subjectAvgPropGardEnr <- subjectGardAbundance2Cohort %>%
 plot_grid(subjectAvgPropGard, subjectAvgPropGardEnr, nrow=1, labels = c("A", "B"), label_size = 15)
 #ggsave(filename = file.path(figureOut, paste(Sys.Date(), "FigureS4_enrichedSubjectPropGardbyStudy.png", sep="_")))
 ```
+  
+  
+```{r}
+subjectGardAbundance2Cohort %>%
+  group_by(Cohort) %>%
+  summarize(min=min(Gardnerella_vaginalis),
+            `1stQu`=summary(Gardnerella_vaginalis)[2],
+            median=median(Gardnerella_vaginalis),
+            mean=mean(Gardnerella_vaginalis),
+            `3rdQu`=summary(Gardnerella_vaginalis)[5],
+            max=max(Gardnerella_vaginalis)) %>%
+  formattable()
+
+subjectGardAbundance2Cohort %>%
+  filter((Cohort=="MOMS-PI"&SubjectID %in% HMP2highGardSubjects)) %>%
+  mutate(Cohort=factor(Cohort, levels=c("Stanford & UAB Enriched", "MOMS-PI"), labels=c("Stanford & UAB Enriched", "MOMS-PI Enriched"))) %>%
+  group_by(Cohort) %>%
+  summarize(min=min(Gardnerella_vaginalis),
+            `1stQu`=summary(Gardnerella_vaginalis)[2],
+            median=median(Gardnerella_vaginalis),
+            mean=mean(Gardnerella_vaginalis),
+            `3rdQu`=summary(Gardnerella_vaginalis)[5],
+            max=max(Gardnerella_vaginalis)) %>%
+  formattable()
+```
+  
+  
   Distribution of *Gardnerella* abundnace in samples
 ```{r, message=FALSE, warning=FALSE}
 HMP2HighGardSamples <- sgDF1 %>%
@@ -933,7 +960,6 @@ gardGenomoAb <- gardGenomoAb1 %>%
 
 # note these tables contain samples with at least one identified clade or genomospecies of gardnerella
 ```
-
 
 
 ##  Top taxa
@@ -1337,8 +1363,7 @@ sgDF1 %>%
 ```{r, message=FALSE, warning=FALSE}
 loadVClades <- gardCladeAbU %>%
   spread(var, relativeAbundance) %>%
-  filter(Uncharacterized_Gardnerella==0) %>%
-  select(-Gardnerella_vaginalis) %>%
+  select(-Gardnerella_vaginalis, -Uncharacterized_Gardnerella) %>%
   mutate_at(clades, ~case_when(.x>0~1,
                                .x==0~0)) %>%
   gather("var", "abundance", clades) %>%
@@ -1359,8 +1384,7 @@ loadVClades
 ```{r}
 gardCladeAbU %>%
   spread(var, relativeAbundance) %>%
-  filter(Uncharacterized_Gardnerella==0) %>%
-  select(-Gardnerella_vaginalis) %>%
+  select(-Gardnerella_vaginalis, -Uncharacterized_Gardnerella) %>%
   mutate_at(clades, ~case_when(.x>0~1,
                                .x==0~0)) %>%
   gather("var", "abundance", clades) %>%
@@ -1370,6 +1394,8 @@ gardCladeAbU %>%
   filter(bacLoad<2) %>%
   ggplot(aes(x=nClades, y=Sickle_pairs)) +
   geom_jitter(alpha=0.5) +
+  geom_smooth(method="lm", se=FALSE, color="blue", linetype=1) +
+  stat_cor(method = "spearman", alternative = "greater", cor.coef.name = c("rho"), label.y = 6e07, label.x = 0, label.sep = "\n") + 
   facet_wrap(~Cohort) +
   scale_x_continuous(breaks = seq(0,6,1)) +
   labs(x="Clades per Sample", y="Library Size") # library size is QC-filtered reads
@@ -1379,8 +1405,7 @@ gardCladeAbU %>%
 ```{r}
 gardCladeAbU %>%
   spread(var, relativeAbundance) %>%
-  filter(Uncharacterized_Gardnerella==0) %>%
-  select(-Gardnerella_vaginalis) %>%
+  select(-Gardnerella_vaginalis, -Uncharacterized_Gardnerella) %>%
   mutate_at(clades, ~case_when(.x>0~1,
                                .x==0~0)) %>%
   gather("var", "abundance", clades) %>%
@@ -1390,9 +1415,130 @@ gardCladeAbU %>%
   filter(bacLoad<2) %>%
   ggplot(aes(x=nClades, y=bbmapFiltered_pairs)) +
   geom_jitter(alpha=0.5) +
+  geom_smooth(method="lm", se=FALSE, color="blue", linetype=1) +
+  stat_cor(method = "spearman", alternative = "greater", cor.coef.name = c("rho"), label.y = 2e07, label.x = 0, label.sep = "\n") + 
   facet_wrap(~Cohort) +
   scale_x_continuous(breaks = seq(0,6,1)) +
   labs(x="Clades per Sample", y="Microbial Reads")
+```
+### Assess microbial load by clades per sample after rarefying
+```{r}
+allUnchGardSamples <- gardCladeAbU %>%
+  filter(var=="Uncharacterized_Gardnerella",
+         relativeAbundance>0) %>%
+  .$SampleID
+#write_lines(allUnchGardSamples, "/Users/hlberman/Desktop/unchGardSamples.txt")
+
+sgDF %>%
+  mutate(isUnch=case_when(SampleID %in% allUnchGardSamples~TRUE,
+                          SampleID %!in% allUnchGardSamples~FALSE)) %>%
+  ggplot(aes(x=isUnch, y=bbmapFiltered_pairs, color=Cohort, shape=Cohort)) +
+  geom_boxplot(alpha=0, position = position_dodge(width=1)) +
+  geom_quasirandom(alpha=0.5, dodge.width = 1) +
+  geom_hline(yintercept = 1e05, linetype=2, color="black") +
+  geom_hline(yintercept = 16334, linetype=2, color="gray") +
+  scale_y_log10() +
+  labs(x="Uncharacterized Gardnerella", y="Microbial Reads")
+```
+
+```{r}
+minReads <- min(sgDF$bbmapFiltered_pairs) 
+minReads
+```
+
+  Rarefy to 100,000 reads per sample
+
+  Assess read counts and get samples with 100,000 reads
+```{r, message=FALSE, warning=FALSE}
+rarefiedReadCountsDF <- "./rarefied_gard_counts/rarefiedReadCounts.csv" %>%
+  read_csv 
+
+k100Samples0 <- rarefiedReadCountsDF %>%
+  filter(rarefiedReads==100000) %>%
+  .$SampleID
+
+# add names for samples in MOMS-PI Enriched
+k100Samples <- k100Samples0[k100Samples0 %in% HMP2HighGardSamples] %>%
+  paste0(., "_E") %>%
+  c(k100Samples0, .)
+```
+
+
+  Import MetaPhlAn tables
+```{r, message=FALSE, warning=FALSE}
+rarefiedMetaphlanOuts <- "./rarefied_gard_counts/rarefiedMergedMetaphlanAbundance.tsv" %>%
+  read_tsv %>%
+  filter(str_detect(ID, "s__"), !str_detect(ID, "t__")) %>%
+  mutate(Species = str_extract(ID, "(?<=s__)\\w+$")) %>%
+  select(Species, everything(), -ID) %>%
+  #as.data.frame() %>%
+  dplyr::rename_at(2:ncol(.), ~str_extract(.x, "[0-9]+")) %>%
+  column_to_rownames(var="Species") %>%
+  t %>%
+  as.data.frame() %>%
+  mutate_all(funs(./100)) %>%
+  rownames_to_column(var="SampleID")
+  
+rarefiedGardProportions <- rarefiedMetaphlanOuts %>%
+   select(SampleID, Gardnerella_vaginalis) %>%
+   replace_na(list(Gardnerella_vaginalis=0))
+```
+
+  Proportion of clades
+```{r, message=FALSE, warning=FALSE}
+rarefiedCladeRelativeAbundance <- "./rarefied_gard_counts/gardCladeRelativeAbundance.tsv" %>%
+  read_tsv %>%
+  mutate(SampleID=as.character(SampleID)) %>%
+  select(-propClade) %>%
+  filter(n>=2) %>% #count as present if >=2 reads are mapped to that clade
+  group_by(SampleID) %>%
+  mutate(propClade=n/sum(n)) %>%
+  ungroup() %>%
+  select(-n)
+```
+
+```{r, message=FALSE, warning=FALSE}
+rarefiedGardDF0 <- rarefiedCladeRelativeAbundance %>%
+  full_join(rarefiedGardProportions) %>%
+  mutate(relativeAbundance=propClade*Gardnerella_vaginalis) %>%
+  select(-propClade) %>%
+  spread(Clade, relativeAbundance) %>%
+  select(-`<NA>`) %>%
+  replace_na(list(C1=0, C2=0, C3=0, C4=0, C5=0, C6=0)) %>%
+  right_join(sgDF[,c("SampleID", "SubjectID", "Cohort", "TermPre")]) %>%
+  mutate(Uncharacterized_Gardnerella=case_when(Gardnerella_vaginalis>0&(C1+C2+C3+C4+C5+C6==0)~Gardnerella_vaginalis,
+                                               Gardnerella_vaginalis==0~0,
+                                               Gardnerella_vaginalis>0&(C1+C2+C3+C4+C5+C6>0)~0))
+
+# create rows for MOMS-PI Enriched Samples
+rarefiedGardDF <- rarefiedGardDF0 %>%
+  filter(SubjectID %in% HMP2highGardSubjects) %>% 
+  mutate(Cohort="MOMS-PI Enriched",
+         SampleID=paste0(SampleID, "_E"),
+         SubjectID=paste0(SubjectID, "_E")) %>%
+  full_join(rarefiedGardDF0)
+```
+
+#### Figure S6: Microbial load vs. rarefied clade counts
+```{r, message=FALSE, warning=FALSE}
+loadVrarefiedClades <- rarefiedGardDF %>%
+  filter(SampleID %in% k100Samples) %>% 
+  select(-Gardnerella_vaginalis, -Uncharacterized_Gardnerella) %>%
+  mutate_at(clades, ~case_when(.x>0~1,
+                               .x==0~0)) %>%
+  mutate(nClades=(C1+C2+C3+C4+C5+C6), 
+         Cohort=factor(Cohort, cohorts)) %>%
+  left_join(bacLoad, by="SampleID") %>%
+  filter(bacLoad<2) %>%
+  ggplot(aes(x=nClades, y=bacLoad)) +
+  geom_jitter(alpha=0.25) +
+  geom_smooth(method="lm", se=FALSE, color="blue", linetype=1) +
+  stat_cor(method = "spearman", alternative = "greater", cor.coef.name = c("rho"), label.y = 1.5, label.x = 0, label.sep = "\n") + 
+  facet_wrap(~Cohort) +
+  scale_x_continuous(breaks = seq(0,6,1)) +
+  labs(x="Clades per Sample", y="Microbial Load")
+loadVrarefiedClades
+#ggsave(file.path(figureOut, paste(Sys.Date(), "FigureS6_rarefiedCladesPerSampleVsBacLoad.png", sep = "_")))
 ```
 
 ## Microbial load by taxa presence-absence
@@ -1446,7 +1592,7 @@ mDFtoiClades %>%
         axis.text = element_text(size = 12),
         legend.position = "none") +
   labs(x="", y="Microbial Load")
-#ggsave(file.path(figureOut, paste(Sys.Date(), "FigureS6_presAbsVsBacLoad.png", sep = "_")))
+#ggsave(file.path(figureOut, paste(Sys.Date(), "FigureS7_presAbsVsBacLoad.png", sep = "_")))
 ```
 
 ## Figure 4: Gardnerella and increases in microbial load 
@@ -1624,7 +1770,7 @@ jaccards %>%
         strip.text.x = element_text(size = 13)) +
   facet_wrap(~cohort) +
   labs(x="", y="", fill="Jaccard Distance")
-ggsave(filename = file.path(figureOut, paste(Sys.Date(), "FigureS8_jacFourCohort.png", sep="_")), height=6, width=7.5, units="in")
+#ggsave(filename = file.path(figureOut, paste(Sys.Date(), "FigureS8_jacFourCohort.png", sep="_")), height=6, width=7.5, units="in")
 ```
 
 ## Figure 5: Gardnerella impacts on signatures of the vaginal microbiome
@@ -1677,7 +1823,7 @@ plot_grid(taxaBarPlot, jaccardFigure, nrow=1, labels = c("A", "B"), label_size =
 #plot showing clade relative abundance in term vs. preterm birth in all cohorts
 allCohortsCladeRelativePTBplot <- gardCladeAbU %>%
   left_join(sgDF[,c("SampleID", "SubjectID", "TermPre", "bacLoad")], by="SampleID") %>%
-  filter(SampleID %!in% unchGardSamples, !is.na(TermPre), var!="Gardnerella_vaginalis", var!="Uncharacterized_Gardnerella") %>%
+  filter(!is.na(TermPre), var!="Gardnerella_vaginalis", var!="Uncharacterized_Gardnerella") %>% #SampleID %!in% unchGardSamples,
   with_groups(c(SubjectID, Cohort, TermPre, var), summarize, abundance=mean(relativeAbundance)) %>%
   mutate(var=factor(var, levels = clades, labels = clades),
          Cohort=factor(Cohort, levels=cohorts, labels=cohortAbbrevs)) %>%
@@ -2104,109 +2250,11 @@ momspiCladeCountPlot
 
 
 ## Assess mean number of clades of rarefying
-```{r}
-allUnchGardSamples <- gardCladeAbU %>%
-  filter(var=="Uncharacterized_Gardnerella",
-         relativeAbundance>0) %>%
-  .$SampleID
-#write_lines(allUnchGardSamples, "/Users/hlberman/Desktop/unchGardSamples.txt")
-
-sgDF %>%
-  mutate(isUnch=case_when(SampleID %in% allUnchGardSamples~TRUE,
-                          SampleID %!in% allUnchGardSamples~FALSE)) %>%
-  ggplot(aes(x=isUnch, y=bbmapFiltered_pairs, color=Cohort, shape=Cohort)) +
-  geom_boxplot(alpha=0, position = position_dodge(width=1)) +
-  geom_quasirandom(alpha=0.5, dodge.width = 1) +
-  geom_hline(yintercept = 1e05, linetype=2, color="black") +
-  geom_hline(yintercept = 16334, linetype=2, color="gray") +
-  scale_y_log10() +
-  labs(x="Uncharacterized Gardnerella", y="Microbial Reads")
-```
-
-```{r}
-minReads <- min(sgDF$bbmapFiltered_pairs) 
-minReads
-```
-
-  Rarefy to 100,000 reads per sample
-
-  Assess read counts and get samples with 100,000 reads
-```{r, message=FALSE, warning=FALSE}
-rarefiedReadCountsDF <- "./rarefied_gard_counts/rarefiedReadCounts.csv" %>%
-  read_csv 
-
-k100Samples <- rarefiedReadCountsDF %>%
-  filter(rarefiedReads==100000) %>%
-  .$SampleID
-```
-
-
-  Import MetaPhlAn tables
-```{r, message=FALSE, warning=FALSE}
-momspiptbsamples <- momsptbDF$SampleID %>%
-  str_extract(., pattern="[0-9]+") %>%
-  unique %>%
-  paste0("SRR", .)
-  
-# rarefiedMetaphlanOuts <- "/Users/hlberman/mnt/cluster/home6/hlberman/VMMG/rarefied_gard_counts/metaphlan2_outs" %>%
-#   list.files(full.names = TRUE) %>%
-#   .[str_detect(., pattern = paste(momspiptbsamples, collapse = "|"))] %>%
-#   map(read_tsv)
-# 
-# rarefiedGardProportions0 <- rarefiedMetaphlanOuts %>%
-#   map(~filter(.x, str_detect(`#SampleID`, pattern="Gardnerella"))) %>%
-#   map(~filter(.x, str_detect(`#SampleID`, pattern="s__"))) %>%
-#   map(~filter(.x, !str_detect(`#SampleID`, pattern="t__"))) %>%
-#   set_names(., nm = momspiptbsamples) %>%
-#   map(~dplyr::rename(.x, Species=`#SampleID`, Gardnerella_vaginalis=Metaphlan2_Analysis)) %>%
-#   map2(., names(.), ~mutate(.x, SampleID=.y)) %>%
-#   purrr::reduce(full_join) %>%
-#   select(SampleID, Gardnerella_vaginalis)
-
-# rarefiedGardProportions <- data.frame(SampleID=momspiptbsamples) %>%
-#   full_join(rarefiedGardProportions0) %>%
-#   mutate(SampleID=str_extract(SampleID, pattern="[0-9]+")) %>%
-#   replace_na(list(Gardnerella_vaginalis=0))
-
-# write_tsv(rarefiedGardProportions, "./rarefied_gard_counts/gardRelativeAbundance.tsv")
-
-rarefiedGardProportions <- "./rarefied_gard_counts/gardRelativeAbundance.tsv" %>%
-  read_tsv %>%
-  mutate(SampleID=as.character(SampleID))
-```
-
-  Proportion of clades
-```{r, message=FALSE, warning=FALSE}
-rarefiedCladeRelativeAbundance <- "./rarefied_gard_counts/gardCladeRelativeAbundance.tsv" %>%
-  read_tsv %>%
-  mutate(SampleID=as.character(SampleID)) %>%
-  select(-propClade) %>%
-  filter(n>=2) %>% #count as present if >=2 reads are mapped to that clade
-  group_by(SampleID) %>%
-  mutate(propClade=n/sum(n)) %>%
-  ungroup() %>%
-  select(-n)
-```
-
-```{r, message=FALSE, warning=FALSE}
-rarefiedGardDF <- rarefiedCladeRelativeAbundance %>%
-  full_join(rarefiedGardProportions) %>%
-  mutate(relativeAbundance=propClade*Gardnerella_vaginalis) %>%
-  select(-propClade) %>%
-  spread(Clade, relativeAbundance) %>%
-  select(-`<NA>`) %>%
-  replace_na(list(C1=0, C2=0, C3=0, C4=0, C5=0, C6=0)) %>%
-  right_join(sgDF[,c("SampleID", "SubjectID", "Cohort", "TermPre")]) %>%
-  filter(Cohort=="MOMS-PI", !is.na(TermPre), SampleID %in% k100Samples) %>% 
-  mutate(Uncharacterized_Gardnerella=case_when(Gardnerella_vaginalis>0&(C1+C2+C3+C4+C5+C6==0)~Gardnerella_vaginalis,
-                                               Gardnerella_vaginalis==0~0,
-                                               Gardnerella_vaginalis>0&(C1+C2+C3+C4+C5+C6>0)~0))
-```
 
   Perform Wilcoxon Rank Sum test
 ```{r, message=FALSE, warning=FALSE}
 rarefiedNCladesWilcox <- rarefiedGardDF %>%
-  #filter(Uncharacterized_Gardnerella==0) %>%
+  filter(Cohort=="MOMS-PI", !is.na(TermPre), SampleID %in% k100Samples) %>% 
   mutate_at(clades, ~case_when(.x>=0.001~1,
                                .x<0.001~0)) %>%
   mutate(nClades=C1+C2+C3+C4+C5+C6) %>%
@@ -2217,12 +2265,13 @@ rarefiedNCladesWilcox %>%
   formattable()  
 ```
 
-  Figure S9: Mean gestational clade richness vs. PTB
+  Figure S9: Mean gestational clade richness vs. PTB after rarefying
 ```{r, message=FALSE, warning=FALSE}
 rarefiedGardDF %>%
+  filter(Cohort=="MOMS-PI", !is.na(TermPre), SampleID %in% k100Samples) %>% 
   select(-Gardnerella_vaginalis, -Uncharacterized_Gardnerella) %>%
   gather("Clade", "Abundance", c(C1, C2, C3, C4, C5, C6)) %>%
-  mutate(Abundance=case_when(Abundance>0.001~1,
+  mutate(Abundance=case_when(Abundance>=0.001~1,
                              Abundance<0.001~0)) %>%
   with_groups(c(SampleID, SubjectID, Cohort, TermPre), summarize, nClades=sum(Abundance)) %>%
   with_groups(c(SubjectID, Cohort, TermPre), summarize, meanNClades=mean(nClades)) %>%
