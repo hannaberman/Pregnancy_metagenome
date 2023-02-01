@@ -13,9 +13,9 @@ Download and install per instructions from: https://github.com/lh3/seqtk
 `ln -s /home6/hlberman/Applications/seqtk/seqtk /home6/hlberman/bin` # copy command link to bin file that is in PATH
 
 Instructions for subsampling from seqtk:
-Subsample 10000 read pairs from two large paired FASTQ files (remember to use the same random seed to keep pairing):
-`seqtk sample -s100 read1.fq 10000 > sub1.fq`
-`seqtk sample -s100 read2.fq 10000 > sub2.fq`
+Subsample 100000 read pairs from two large paired FASTQ files (remember to use the same random seed to keep pairing):
+`seqtk sample -s100 read1.fq 100000 > sub1.fq`
+`seqtk sample -s100 read2.fq 100000 > sub2.fq`
 
 ### Subsample or rarefy to common sequencing depth of 100,000
 Use `./scripts/rarefy_samples.sh`
