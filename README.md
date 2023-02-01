@@ -1,5 +1,6 @@
 # pregnancy_metagenome
-Analysis of shotgun metagenomic data from vaginal swabs of pregnant women 
+"*Gardnerella* Diversity and Ecology in Pregnancy and Preterm Birth"
+Analysis of *Gardnerella* clades and species using shotgun metagenomic sequencing data from vaginal swabs of pregnant women 
 
 ##  metadata_files
 
