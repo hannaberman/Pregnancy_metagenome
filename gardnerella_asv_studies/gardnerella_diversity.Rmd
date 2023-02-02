@@ -1,0 +1,419 @@
+---
+title: "Gardnerella Diversity Across Cohorts"
+author: "Hanna Berman & Megan Anderson"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+  Asses the abundance and prevalence of *Gardnerella* ASVs across different cohorts from 16S amplicon sequencing studies using the V4 region. The data was selected from the following studies:
+  + [Tabatabei et al., 2019 *BJOG*](http://doi.org//10.1111/1471-0528.15299)
+  + [Elovitz et al., 2019 *Nature Communications*](https://doi.org/10.1038/s41467-019-09285-9)
+  + [Blostein et al., 2020 *Annals of Epidemiology*](https://doi.org/10.1016/j.annepidem.2019.11.004)
+  + [DiGiulio et al., 2015 *PNAS*](http://doi.org/10.1073/pnas.1502875112)
+  + [Callahan et al., 2017 *PNAS*](http://doi.org/10.1073/pnas.1705899114)
+  + [Subramaniam et al., 2016 *American Journal Perinatology*](http://doi.org/10.1055/s-0035-1565919)
+
+```{r, warning=FALSE}
+library(tidyverse)
+```
+
+```{r, warning=FALSE, message=FALSE, error=FALSE}
+library(phyloseq)
+library(speedyseq)
+library(kableExtra)
+library(formattable)
+library(broom.mixed)
+library(cowplot)
+library(ggbeeswarm)
+```
+
+  ggplot settings
+```{r, message=FALSE, warning=FALSE}
+theme_set(theme_bw()+
+          theme(panel.grid = element_blank(),
+                axis.text = element_text(size=10),
+                axis.title = element_text(size=15),
+                legend.text = element_text(size=12),
+                legend.title = element_text(size=14)))
+
+binaryColors <- list(scale_color_manual(values = c("#D55E00", "#56B4E9")),
+                     scale_fill_manual(values=c("#D55E00", "#56B4E9")))
+
+trinaryColors <- list(scale_color_manual(values = c("#D55E00", "#009E73", "#56B4E9")),
+                     scale_fill_manual(values=c("#D55E00","#009E73", "#56B4E9")))
+
+quadColors <- list(scale_color_manual(values=c("#D55E00", "#009E73", "#CC79A7", "#56B4E9")),
+                   scale_fill_manual(values=c("#D55E00", "#009E73", "#CC79A7", "#56B4E9")))
+```
+
+# Set up
+  Set file paths and organize data
+```{r, message=FALSE, warning=FALSE}
+load("./Data/multistudy_gardnerella_asvs.Rdata")
+figureOut <- "../../FIGURES/submission_manuscript_figures"
+```
+
+```{r, message=FALSE, warning=FALSE}
+# create dataframe of all data for analyses, one for each variable region study set
+v4DF <- phyloseq(sample_data(gv_v4$v4_meta), 
+                 otu_table(gv_v4$v4_asv_gv_prop, taxa_are_rows = FALSE), 
+                 tax_table(as.matrix(gv_v4$v4_taxa_gv))) %>%
+  speedyseq::psmelt() %>%
+  mutate(nBMI = case_when(
+                          mBMI < 18.5 ~"Underweight",
+                          mBMI>=18.5 & mBMI<25 ~ "Normal",
+                          mBMI>=25 & mBMI<30~ "Overweight",
+                          mBMI >= 30 ~ "Obese"),
+         nBMI=factor(nBMI, levels=c("Underweight", "Normal", "Overweight", "Obese")),
+         PTB=case_when(GAAD<37~"P",
+                       GAAD>=37~"T"),
+         mRace=factor(mRace, levels=c("A", "B", "W", "O")),
+         GAAC=as.numeric(GAAC)) %>%
+  replace_na(list(Var="Unmapped", Clade="Unknown")) %>%
+  mutate(Var=case_when(Var=="Unmapped"~"Unmapped",
+                       Var!="Unmapped"~paste0("G", str_extract(Var, "(?<=G4_)[0-9]"))))
+```
+
+# Descriptives
+  Describe cohorts and samples
+## Table
+```{r, message=FALSE, warning=FALSE}
+mDF <- v4DF %>%
+  select("Study", "Abbr", "SubjectID", "PTB", "GAAD", "mAge", "mBMI", "mRace") %>%
+  unique
+
+sample_counts <- gv_v4$v4_meta %>% #Studies and samples in V4 sample data frame
+  rownames_to_column(var="Sample") %>%
+  group_by(Study, Abbr) %>%
+  summarize_at(c("SubjectID", "Sample"), n_distinct) %>% #want to look at number of subjects and samples
+  mutate(`Mean samples/subject`=round(Sample/SubjectID, 1))  %>%
+  dplyr::rename(Abbreviation=Abbr,
+                `N subjects`=SubjectID,
+                `N samples`=Sample)
+
+GAAD <- mDF %>%
+  group_by(Study, PTB) %>%
+  summarise(GAAD=round(mean(GAAD, na.rm=TRUE), 1)) %>%
+  spread(PTB, GAAD) %>%
+  mutate(`GAAD (P/T)`=paste(P, `T`, sep="/")) %>%
+  select(Study, `GAAD (P/T)`)
+
+participant_age <- mDF %>%
+  group_by(Study) %>%
+  summarise(Age=round(mean(mAge,na.rm=TRUE), 1),
+            min=min(mAge, na.rm=TRUE),
+            max=max(mAge,na.rm = TRUE)) %>%
+  mutate(`Maternal Age (mean, range)`=paste0(Age," (", min, "-", max, ")"),
+         `Maternal Age (mean, range)`=na_if(`Maternal Age (mean, range)`, "NaN (Inf--Inf)")) %>%
+  select(Study, `Maternal Age (mean, range)`)
+
+participant_race <- mDF %>% 
+  count(Study, mRace) %>%
+  spread(mRace, n) %>%
+  replace_na(list(A=0, B=0, W=0, O=0)) %>%
+  mutate(`Maternal Race (A/B/W/O)`=paste(A, B, W, O, sep='/')) %>%
+  mutate(`Maternal Race (A/B/W/O)`=na_if(`Maternal Race (A/B/W/O)`, "0/0/0/0")) %>%
+  select(Study, `Maternal Race (A/B/W/O)`)
+
+participant_BMI <- mDF %>%
+  group_by(Study) %>%
+  group_by(Study) %>%
+  summarise(BMI=round(mean(mAge,na.rm=TRUE), 1),
+            min=min(mAge, na.rm=TRUE),
+            max=max(mAge,na.rm = TRUE)) %>%
+  mutate(`Maternal BMI (mean, range)`=paste0(BMI," (", min, "-", max, ")"),
+         `Maternal BMI (mean, range)`=na_if(`Maternal BMI (mean, range)`, "NaN (Inf--Inf)")) %>%
+  select(Study, `Maternal BMI (mean, range)`)
+
+study_locations <- tibble(Study=sample_counts$Study, `Study Location (City, Country)`=c("Lima, Peru", "Palo Alto, USA", "Birmingham, USA", "Palo Alto, USA", "Baltimore, USA", "Birmingham, USA", "Quebec, Canada"))
+
+v4_study_table <- sample_counts %>%
+  left_join(GAAD, by="Study") %>%
+  left_join(participant_age, by="Study") %>%
+  left_join(participant_race, by="Study") %>%
+  left_join(participant_BMI, by="Study") %>%
+  left_join(study_locations, by="Study") %>%
+  kbl(caption = "Table S2. V4 16S Studies") %>%
+  kable_classic(full_width=TRUE, html_font = "Arial")
+
+v4_study_table
+#save_kable(v4_study_table, file = file.path(figureOut, paste(Sys.Date(), "TableS2_metadata.png", sep="_")), zoom=5)
+```
+
+## Figures
+### PTB
+```{r, message=FALSE, warning=FALSE}
+v4DF %>%
+  select(Abbr, SubjectID, PTB) %>%
+  unique() %>%
+  group_by(Abbr, PTB) %>%
+  summarise(n=n()) %>%
+  mutate(proportions=n/sum(n)) %>%
+ ggplot(aes(x=Abbr, y=proportions, fill=PTB)) +
+  geom_bar(stat = "identity") +
+  binaryColors +
+  labs(x=NULL, title="V4 Maternal PTB by Study")
+```
+
+### Race
+```{r, message=FALSE, warning=FALSE}
+v4DF %>%
+  filter(Abbr!="Pe") %>%
+  replace_na(list(mRace="O")) %>%
+  select(Abbr, SubjectID, mRace) %>%
+  unique() %>%
+  group_by(Abbr, mRace) %>%
+  summarise(n=n()) %>%
+  mutate(proportions=n/sum(n)) %>%
+ ggplot(aes(x=Abbr, y=proportions, fill=mRace)) +
+  geom_bar(stat = "identity") +
+  labs(x=NULL, color="BMI", title="V4 Maternal Race by Study")
+```
+
+### BMI
+```{r, message=FALSE, warning=FALSE}
+v4DF %>%
+  select(Abbr, SubjectID, nBMI) %>%
+  unique() %>%
+  group_by(Abbr, nBMI) %>%
+  summarise(n=n()) %>%
+  mutate(proportions=n/sum(n)) %>%
+ ggplot(aes(x=Abbr, y=proportions, fill=nBMI)) +
+  geom_bar(stat = "identity") +
+  quadColors +
+  labs(x=NULL, title="V4 Maternal BMI by Study")
+```
+
+# Distribution of ASVs
+## Number of ASVs per study
+```{r, message=FALSE, warning=FALSE}
+v4DF %>%
+  filter(Abundance!=0) %>%
+  group_by(Study) %>%
+  summarise(nASV=n_distinct(ASVnum)) %>%
+  formattable()
+```
+
+## Most abundant ASVs
+```{r, message=FALSE, warning=FALSE}
+v4DF %>%
+  mutate(Abundance=Abundance*100) %>%
+  with_groups(c(ASVnum, Var, Clade), summarize, mean=mean(Abundance)) %>%
+  mutate(percent=mean/sum(mean)*100) %>%
+  arrange(-percent) %>%
+  top_n(10, percent) %>%
+  mutate(n=row_number()) %>%
+  select(n, everything()) %>%
+  formattable
+```
+
+  The five mapped ASVs are the top five most abundant ASVs
+
+```{r, message=FALSE, warning=FALSE}
+v4DF %>%
+  mutate(Abundance=Abundance*100) %>%
+  with_groups(c(ASVnum, Var, Clade), summarize, mean=mean(Abundance)) %>%
+  mutate(percent=mean/sum(mean)*100) %>%
+  arrange(-percent) %>%
+  top_n(5, percent) %>%
+  summarize(top5percent=sum(percent))
+```
+
+
+
+## The abundance of ASVs in each study
+```{r, message=FALSE, warning=FALSE}
+#fig.width=7, fig.height=4
+v4DF %>%
+  #with_groups(c(Study, ASVnum, Clade), summarize, Abundance=mean(Abundance)) %>%
+  ggplot(aes(x=ASVnum, y=Abundance)) +
+  geom_jitter(aes(color=Clade), alpha=0.5) +
+  geom_boxplot(alpha=0) +
+  scale_color_manual(values=c("#b22222", "#6f2da8", "#214fc6", "#E69F00", "#009E73", "#A9A9A9")) +
+  scale_y_log10() +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.y = element_text(size=16),
+        axis.title = element_text(size=20),
+        legend.text = element_text(size=16),
+        legend.title = element_text(size=20)) +
+  facet_grid(Study~.) +
+  labs(x="ASV", y="Relative Abundance", fill="Clade")
+#ggsave(filename = file.path(figureOut, paste(Sys.Date(), "FigureS12_allASVRelativeAbundance.png", sep="_")))
+```
+
+## Abundance of mapped ASVs in each study
+```{r, message=FALSE, warning=FALSE}
+v4DF %>%
+  ggplot(aes(x=Var, y=Abundance, color=Var)) +
+  geom_jitter(alpha=0.5) +
+  geom_boxplot(alpha=0, color="black") +
+  facet_wrap(~Study) +
+  scale_color_manual(values=c("#214fc6", "#b22222",  "#6f2da8", "#E69F00", "#009E73", "#A9A9A9")) +
+  theme(axis.text.x= element_text(angle=45, hjust=1),
+        legend.position = "none") +
+  labs(x="ASV", y="Relative Abundance")
+```
+
+## Mean abundance of mapped ASVs
+```{r, message=FALSE, warning=FALSE}
+ASVrelAb <- v4DF %>%
+  filter(Var!="Unmapped") %>%
+  group_by(Abbr, Var, Clade) %>%
+  summarize(meanAbundance=mean(Abundance)) %>%
+  ggplot(aes(x=Abbr, y=meanAbundance, fill=Clade)) +
+  geom_bar(stat="identity") +
+  facet_grid(.~Var) +
+  scale_fill_manual(values=c("#b22222", "#6f2da8", "#214fc6", "#E69F00", "#009E73", "#A9A9A9")) +
+  theme(axis.text.x = element_text(angle=45, size=9),
+        legend.position = "bottom") +
+  labs(x="Study", y="Relative Abundance")
+ASVrelAb
+```
+
+## ASV Prevalence
+```{r, message=FALSE, warning=FALSE}
+v4DF %>%
+  filter(Var!="Unmapped") %>%
+    mutate(Abundance=case_when(Abundance>0~1,
+                             Abundance==0~0),
+         ASVnum = as.numeric(ASVnum)) %>%
+  group_by(Study, Var) %>%
+  summarise(Prevalence=sum(Abundance)/n_distinct(Sample)) %>%
+  formattable
+
+v4DF %>%
+  mutate(Abundance=case_when(Abundance>0~1,
+                             Abundance==0~0),
+         ASVnum = as.numeric(ASVnum)) %>%
+  group_by(Study, Clade, ASVnum) %>%
+  summarise(Prevalence=sum(Abundance)/n_distinct(Sample)) %>%
+  ggplot(aes(x=ASVnum, y=Prevalence, fill=Clade)) +
+  geom_col(stat="identity") +
+  facet_wrap(~Study) +
+  scale_fill_manual(values=c("#b22222", "#6f2da8", "#214fc6", "#E69F00", "#009E73", "#A9A9A9")) +
+  theme(axis.text.x = element_blank()) +
+  scale_x_continuous(breaks = seq(1,98,1)) +
+  labs(y="Prevelance", x="ASV")
+```
+
+## Number of ASVs per sample per study
+```{r, message=FALSE, warning=FALSE}
+v4Samples <- gv_v4$v4_meta %>%
+  rownames_to_column(var="Sample") %>%
+  select(Sample, Study)
+
+ASVperSample <- v4DF %>%
+  filter(Abundance!=0) %>%
+  group_by(Study, Sample) %>%
+  summarise(nASV=n_distinct(ASVnum)) %>%
+  ungroup %>%
+  full_join(v4Samples, by=c("Sample", "Study")) %>% # add back samples with 0 clades
+  replace_na(list(nASV=0)) %>%
+  ggplot(aes(x=nASV)) +
+  geom_bar(aes(y = ..prop..,fill = factor(..x..)), stat = "count") + #percent of sample with each count of Gard ASVs
+  scale_fill_manual(values = rep("black", 9)) + #filling bar graph with the color black
+  theme(legend.position="none") + #No legend present
+  facet_wrap(~Study) +
+  scale_x_continuous(breaks=seq(0,8,1)) +
+  labs(x="Gardnerella ASVs per sample")
+ASVperSample
+```
+
+# PTB
+Abundance of mapped variants in term vs. preterm births
+```{r, message=FALSE, warning=FALSE}
+ASVbyPTB <- v4DF %>%
+  filter(Var!="Unmapped") %>%
+  group_by(SubjectID, Study, Abbr, PTB, Var) %>%
+  summarize(meanAbundance=mean(Abundance)) %>%
+  ggplot(aes(x=PTB, y=meanAbundance, color=PTB)) +
+  geom_jitter(alpha=0.5) +
+  geom_boxplot(alpha=0, color="black") +
+  facet_grid(Abbr~Var) +
+  theme(legend.position = "none") +
+  binaryColors +
+  labs(x=NULL, y="Relative Abundance")
+ASVbyPTB
+```
+# Linear mixed model
+## Data distribution and transformation
+```{r, message=FALSE, warning=FALSE}
+v4DF %>%
+  filter(Var!="Unmapped") %>%
+  group_by(Study, Var, PTB, SubjectID) %>%
+  summarise(AverageAbundance=mean(Abundance)) %>%
+  ungroup() %>%
+  mutate(sqrt=sqrt(AverageAbundance), #square root transformation
+        frthrt=AverageAbundance^(1/4), #fourth root transformation
+        log=log10(AverageAbundance + 1e-5)) %>% #log10 transformation with pseudocount
+  gather("transf", "value", c(AverageAbundance, sqrt, frthrt, log)) %>%
+  ggplot(aes(x=value)) +
+  geom_histogram() +
+  facet_wrap(~transf, scales = "free")
+```
+  
+  Choose log transformation with pseudocount.
+
+```{r, message=FALSE, warning=FALSE}
+modelInput <- v4DF %>%
+  filter(Var!="Unmapped") %>%
+  mutate(PTB=factor(PTB, levels = c("T", "P"))) %>%
+  group_by(Study, Var, PTB, SubjectID) %>%
+  summarise(Abundance=mean(Abundance)) %>%
+  ungroup() %>%
+  mutate(Abundance=log10(Abundance + 1e-5))
+
+models <- modelInput %>%
+  group_by(Var) %>%
+  nest %>%
+  mutate(model=map(data, ~lme4::lmer(Abundance~1 + PTB  + (1|Study), data = .x)),
+        confints=map(model, confint %>% as.data.frame),
+        confints=map(confints, ~rownames_to_column(.x, var="term")),
+        model=map(model, tidy))
+
+modelPlot <-models %>%
+  select(-data) %>%
+  mutate(model=map(model, ~filter(.x, term=="PTBP")),
+         confints=map(confints, ~filter(.x, term=="PTBP"))) %>%
+  unnest(model, confints) %>%
+  mutate(Var=factor(Var, levels=c("G5", "G4", "G3", "G2", "G1"))) %>%
+  ggplot() +
+  geom_pointrange(aes(y=Var, x=estimate, xmin=value.2.5.., xmax=value.97.5..)) +
+  geom_vline(xintercept = 0, linetype=2, color="gray") +
+  labs(y="V4 Variant")
+modelPlot
+```
+
+# Figure 7: Gardnerella ASVs in 7 previous studies
+```{r, message=FALSE, warning=FALSE}
+#fig.width=5, fig.height=4
+fig7AB <- plot_grid(ASVperSample, ASVrelAb, nrow = 1, labels = c("A", "B"), label_size = 15)
+fig7CD <- plot_grid(ASVbyPTB, modelPlot,  nrow = 1, labels = c("C", "D"), label_size = 15)
+plot_grid(fig7AB, fig7CD, nrow=2, rel_heights = c(1, 1.25))
+#ggsave(filename = file.path(figureOut, paste(Sys.Date(), "Figure7_multistudyASVs.png")))
+```
+
+
+# Race
+  Abundance of mapped variants by self-reported subject race
+```{r, message=FALSE, warning=FALSE}
+v4DF %>%
+  filter(Abbr!="Bl", Var!="Unmapped") %>%
+  group_by(SubjectID, Study, Abbr, mRace, Var) %>%
+  summarize(meanAbundance=mean(Abundance)) %>%
+  ggplot(aes(x=mRace, y=meanAbundance, color=mRace)) +
+  geom_jitter(alpha=0.5) +
+  geom_boxplot(alpha=0, color="black") +
+  scale_color_discrete(labels = c("Asian", "Black", "White", "Other")) +
+  facet_grid(Abbr~Var) +
+  theme(legend.position = "bottom") +
+  labs(x=NULL, y="Relative Abundance", color="Race")
+```
+
+# Session info
+```{r}
+sessionInfo()
+```

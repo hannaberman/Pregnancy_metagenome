@@ -1,0 +1,364 @@
+---
+title: "Gardnerella ASVs from Meta-Analysis Data"
+author: "Hanna Berman"
+date: "7/26/2021"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(dada2)
+`%!in%` <- negate(`%in%`)
+```
+
+  Downloaded updated data from CH on 7/26/21. Data in "/Volumes/GoogleDrive/My Drive/Callahan Lab/TriCEM_grad_award/Data/ASV_meta.Rdata".
+
+  Updated data has been further truncated and metadata has been updated (ie race). Taxa have not been assigned for all ASVs. The following is to:
+  1) Assign taxa to all ASVs in each study
+  2) Subset taxonomy and ASV tables to *Gardnerella* ASVs only
+  3) Organize data. This includes combining Brown studies, removing samples used in Brown A and Brown B, and correcting discrepancies in maternal race in subjects that appear in both cohorts and use Brown B race as a default. 
+
+# Set up
+  Load in data and create some helpful objects to store names of studies.
+```{r, message=FALSE, warning=FALSE}
+# data directory outside repository for larger items
+data_dir <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/TriCEM_grad_award/Data"
+
+# reference Gardnerella sequences and clades
+clade_df <- read_csv("./Data/refGardnerellaCladesGenomos.csv")
+ref_16S <- read_csv("./Data/ref16s.csv") 
+
+ref_16S_clades <- ref_16S %>%
+  left_join(clade_df[,c("Strain", "Clade")], by="Strain")
+
+# David data
+load(file.path(data_dir, "ASV_meta.Rdata"))
+
+# make columns that are read in as character or numeric all consistent
+ASV_meta$meta <- ASV_meta$meta %>%
+    map(~mutate(.x, SampleID=as.character(SampleID),
+                  SubjectID=as.character(SubjectID),
+                  mAge=as.numeric(as.character(mAge)),
+                  mRace=as.character(mRace)))
+
+ASV_meta$meta$Pe_v4$Study <- "Blostein2020" # rename Peru study to Blostein 2020
+ASV_meta$meta$Pe_v4$Abbr <- "Bl"
+
+# v1 studies
+names(ASV_meta$ASV$original)[str_detect(names(ASV_meta$ASV$original), "v1")]
+# v4 studies
+names(ASV_meta$ASV$original)[str_detect(names(ASV_meta$ASV$original), "v4")]
+```
+
+# Assign taxa
+## V1-V2 region
+  1) Select studies that use V1-V2 region and create ASV table to input into assignTaxonomy() command.
+```{r, message=FALSE}
+v1_ASV_seqs <- ASV_meta$ASV$original[str_detect(names(ASV_meta$ASV$original), "v1")] %>%
+  map(colnames) %>%
+  unlist() %>%
+  unique()
+
+head(v1_ASV_seqs)
+```
+
+  2) Run assignTaxonomy with Silva training set version 138.1
+```{r, eval=FALSE}
+v1_taxa <- assignTaxonomy(v1_ASV_seqs, file.path(data_dir, "silva_nr99_v138.1_train_set.fa.gz"), multithread=TRUE)
+```
+
+```{r}
+head(v1_taxa)
+```
+
+## V4 region
+  1) Select studies that use V4 region and create ASV table to input into assignTaxonomy() command.
+```{r, message=FALSE}
+v4_ASV_seqs <- ASV_meta$ASV$original[str_detect(names(ASV_meta$ASV$original), "v4")] %>%
+  map(colnames) %>%
+  unlist() %>%
+  unique()
+
+head(v4_ASV_seqs)
+```
+
+  2) Run assignTaxonomy with Silva training set version 138.1
+```{r, eval=FALSE}
+v4_taxa <- assignTaxonomy(v4_ASV_seqs, file.path(data_dir, "silva_nr99_v138.1_train_set.fa.gz"), multithread=TRUE)
+```
+
+```{r}
+head(v4_taxa)
+```
+
+# Organize data
+## V1-V2 region
+### Metadata
+  The metadata tables have the following columns:
+  * Study
+  * Abbr (Abbreviation of study name)        
+  * SampleID    
+  * SubjectID    
+  * GAAC (gestational age at collection)
+  * GAAD (gestational age at delivery)
+  * mAge (maternal age)        
+  * mBMI (maternal BMI)          
+  * mRace (maternal race, A: asian; B: black; W: white; O: other)          
+  * PPROM (1 is yes; 0 is no)        
+  * pPTB (prior PTB; 1 is yes; 0 is no)        
+  * sDel (spontaneous delivery, 1 is yes; 0 is no)        
+  * GC (gestational complication)          
+  * Intervention
+  * Preterm (if preterm birth based on 37 weeks; 1 is yes; 0 is no)
+
+  First condense Brown studies into one
+```{r, message=FALSE}
+baMatchDF <- read_csv("./Data/Metadata/Browna_RBupdated.csv") # note manually changed file names to match naming scheme in David's data
+
+#overlapping samples
+overlap_sample <-  baMatchDF %>%
+  filter(`Sample used in Brown BMC Med 2018`=="y") %>%
+  .$`PRJEB30642 run_accession`
+
+#overlapping subjects
+overlap_subject  <- ASV_meta$meta$Ba_v1 %>%
+  filter(SampleID %in% overlap_sample) %>%
+  .$SubjectID %>%
+  unique
+```
+
+  Race is not consistent between the two studies
+
+```{r}
+# Edit Ba metadata
+ASV_meta$meta$Ba_v1 <- ASV_meta$meta$Ba_v1 %>%
+  filter(!(SampleID %in% overlap_sample)) %>% # remove overlapping (duplicated samples)
+  left_join(ASV_meta$meta$Bb_v1[,c("SubjectID", "mRace")], by="SubjectID") %>% # join Bb table to adjust races of overlapping subjects
+  mutate(mRace.x=case_when((SubjectID %in% overlap_subject)~mRace.y, # substitute races of Ba in overlapping subjects with races of Bb
+                           !(SubjectID %in% overlap_subject)~mRace.x), # don't change non-overlapping subjects
+         SubjectID=case_when(!(SubjectID %in% overlap_subject)~paste(SubjectID, "Ba", sep="_"),
+                             (SubjectID %in% overlap_subject)~SubjectID)) %>% # change names of non-overlapping SubjectIDs in Brown A study
+  select(-mRace.y) %>% # remove extra column
+  dplyr::rename(mRace=mRace.x) %>% # change column name back to mRace
+  unique # remove duplicate rows created by left-join
+
+# rename Brown studies to remove Brown A and Brown B distinctions
+ASV_meta$meta$Ba_v1$Study <- "Brown2018"
+ASV_meta$meta$Ba_v1$Abbr <- "Br"
+ASV_meta$meta$Bb_v1$Study <- "Brown2018"
+ASV_meta$meta$Bb_v1$Abbr <- "Br"
+```
+
+  Sanity check that races match
+```{r}
+ASV_meta$meta$Ba_v1 %>%
+  select(SubjectID, mRace) %>%
+  unique() %>%
+  inner_join(ASV_meta$meta$Bb_v1[,c("SubjectID", "mRace")], by="SubjectID") %>%
+  mutate(test=(mRace.x==mRace.y)) %>%
+  unique %>%
+  .$test %>%
+  table
+```
+
+  All match!
+
+ Create one metadata table
+```{r}
+v1_meta <- ASV_meta$meta[str_detect(names(ASV_meta$meta), "v1")] %>%
+  purrr::reduce(full_join, by = c("Study", "Abbr", "SampleID", "SubjectID", "GAAC", "GAAD", "mAge", "mBMI", "mRace", "PPROM", "pPTB", "sDel", "GC", "Intervention", "Preterm")) %>%
+  mutate(mRace=case_when(mRace=="C"~"W",
+                         mRace!="C"~mRace), # change C's to W's
+        mRace=case_when(SubjectID=="EP021899"~"O", 
+                        SubjectID!="EP021899"~mRace)) %>% #one subect in Fettweis study is listed as C/W but also indicated american_indian_or_alaska_native on history form so should be O/Other
+  column_to_rownames(var="SampleID")
+
+head(v1_meta)
+```
+
+### Taxa
+  Get sequences
+```{r}
+v1_gv_seqs <- v1_taxa %>%
+  as.data.frame() %>%
+  filter(Genus=="Gardnerella") %>%
+  rownames
+
+length(v1_gv_seqs)
+```
+
+  Get the clade identities of the ASVs based on full length 16S rRNA sequences from whole genome sequenced Gardnerella strains
+```{r}
+# Create new variantDF
+v1_asv_clades <- ref_16S_clades %>%
+  select(sequence, Clade) %>%
+  unique %>%
+  mutate(sequence=map(sequence, ~map2(.x, v1_gv_seqs, ~str_extract(.x, .y))), # sequentially check for truncated ASV sequences and extract
+         sequence=map(sequence, ~discard(.x, is.na)), # remove NAs where there were no matches
+         len=map(sequence, length)) %>% #check number of matches and filter rows with no matches
+  filter(len>0) %>%
+  unnest(cols=sequence) %>% # unlist sequence column lists into multiple rows
+  select(-len) %>%
+  dplyr::rename(asv = sequence) %>%
+  select(asv, Clade) %>%
+  unique() %>%
+  filter(!is.na(asv)) %>%
+  group_by(asv) %>%
+  summarize(Clade=paste(Clade, collapse = ",")) %>%
+  mutate(SeqWidth = nchar(asv, type = "chars", allowNA = FALSE, keepNA = NA),
+         Clade=case_when(Clade=="C2,C1,C3,C4"~"C1,C2,C3,C4",
+                         Clade!="C2,C1,C3,C4"~Clade), # change order of clades in this variant
+          Var=case_when(Clade=="C1,C2,C3,C4"&SeqWidth==138~"G12_1",
+                        Clade=="C1,C2,C3,C4"&SeqWidth==145~"G12_1-Long", # name variants
+                        Clade=="C3,C4"~"G12_2",
+                        Clade=="C5"~"G12_3",
+                        Clade=="C6"~"G12_4"),
+         asv=unlist(asv)) %>%
+  select(asv, Clade, Var, SeqWidth)
+
+v1_asv_clades
+
+#table for ignoring rare longer G12_1 variant
+v1_asv_clades_join <- v1_asv_clades %>%
+  filter(SeqWidth==138)
+```
+ 
+  Create taxa table with only *Gardnerella* sequences and clade information
+```{r}
+v1_taxa_gv <- v1_taxa %>%
+  as.data.frame() %>%
+  filter(Genus=="Gardnerella") %>%
+  rownames_to_column(var="asv") %>%
+  left_join(v1_asv_clades_join[,c("asv", "Clade", "Var")], by="asv") %>%
+  mutate(ASVnum=1:nrow(.)) %>% # add a simple numbering scheme
+  column_to_rownames(var="asv") # make asvs tax names as column
+head(v1_taxa_gv)
+nrow(v1_taxa_gv)
+```
+
+### ASVs
+```{r, message=FALSE}
+v1_asv_gv <- ASV_meta$ASV$original[str_detect(names(ASV_meta$ASV$original), "v1")] %>%
+  map(as.data.frame) %>%
+  map(~select(.x, contains(rownames(v1_taxa_gv)))) %>%
+  map(~rownames_to_column(.x, var="x")) %>%
+  purrr::reduce(full_join) %>%
+  column_to_rownames(var="x") %>%
+  mutate_all(~(replace_na(., 0)))
+
+v1_asv_gv_prop <- ASV_meta$ASV$original[str_detect(names(ASV_meta$ASV$original), "v1")] %>%
+  map(~.x/rowSums(.x)) %>%
+  map(as.data.frame) %>%
+  map(~select(.x, contains(rownames(v1_taxa_gv)))) %>%
+  map(~rownames_to_column(.x, var="x")) %>%
+  purrr::reduce(full_join) %>%
+  column_to_rownames(var="x") %>%
+  mutate_all(~(replace_na(., 0)))
+```
+
+## V4 region
+### Metadata
+```{r}
+rs_list <- ASV_meta$meta$Di_v4 %>%
+  filter(str_detect(SampleID, "rs")) %>%
+  .$SampleID %>%
+  str_extract(".*(?=_rs)")
+
+v4_meta <- ASV_meta$meta[str_detect(names(ASV_meta$meta), "v4")] %>%
+  purrr::reduce(full_join, by = c("Study", "Abbr", "SampleID", "SubjectID", "GAAC", "GAAD", "mAge", "mBMI", "mRace", "PPROM", "pPTB", "sDel", "GC", "Intervention", "Preterm")) %>%
+  mutate(mRace=case_when(mRace=="C"~"W",
+                         mRace!="C"~mRace)) %>% # change C's to W's
+  replace_na(list(mRace="O")) %>% # subject 40069 in UAB cohort is NA, should be other
+  filter(SampleID %!in% rs_list) %>% # remove samples that have been resequenced (keep the "_rs" versions)
+  column_to_rownames(var="SampleID")
+
+head(v4_meta)
+```
+
+### Taxa
+  Get sequences
+```{r}
+v4_gv_seqs <- v4_taxa %>%
+  as.data.frame() %>%
+  filter(Genus=="Gardnerella") %>%
+  rownames
+```
+
+  Get the clade identities of the ASVs based on full length 16S rRNA sequences from whole genome sequenced Gardnerella strains
+```{r}
+v4_asv_clades <- ref_16S_clades %>%
+  select(sequence, Clade) %>%
+  unique %>%
+  mutate(sequence=map(sequence, ~map2(.x, v4_gv_seqs, ~str_extract(.x, .y))),
+         sequence=map(sequence, ~discard(.x, is.na)),
+         len=map(sequence, length)) %>%
+  filter(len>0) %>%
+  unnest(cols=sequence) %>%
+  select(-len) %>%
+  dplyr::rename(asv = sequence) %>%
+  select(asv, Clade) %>%
+  unique() %>%
+  filter(!is.na(asv)) %>%
+  group_by(asv) %>%
+  summarize(Clade=paste(Clade, collapse = ",")) %>%
+  mutate(Clade=case_when(Clade=="C2,C1"~"C1,C2",
+                         Clade!="C2,C1"~Clade), # change order of clades in this variant
+          Var=case_when(Clade=="C3,C4"~"G4_1", # name variants
+                        Clade=="C1,C2"~"G4_2",
+                        Clade=="C1,C2,C3"~"G4_3",
+                        Clade=="C5"~"G4_4",
+                        Clade=="C6"~"G4_5"),
+           SeqWidth = nchar(asv, type = "chars", allowNA = FALSE, keepNA = NA),
+         asv=unlist(asv))
+
+v4_asv_clades
+```
+
+
+  Create taxa table with only *Gardnerella* sequences and clade information
+```{r}
+v4_taxa_gv <- v4_taxa %>%
+  as.data.frame() %>%
+  filter(Genus=="Gardnerella") %>%
+  rownames_to_column(var="asv") %>%
+  left_join(v4_asv_clades[,c("asv", "Clade", "Var")], by="asv") %>%
+  mutate(ASVnum=1:nrow(.)) %>% # add a simple numbering scheme
+  column_to_rownames(var="asv") # make asvs tax names as column
+head(v4_taxa_gv)
+nrow(v4_taxa_gv)
+```
+
+### ASVs
+```{r, message=FALSE}
+v4_asv_gv <- ASV_meta$ASV$original[str_detect(names(ASV_meta$ASV$original), "v4")] %>%
+  map(as.data.frame) %>%
+  map(~select(.x, contains(rownames(v4_taxa_gv)))) %>%
+  map(~rownames_to_column(.x, var="x")) %>%
+  purrr::reduce(full_join) %>%
+  column_to_rownames(var="x")  %>%
+  mutate_all(~(replace_na(., 0)))
+
+v4_asv_gv_prop <- ASV_meta$ASV$original[str_detect(names(ASV_meta$ASV$original), "v4")] %>%
+  map(~.x/rowSums(.x)) %>%
+  map(as.data.frame) %>%
+  map(~select(.x, contains(rownames(v4_taxa_gv)))) %>%
+  map(~rownames_to_column(.x, var="x")) %>%
+  purrr::reduce(full_join) %>%
+  column_to_rownames(var="x") %>%
+  mutate_all(~(replace_na(., 0)))
+```
+
+
+# Save object
+```{r}
+gv_v1 <- list(v1_meta=v1_meta, v1_taxa_gv=v1_taxa_gv, v1_asv_gv=v1_asv_gv, v1_asv_gv_prop=v1_asv_gv_prop)
+gv_v4 <- list(v4_meta=v4_meta, v4_taxa_gv=v4_taxa_gv, v4_asv_gv=v4_taxa_gv, v4_asv_gv_prop=v4_asv_gv_prop)
+```
+```{r, eval=FALSE}
+save(gv_v1, gv_v4, file = "./Data/multistudy_gardnerella_asvs.Rdata")
+```
+
+# Session info
+```{r}
+sessionInfo()
+```

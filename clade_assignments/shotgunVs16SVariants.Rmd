@@ -4,10 +4,15 @@ author: "Hanna Berman"
 date: "12/10/2019"
 output: html_document
 ---
+
+  Compare core genome mapping method to 16S rRNA gene amplicon sequencing variants of *Gardnerella*
+
 # Set up
 ## Packages
 ```{r, warning=FALSE}
 library(tidyverse)
+```
+```{r, message=FALSE, warning=FALSE}
 library(phyloseq)
 library(Biostrings)
 library(formattable)
@@ -18,8 +23,8 @@ library(cowplot)
 ## Paths
 ```{r, warning=FALSE, message=FALSE}
 repoDir <- ".."
-dataDir <- "/Volumes/GoogleDrive-103667279570938865306/My Drive/Callahan Lab/metagenome_gardnerella"
-figureOut <- "/Volumes/GoogleDrive-103667279570938865306/My Drive/Callahan Lab/metagenome_gardnerella/FIGURES/V5_manuscript_figures/gardnerella_mapping"
+dataDir <- "../../"
+figureOut <- "../../FIGURES/submission_manuscript_figures"
 
 #shotgun metadata
 sgDF <- file.path(repoDir, "sumgsDF.tsv") %>%
@@ -283,7 +288,8 @@ unique(gardAllVarDF$Var)
 
 ## View assignments
   First pass assignmentby mapping reads to variants without imposing any read count thresholds. 
-```{r, warning=FALSE, message=FALSE, fig.width=5, fig.height=4}
+```{r, warning=FALSE, message=FALSE}
+#fig.width=5, fig.height=4
 gardAllVarDF %>%
   ggplot(aes(x=GWcoll, y=propGard, shape=Method, size=Method, color=Var)) +
   geom_point() +
@@ -311,7 +317,8 @@ gardAllVarDF %>%
 # Test Thresholds
   Determine how many reads must map to each variant to count the variant as present.
   View variants over ranges of thresholds:
-```{r, message=FALSE, warning=FALSE, fig.height=6, fig.width=9}
+```{r, message=FALSE, warning=FALSE}
+#fig.height=6, fig.width=9
 # create data frames
 thresholds <- c(1:49) %>% # set the threshold range
   map(~filter(gardAllVarDF, n>.x)) %>% # filter out clades below read threshold 
@@ -351,8 +358,8 @@ gardAllVarDFThresholds %>%
   labs(x="Threshold (reads ≥ n)", y="Proportion of Gardnerella")
 ```
   View count of variants over ranges of thresholds
-```{r, message=FALSE, warning=FALSE, fig.height=5, fig.width=6}
-#fig.height=5, fig.width=6}
+```{r, message=FALSE, warning=FALSE}
+#fig.height=5, fig.width=6
 V4Vars <- gardAllVarDF %>%
   filter(Method=="V4 region 16S amplicon") %>%
   select(SampleID, Var, propGard) %>%
@@ -712,7 +719,7 @@ gardAllVarDF_withThreshold %>%
 ```
 
 ## All variants
-```{r, message=FALSE, warning=FALSE, fig.width=6, fig.height=3.5}
+```{r, message=FALSE, warning=FALSE}
 gardAllVarDF_withThreshold %>%
 ggplot(aes(x=GWcoll, y=propGard, shape=Method, size=Method, color=Var)) +
   geom_point() +
@@ -721,7 +728,6 @@ ggplot(aes(x=GWcoll, y=propGard, shape=Method, size=Method, color=Var)) +
   labs(x="Gestation weeks at collection", y="Proportion of Gardnerella", shape="Method", color="Variant") +
   guides(color=guide_legend(override.aes=list(shape=15, size=3))) +
   xlim(0,40)
-#ggsave(file.path(figureOut, "allVariants.png"), width=10, height=6)
 ```
 
 ## Clades vs. 16S
@@ -735,11 +741,10 @@ ggplot(aes(x=GWcoll, y=propGard, shape=Method, size=Method, color=Var)) +
   labs(x="Gestation weeks at collection", y="Proportion of Gardnerella", shape="Method", color="Variant") +
   guides(color=guide_legend(override.aes=list(shape=15, size=3))) +
   xlim(0,40)
-#ggsave(file.path(figureOut, "16SvsClade.png"), width=8, height=6)
 ```
 
 ## Shotgun methods only
-```{r, message=FALSE, warning=FALSE, fig.width=4.5, fig.height=3.5}
+```{r, message=FALSE, warning=FALSE}
 gardAllVarDF_withThreshold %>%
   filter(Method!="V4 region 16S amplicon") %>%
   ggplot(aes(x=GWcoll, y=propGard, shape=Method, size=Method, color=Var)) +
@@ -749,7 +754,6 @@ gardAllVarDF_withThreshold %>%
   labs(x="Gestation weeks at collection", y="Proportion of Gardnerella", shape="Method", color="Variant") +
   guides(color=guide_legend(override.aes=list(shape=15, size=3), ncol=2)) +
   xlim(0,40)
-#ggsave(filename = file.path(figureOut, "shotgunMethods.png"))
 ```
 
 # Comparing methods alternate figures
@@ -903,13 +907,14 @@ cladeVsGsPlot <- gardAllVarDF_withThreshold %>%
 cladeVsGsPlot
 ```
 
-## Figure 2AB:
-```{r, message=FALSE, warning=FALSE, fig.width=6, fig.height=2}
+## Figure 2ABC:
+```{r, message=FALSE, warning=FALSE}
+#fig.width=6, fig.height=2
 plot_grid(plotlist=list(cladeVs16SPlot, gsVs16SPlot, cladeVsGsPlot), nrow = 1, labels=c("A", "B", "C"), label_size = 15)
-#ggsave(filename = file.path(figureOut, paste(Sys.Date(), "figureABC_mappingvs16S.png", sep="_")))
+#ggsave(filename = file.path(figureOut, paste(Sys.Date(), "figure2ABC_mappingvs16S.png", sep="_")))
 ```
 
-
+  
 # Samples where we lose all Gardnerella
   In subject 10608: No Gardnerella was detected. Shotgun sequencing can demonstrate less sensitivity than amplicon sequencing.
   

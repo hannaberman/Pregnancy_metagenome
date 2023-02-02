@@ -1,14 +1,18 @@
 ---
 title: "Gardnerella mapping vs. MetaPhlAn Results"
 author: "Hanna Berman"
-date: "4/30/2021"
 output: html_document
 ---
-
+  
+  Compare core genome mapping method to MetaPhlAn2 Results
+  
 # Set up
 ## Packages
-```{r}
+```{r, warning=FALSE}
 library(tidyverse)
+```
+
+```{r, warning=FALSE, message=FALSE}
 library(formattable)
 library(ggpubr)
 library(cowplot)
@@ -17,13 +21,13 @@ theme_set(theme_bw())
 
 ## File Paths
 ```{r, message=FALSE, warning=FALSE}
-figureOut <- "/Volumes/GoogleDrive-103667279570938865306/My Drive/Callahan Lab/metagenome_gardnerella/FIGURES/V5_manuscript_figures/gardnerella_mapping"
+figureOut <- "../../FIGURES/submission_manuscript_figures"
 ```
 
 
 ## Abundance
 ### Stanford UAB Data
-```{r}
+```{r, message=FALSE, warning=FALSE}
 #Metaphlan Aabundance:
 suMetaphlanPath <- "../../humann2/merged_tables/mergedMetaphlanAbundance.tsv"
 sumDF <- suMetaphlanPath %>%
@@ -51,7 +55,7 @@ head(sumapCladeAbundance)
 ```
 
 ### HMP2 data
-```{r}
+```{r, message=FALSE, warning=FALSE}
 #Metaphlan Aabundance:
 hmp2MetaphlanPath <- "../../humann2/merged_tables/hmp2mgs_mergedMetaphlanAbundance.tsv"
 hmp2mDF <- hmp2MetaphlanPath %>%
@@ -79,7 +83,7 @@ head(hmp2mapCladeAbundance)
 ```
 
 ### Join
-```{r}
+```{r, message=FALSE, warning=FALSE}
 mapCladeAbundance <- full_join(sumapCladeAbundance, hmp2mapCladeAbundance, by = c("SampleID", "Clade", "n", "propClade"))
 
 metaphlanGardAbundance <- full_join(sumetaphlanGardAbundance, hmp2metaphlanGardAbundance, by = c("SampleID", "metaphlanGardAbundance"))
@@ -88,7 +92,7 @@ metaphlanGardAbundance <- full_join(sumetaphlanGardAbundance, hmp2metaphlanGardA
 
 ### Alignments
   Mapping
-```{r}
+```{r, message=FALSE, warning=FALSE}
 suMappingAlignments <- read_tsv("cladeAlignmentsFinal.tsv")
 
 hmp2MappingAlignments <- read_tsv("./hmp2cladeAlignmentsFinal.tsv")
@@ -121,15 +125,7 @@ metaphlanGardCounts <- full_join(sumetaphlanGardCounts, hmp2metaphlanGardCounts)
 nrow(metaphlanGardCounts)
 ```
 
-```{r}
-#compareDF <- data.frame(SampleID=missingMetaphlan, # add missing rows
-#                        metaphlanReads=0) %>%
-#  rbind(., metaphlanGardCounts) %>%
-#  full_join(mapGardCounts, by="SampleID") %>%
-#  replace_na(list(mapReads=0)) %>%
-#  full_join(metaphlanGardAbundance, by="SampleID")
-
-
+```{r, message=FALSE, warning=FALSE}
 compareDF <- metaphlanGardCounts %>%
   full_join(mapGardCounts, by="SampleID") %>%
   full_join(metaphlanGardAbundance, by="SampleID") %>%
@@ -141,7 +137,7 @@ anyNA(compareDF$metaphlanGardAbundance)
 
 # Compare alignments
  Reads vs. Reads
-```{r}
+```{r, message=FALSE, warning=FALSE}
 compareDF %>%
   ggplot(aes(x=mapReads, y=metaphlanReads)) +
   geom_abline(color="grey", linetype=2) +
@@ -177,8 +173,9 @@ abVreadsPlot
 ```
 
 ## Figure 2D: Gardnerella mapping vs MetaPhlAn
-```{r, message=FALSE, warning=FALSE, fig.width=5, fig.height=2}
-plot_grid(readsVreadsPlot, nrow=1, labels = c("D",), label_size = 15)
+```{r, message=FALSE, warning=FALSE}
+#fig.width=2.5, fig.height=2
+plot_grid(readsVreadsPlot, nrow=1, labels = c("D"), label_size = 15)
 #ggsave(filename = file.path(figureOut, paste(Sys.Date(), "Figure2D_mappingVsMetaphlan.png", sep="_")))
 ```
 
