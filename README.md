@@ -1,5 +1,6 @@
 # pregnancy_metagenome
-Analysis of shotgun metagenomic data from vaginal swabs of pregnant women 
+"*Gardnerella* Diversity and Ecology in Pregnancy and Preterm Birth"
+Analysis of *Gardnerella* clades and species using shotgun metagenomic sequencing data from vaginal swabs of pregnant women 
 
 ##  metadata_files
 
@@ -16,11 +17,11 @@ Filter host data with BBmap
 ## gard_phylogeny
 Create a core genome phylogeny from whole-genome sequences of *Gardnerella* isolates from GenBank
 
-## clade assignments
+## clade_assignments
 Assign shortreads to clades of *Gardnerella vaginalis* using a set of core genes from *G. vaginalis* reference genomes.
 
-## Community Analyses
-`metagenome_gardnerella.Rmd` -- > analyses of Gardnerella variants on community signatures of the vaginal microbiome
+## community and preterm birth analyses
+`metagenome_gardnerella.Rmd`: analyses of Gardnerella clades and genomospecies on community signatures of the vaginal microbiome and preterm birth
 
-## community_profiling
-Functional profiling of vaginal microbiomes using Humann2
+## rarefied_gard_counts
+Rarefy to common read depth of 100,000 microbial reads and then classify Gardnerella clades and genomospecies
