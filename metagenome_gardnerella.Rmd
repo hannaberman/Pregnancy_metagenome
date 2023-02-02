@@ -10,6 +10,7 @@ output:
   
   Assess the presence and abundance of *Gardnerella* spp. and their impacts on the vaginal microbiomes of pregnant women from three distinct cohorts.
   
+  
 # Set up
 ## Load Packages
 ```{r, warning=FALSE}
