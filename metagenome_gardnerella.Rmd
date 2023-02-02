@@ -2384,7 +2384,8 @@ gardCladeAbU %>%
   left_join(sgDF[,c("SampleID", "SubjectID", "Race")], by="SampleID") %>%
   group_by(SubjectID, Cohort, Race, var) %>%
   summarise(meanRelativeAbundance=mean(relativeAbundance)) %>%
-  mutate(var=factor(var, levels = c(clades, "Uncharacterized_Gardnerella",  "Gardnerella_vaginalis"), labels = c(clades, "Unch.", "Total")),
+  filter(var!="Uncharacterized_Gardnerella") %>%
+  mutate(var=factor(var, levels = c(clades, "Gardnerella_vaginalis"), labels = c(clades, "Total")),
          Cohort=factor(Cohort, levels = cohorts, labels=cohortAbbrevs),
          Race=factor(Race, levels=c("Asian", "Black", "White", "Other", "Unknown"))) %>%
   ggplot(aes(x=Race, y=meanRelativeAbundance, color=Race, fill=Race)) +
