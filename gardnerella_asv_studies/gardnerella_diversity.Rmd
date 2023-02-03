@@ -135,11 +135,11 @@ v4_study_table <- sample_counts %>%
   left_join(participant_race, by="Study") %>%
   left_join(participant_BMI, by="Study") %>%
   left_join(study_locations, by="Study") %>%
-  kbl(caption = "Table S2. V4 16S Studies") %>%
+  kbl(caption = "Table S3. V4 16S Amplicon Studies") %>%
   kable_classic(full_width=TRUE, html_font = "Arial")
 
 v4_study_table
-#save_kable(v4_study_table, file = file.path(figureOut, paste(Sys.Date(), "TableS2_metadata.png", sep="_")), zoom=5)
+#save_kable(v4_study_table, file = file.path(figureOut, paste(Sys.Date(), "TableS3_metadata.png", sep="_")), zoom=5)
 ```
 
 ## Figures

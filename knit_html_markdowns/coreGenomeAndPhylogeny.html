@@ -2450,13 +2450,13 @@ coreRefDB_DF &lt;- coreRefDB %&gt;%
   dplyr::rename(Accession=GenBank_accession) %&gt;%
   select(Strain, Genus, Species, Genomospecies, Clade, `In Mapping DB`, Accession) %&gt;%
   arrange(Genomospecies) %&gt;%
-  kbl(caption = &quot;Table 1. Reference Gardnerella Genomes&quot;) %&gt;%
+  kbl(caption = &quot;Table S2. Reference Gardnerella Genomes&quot;) %&gt;%
   kable_classic(full_width=TRUE, html_font = &quot;Arial&quot;) %&gt;%
   row_spec(0, bold = TRUE)
 gardTable</code></pre>
 <table class=" lightable-classic" style="font-family: Arial; margin-left: auto; margin-right: auto;">
 <caption>
-Table 1. Reference Gardnerella Genomes
+Table S2. Reference Gardnerella Genomes
 </caption>
 <thead>
 <tr>
@@ -4441,7 +4441,7 @@ GCA_003408845.1
 </tr>
 </tbody>
 </table>
-<pre class="r"><code>save_kable(gardTable, file = file.path(figureOut, paste(Sys.Date(), &quot;Table1_GardRefTable.png&quot;, sep=&quot;_&quot;)), zoom = 5)</code></pre>
+<pre class="r"><code>#save_kable(gardTable, file = file.path(figureOut, paste(Sys.Date(), &quot;TableS2_GardRefTable.png&quot;, sep=&quot;_&quot;)), zoom = 5)</code></pre>
 </div>
 <div id="session-info" class="section level1">
 <h1>Session Info</h1>
@@ -4472,35 +4472,34 @@ GCA_003408845.1
 ## [22] tibble_3.1.5        ggplot2_3.3.5       tidyverse_1.3.1    
 ## 
 ## loaded via a namespace (and not attached):
-##  [1] colorspace_2.0-2       ellipsis_0.3.2         fs_1.5.0              
-##  [4] aplot_0.1.1            rstudioapi_0.13        proxy_0.4-26          
-##  [7] farver_2.1.0           bit64_4.0.5            fansi_0.5.0           
-## [10] lubridate_1.8.0        xml2_1.3.2             knitr_1.36            
-## [13] jsonlite_1.7.2         seqLogo_1.58.0         broom_0.7.9           
-## [16] dbplyr_2.1.1           compiler_4.1.1         httr_1.4.2            
-## [19] backports_1.2.1        assertthat_0.2.1       fastmap_1.1.0         
-## [22] lazyeval_0.2.2         cli_3.4.1              htmltools_0.5.2       
-## [25] tools_4.1.1            gtable_0.3.0           glue_1.4.2            
-## [28] GenomeInfoDbData_1.2.6 rMSA_0.99.0            Rcpp_1.0.7            
-## [31] cellranger_1.1.0       jquerylib_0.1.4        vctrs_0.5.1           
-## [34] svglite_2.0.0          nlme_3.1-153           xfun_0.26             
-## [37] ps_1.6.0               rvest_1.0.1            lifecycle_1.0.3       
-## [40] zlibbioc_1.38.0        MASS_7.3-54            scales_1.1.1          
-## [43] vroom_1.5.5            hms_1.1.1              yaml_2.2.1            
-## [46] ggfun_0.0.4            yulab.utils_0.0.4      sass_0.4.0            
-## [49] stringi_1.7.8          highr_0.9              tidytree_0.3.5        
-## [52] rlang_1.0.6            pkgconfig_2.0.3        systemfonts_1.0.2     
-## [55] bitops_1.0-7           evaluate_0.14          lattice_0.20-45       
-## [58] patchwork_1.1.1        htmlwidgets_1.5.4      labeling_0.4.2        
-## [61] bit_4.0.4              tidyselect_1.1.1       processx_3.5.2        
-## [64] magrittr_2.0.1         R6_2.5.1               generics_0.1.0        
-## [67] DBI_1.1.1              pillar_1.6.3           haven_2.4.3           
-## [70] withr_2.4.2            RCurl_1.98-1.5         modelr_0.1.8          
-## [73] crayon_1.4.1           utf8_1.2.2             tzdb_0.1.2            
-## [76] rmarkdown_2.11         grid_4.1.1             readxl_1.3.1          
-## [79] callr_3.7.0            reprex_2.0.1           digest_0.6.28         
-## [82] webshot_0.5.2          gridGraphics_0.5-1     munsell_0.5.0         
-## [85] viridisLite_0.4.0      ggplotify_0.1.0        bslib_0.3.1</code></pre>
+##  [1] nlme_3.1-153           bitops_1.0-7           fs_1.5.0              
+##  [4] bit64_4.0.5            lubridate_1.8.0        webshot_0.5.2         
+##  [7] httr_1.4.2             tools_4.1.1            backports_1.2.1       
+## [10] bslib_0.3.1            utf8_1.2.2             R6_2.5.1              
+## [13] seqLogo_1.58.0         DBI_1.1.1              lazyeval_0.2.2        
+## [16] colorspace_2.0-2       withr_2.4.2            tidyselect_1.1.1      
+## [19] bit_4.0.4              compiler_4.1.1         cli_3.4.1             
+## [22] rvest_1.0.1            xml2_1.3.2             labeling_0.4.2        
+## [25] sass_0.4.0             scales_1.1.1           proxy_0.4-26          
+## [28] systemfonts_1.0.2      digest_0.6.28          yulab.utils_0.0.4     
+## [31] svglite_2.0.0          rmarkdown_2.11         pkgconfig_2.0.3       
+## [34] htmltools_0.5.2        highr_0.9              dbplyr_2.1.1          
+## [37] fastmap_1.1.0          htmlwidgets_1.5.4      rlang_1.0.6           
+## [40] readxl_1.3.1           rstudioapi_0.13        farver_2.1.0          
+## [43] gridGraphics_0.5-1     jquerylib_0.1.4        generics_0.1.0        
+## [46] rMSA_0.99.0            jsonlite_1.7.2         vroom_1.5.5           
+## [49] RCurl_1.98-1.5         magrittr_2.0.1         ggplotify_0.1.0       
+## [52] GenomeInfoDbData_1.2.6 patchwork_1.1.1        Rcpp_1.0.7            
+## [55] munsell_0.5.0          fansi_0.5.0            lifecycle_1.0.3       
+## [58] stringi_1.7.8          yaml_2.2.1             MASS_7.3-54           
+## [61] zlibbioc_1.38.0        grid_4.1.1             crayon_1.4.1          
+## [64] lattice_0.20-45        haven_2.4.3            hms_1.1.1             
+## [67] knitr_1.36             pillar_1.6.3           reprex_2.0.1          
+## [70] glue_1.4.2             evaluate_0.14          ggfun_0.0.4           
+## [73] modelr_0.1.8           vctrs_0.5.1            tzdb_0.1.2            
+## [76] cellranger_1.1.0       gtable_0.3.0           assertthat_0.2.1      
+## [79] xfun_0.26              broom_0.7.9            tidytree_0.3.5        
+## [82] viridisLite_0.4.0      aplot_0.1.1            ellipsis_0.3.2</code></pre>
 </div>
 
 

@@ -577,11 +577,11 @@ gardTable <- gardDF %>%
   dplyr::rename(Accession=GenBank_accession) %>%
   select(Strain, Genus, Species, Genomospecies, Clade, `In Mapping DB`, Accession) %>%
   arrange(Genomospecies) %>%
-  kbl(caption = "Table 1. Reference Gardnerella Genomes") %>%
+  kbl(caption = "Table S2. Reference Gardnerella Genomes") %>%
   kable_classic(full_width=TRUE, html_font = "Arial") %>%
   row_spec(0, bold = TRUE)
 gardTable
-save_kable(gardTable, file = file.path(figureOut, paste(Sys.Date(), "Table1_GardRefTable.png", sep="_")), zoom = 5)
+#save_kable(gardTable, file = file.path(figureOut, paste(Sys.Date(), "TableS2_GardRefTable.png", sep="_")), zoom = 5)
 ```
 
 # Session Info

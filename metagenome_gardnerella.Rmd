@@ -449,7 +449,7 @@ head(hmp2SubjectsWDel)
 length(hmp2SubjectsWDel)
 ```
 
-## Table 2: Demographic and Clinical data
+## Table 1: Demographic and Clinical data
 ```{r, message=FALSE, warning=FALSE}
 #GAAD 
 gaadDF <- sgDF1 %>%
@@ -484,7 +484,10 @@ demDF <- sgDF1 %>%
   mutate(TermPre=case_when(TermPre=="T"~"Term",
                            TermPre=="P"~"Preterm",
                            is.na(TermPre)~"Unknown"),
-         cat=paste0(Cohort, "\n", TermPre, " (n=", term_count, ")")) %>%
+         cat=paste0(Cohort, "\n", TermPre, " (n=", term_count, ")"),
+         Income=case_when(Income %in% c("No income", "Under $10,000", "$10,000 - $30,000", "$30,000 - $50,000", "$50,000 - $60,000", "Under $15,000", "$15,000 - $19,999", "$20,000 - $39,999", "$40,000 - $59,999", "$60,000 - $79,999")~"Under $80,000", #fix income levels
+                          Income %in% c("$80,000 - $100,000", "$150,000 - $200,000", "$250,000 or more", "$80,000 or more")~"$80,000 or more",
+                          Income=="Unknown"~"Unknown")) %>% 
   select(-SubjectID, -TermPre, -Cohort, -term_count) %>%
   map2_df(., data.frame(matrix(rep(.$cat, 7), ncol=7)), ~count(data.frame(x=.x, y=.y), x, y), .id="z") %>%
   filter(z!="cat") %>%
@@ -494,32 +497,26 @@ demDF <- sgDF1 %>%
   spread(y, n) %>%
   mutate_all(~replace_na(.x, "0 (0%)")) %>%
   mutate(x=paste(x,z, sep="_"), #add variable category for arranging purposes because "unknown" appears multiple times and therefore causes an error when making x a factor class.
-         x=factor(x, c("Below 18_Age", "18 to 28_Age", "29 to 38_Age", "Above 38_Age", "Unknown_Age", "Asian_Race", "Black_Race", "White_Race", "Other_Race", "Hispanic_Ethnicity", "Non-Hispanic_Ethnicity", "Unknown_Ethnicity", "Less than high school_Education", "High school diploma or GED_Education", "Some college_Education", "Bachelor or undergraduate degree_Education", "Post-undergraduate degree_Education", "Unknown_Education", "No income_Income", "Under $10,000_Income", "$10,000 - $30,000_Income", "$30,000 - $50,000_Income", "$50,000 - $60,000_Income", "$80,000 - $100,000_Income", "$150,000 - $200,000_Income", "$250,000 or more_Income", "Under $15,000_Income", "$15,000 - $19,999_Income", "$20,000 - $39,999_Income", "$40,000 - $59,999_Income", "$60,000 - $79,999_Income", "$80,000 or more_Income", "Unknown_Income", "Vaginal_deliveryMode", "Cesarean_deliveryMode", "Unknown_deliveryMode"))) %>%
+         x=factor(x, c("Below 18_Age", "18 to 28_Age", "29 to 38_Age", "Above 38_Age", "Unknown_Age", "Asian_Race", "Black_Race", "White_Race", "Other_Race", "Hispanic_Ethnicity", "Non-Hispanic_Ethnicity", "Unknown_Ethnicity", "Less than high school_Education", "High school diploma or GED_Education", "Some college_Education", "Bachelor or undergraduate degree_Education", "Post-undergraduate degree_Education", "Unknown_Education", "Under $80,000_Income", "$80,000 or more_Income", "Unknown_Income", "Vaginal_deliveryMode", "Cesarean_deliveryMode", "Unknown_deliveryMode"))) %>%
   arrange(x) %>% # order rows
-  mutate(x=str_extract(x, ".*(?=_)")) %>% # remove category label now that rows are arranged 
-  mutate_at(c("Stanford Enriched\nTerm (n=11)", "Stanford Enriched\nPreterm (n=9)", "UAB Enriched\nTerm (n=5)", "UAB Enriched\nPreterm (n=10)"), # remove 0's from income rows where they don't belong due to different levels in Stanford/UAB vs. MOMS-PI for income
-            ~case_when(x %in% c("Under $15,000", "$15,000 - $19,999", "$20,000 - $39,999", "$40,000 - $59,999", "$60,000 - $79,999", "$80,000 or more")~"-",
-                       x %!in% c("Under $15,000", "$15,000 - $19,999", "$20,000 - $39,999", "$40,000 - $59,999", "$60,000 - $79,999", "$80,000 or more")~.x)) %>%
-  mutate_at(c("MOMS-PI\nTerm (n=90)", "MOMS-PI\nPreterm (n=43)", "MOMS-PI\nUnknown (n=98)"), # remove 0's from income rows where they don't belong due to different levels in Stanford/UAB vs. MOMS-PI for income
-            ~case_when(x %in% c("No income", "Under $10,000", "$10,000 - $30,000", "$30,000 - $50,000", "$50,000 - $60,000", "$80,000 - $100,000", "$150,000 - $200,000", "$250,000 or more")~"-",
-                       x %!in% c("No income", "Under $10,000", "$10,000 - $30,000", "$30,000 - $50,000", "$50,000 - $60,000", "$80,000 - $100,000", "$150,000 - $200,000", "$250,000 or more")~.x)) %>% 
+  mutate(x=str_extract(x, ".*(?=_)")) %>% # remove category label now that rows are arranged
   select(x, `Stanford Enriched\nTerm (n=11)`, `Stanford Enriched\nPreterm (n=9)`, `UAB Enriched\nTerm (n=5)`, `UAB Enriched\nPreterm (n=10)`, `MOMS-PI\nTerm (n=90)`, `MOMS-PI\nPreterm (n=43)`, `MOMS-PI\nUnknown (n=98)`) # order columns
 
 demTable <- gaadDF %>%
   rbind(demDF) %>%
   dplyr::rename("  "=x) %>%
   dplyr::rename_at(2:8, ~str_extract(.x, "(?<=\\n).*")) %>%
-  kbl(caption = "Table 2. Sampling Cohorts") %>%
+  kbl(caption = "Table 1. Cohort Demographic Information") %>%
   kable_classic(full_width=TRUE, html_font = "Arial") %>%
   add_header_above(c(" ", "Stanford Enriched" = 2, "UAB Enriched" = 2, "MOMS-PI" = 3)) %>%
   pack_rows("Age", 2, 6) %>%
   pack_rows("Race", 7, 10) %>%
   pack_rows("Ethnicity", 11, 13) %>%
   pack_rows("Education", 14, 19) %>%
-  pack_rows("Income", 20, 34) %>%
-  pack_rows("Delivery Mode", 35, 37)
+  pack_rows("Income", 20, 22) %>%
+  pack_rows("Delivery Mode", 23, 25)
 demTable
-#save_kable(demTable, file = file.path(figureOut, paste(Sys.Date(), "Table2_demTable.png", sep="_")), zoom=5)
+#save_kable(demTable, file = file.path(figureOut, paste(Sys.Date(), "Table1_demTable.png", sep="_")), zoom=5)
 ```
 
 
