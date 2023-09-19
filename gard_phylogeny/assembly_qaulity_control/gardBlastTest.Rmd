@@ -1,7 +1,7 @@
 ---
 title: "Gardnerella Reference Genome Assembly Identity"
 author: HLB
-date: September 2020
+date: October 2020
 output: 
   html_document:
     toc: true
@@ -9,7 +9,7 @@ output:
 ---
   
   
-Use blastn to verify the identity of *Gardnerella* sequences in GenBank. 124 *Gardnerella* Genome assemblies were downloaded from GenBank in September 2020 and verified first by aligning the sequences against the 16S rRNA database. Second, 8 genome assemblies were selected to align against the nr/nt database, again with blastn. These genome assemblies were selected if they: a) did not align with any 16S rRNA sequences in the database, b) did not align to a *Gardnerella* 16S rRNA sequence, c) the best alignment (by bit score) was with a non-*Gardnerella* sequence, or d) the alignment percent identity was an outlier.   
+Use blastn to verify the identity of *Gardnerella* sequences in GenBank. 124 *Gardnerella* Genome assemblies were downloaded from GenBank in October 2020 and verified first by aligning the sequences against the 16S rRNA database. Second, 8 genome assemblies were selected to align against the nr/nt database, again with blastn. These genome assemblies were selected if they: a) did not align with any 16S rRNA sequences in the database, b) did not align to a *Gardnerella* 16S rRNA sequence, c) the best alignment (by bit score) was with a non-*Gardnerella* sequence, or d) the alignment percent identity was an outlier.   
 
 # Set up
 ## Packages
@@ -26,7 +26,7 @@ library(Biostrings)
 ## File Paths
 ```{r}
 gardFastasDir <- "../../../gardPhylogeny/_ncbi_downloads/genomes"
-figureOut <- "../../../FIGURES/V1_manuscript_figures/reference_genome_qc"
+figureOut <- "../../../FIGURES/revision_v2_manuscript_figures/reference_genome_qc"
 blastDB_16S <- "/Users/hlberman/Desktop/16S_db/16S_ribosomal_RNA"
 gardDF <- "../GardnerellaMetadata.csv" %>%
   read_csv

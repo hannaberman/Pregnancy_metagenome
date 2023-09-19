@@ -1,6 +1,6 @@
 ---
 title: "Gardnerella Core Genome Phylogeny"
-author: "Hanna Berman"
+author: "Hanna L. Berman"
 output: 
   html_document:
     toc: true
@@ -59,7 +59,7 @@ assemblyDistDF <- mashDists
 remove(mashDists)
 
 # output paths
-figureOut <- "../../FIGURES/submission_manuscript_figures"
+figureOut <- "../../FIGURES/resubmission_manuscript_figures"
 coreGeneFastasDir <- file.path(dataPath, "core_gene_fastas")
 assemblyCoreGenesDir <- file.path(dataPath, "assembly_core_genes")
 ```
@@ -584,7 +584,40 @@ gardTable
 #save_kable(gardTable, file = file.path(figureOut, paste(Sys.Date(), "TableS2_GardRefTable.png", sep="_")), zoom = 5)
 ```
 
-# Session Info
+# Fraction of genome represented by core genome
+## Gene count
+  Total of 85 core genes (including the 15 not used for mapping)
 ```{r}
+prokkaStats %>%
+  mutate(gene=as.numeric(gene),
+         percCoreGenes=(85/gene)) %>%
+  summarize(mean_percent_genes=round(mean(percCoreGenes)*100, 1))
+```
+
+## Length
+```{r, message=FALSE, warning=FALSE}
+allCoreGeneIDs <- roaryPresAbs %>%
+  filter(`No. isolates`==85) %>%
+  select(all_of(strains)) %>%
+  as.list() %>%
+  map(~paste(.x, collapse = "|")) %>%
+  .[names(refAssemblies)] # reorder to match order of ffn files
+  
+allCoreGeneIDs
+
+refAssemblies %>%
+  map2(allCoreGeneIDs, ~.x[str_detect(names(.x), .y)]) %>%
+  map(width) %>%
+  map_dfr(sum) %>%
+  gather("Strain", "core_genome_length", 1:ncol(.)) %>%
+  left_join(prokkaStats[,c("Strain", "bases")], by="Strain") %>%
+  mutate(bases=as.numeric(bases),
+         percCoreGenes=core_genome_length/bases) %>%
+  summarize(mean_percent_length=round(mean(percCoreGenes)*100, 1))
+```
+
+
+# Session Info
+```{r, message=FALSE, warning=FALSE}
 sessionInfo()
 ```

@@ -1,7 +1,7 @@
 "---
 title: "Qaulity, Completeness, and Dereplication of *Gardnerella* Genome Assemblies"
 author: "HLB"
-date: "September 2020"
+date: "October 2020"
 output:
   html_document: 
     toc: true
@@ -27,8 +27,8 @@ library(network)
 
 ## File Paths
 ```{r}
-repoPath <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/metagenome_gardnerella/pregnancy_metagenome/gard_phylogeny"
-dataPath <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/metagenome_gardnerella/gardPhylogeny"
+repoPath <- "/Users/hlberman/Library/CloudStorage/GoogleDrive-hlberman@ncsu.edu/My Drive/Callahan Lab/metagenome_gardnerella/pregnancy_metagenome/gard_phylogeny"
+dataPath <- "/Users/hlberman/Library/CloudStorage/GoogleDrive-hlberman@ncsu.edu/My Drive/Callahan Lab/metagenome_gardnerella/gardPhylogeny"
 
 gardFastasDir <- file.path(dataPath, "_ncbi_downloads/genomes/")
 genomeAssemblyPaths <- gardFastasDir %>%
