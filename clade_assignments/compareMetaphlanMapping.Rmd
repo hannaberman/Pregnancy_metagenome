@@ -1,10 +1,13 @@
 ---
 title: "Gardnerella mapping vs. MetaPhlAn Results"
-author: "Hanna Berman"
-output: html_document
+author: "Hanna L. Berman"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
 ---
   
-  Compare core genome mapping method to MetaPhlAn2 Results
+  Compare our custom core genome mapping method to MetaPhlAn4 results. Determine whether the number of *Gardnerella* core genes in our database found in each sample correlates to the number of *Gardnerella* core genes found by MetaPhlAn4 in the MetaPhlAn4 database.
   
 # Set up
 ## Packages
@@ -21,7 +24,7 @@ theme_set(theme_bw())
 
 ## File Paths
 ```{r, message=FALSE, warning=FALSE}
-figureOut <- "../../FIGURES/submission_manuscript_figures"
+figureOut <- "../../FIGURES/resubmission_manuscript_figures"
 ```
 
 
@@ -29,13 +32,12 @@ figureOut <- "../../FIGURES/submission_manuscript_figures"
 ### Stanford UAB Data
 ```{r, message=FALSE, warning=FALSE}
 #Metaphlan Aabundance:
-suMetaphlanPath <- "../../humann2/merged_tables/mergedMetaphlanAbundance.tsv"
+suMetaphlanPath <- "../metaphlan4/stuab_mergedMetaphlanAbundance.tsv"
 sumDF <- suMetaphlanPath %>%
-  read_tsv() %>%
-  filter(str_detect(ID, "s__"), !str_detect(ID, "t__")) %>%
-  mutate(Species = str_extract(ID, "(?<=s__)\\w+$")) %>%
-  select(Species, everything(), -ID) %>%
-  as.data.frame() %>%
+  read_tsv(comment = "#") %>%
+  filter(str_detect(clade_name, "s__"), !str_detect(clade_name, "t__")) %>%
+  mutate(Species = str_extract(clade_name, "(?<=s__)\\w+$")) %>%
+  select(Species, everything(), -clade_name) %>%
   dplyr::rename_at(2:ncol(.), ~str_extract(.x, "[0-9]{10}")) %>%
   column_to_rownames(var="Species") %>%
   t %>%
@@ -57,12 +59,12 @@ head(sumapCladeAbundance)
 ### HMP2 data
 ```{r, message=FALSE, warning=FALSE}
 #Metaphlan Aabundance:
-hmp2MetaphlanPath <- "../../humann2/merged_tables/hmp2mgs_mergedMetaphlanAbundance.tsv"
+hmp2MetaphlanPath <- "../metaphlan4/hmp2mgs_mergedMetaphlanAbundance.tsv"
 hmp2mDF <- hmp2MetaphlanPath %>%
-  read_tsv() %>%
-  filter(str_detect(ID, "s__"), !str_detect(ID, "t__")) %>%
-  mutate(Species = str_extract(ID, "(?<=s__)\\w+$")) %>%
-  select(Species, everything(), -ID) %>%
+ read_tsv(comment = "#") %>%
+  filter(str_detect(clade_name, "s__"), !str_detect(clade_name, "t__")) %>%
+  mutate(Species = str_extract(clade_name, "(?<=s__)\\w+$")) %>%
+  select(Species, everything(), -clade_name) %>%
   as.data.frame() %>%
   dplyr::rename_at(2:ncol(.), ~str_extract(.x, "[0-9]{7}")) %>%
   column_to_rownames(var="Species") %>%
@@ -112,16 +114,17 @@ head(mapGardCounts)
 
   Metaphlan
 ```{r, message=FALSE}
-hmp2metaphlanGardCounts <- "./hmp2mgs_gardMarkerCounts.csv" %>%
+hmp2metaphlanGardCounts <- "../metaphlan4/hmp2mgs_gardMarkerCounts.csv" %>%
   read_csv %>%
   mutate(SampleID=str_extract(SampleID, "(?<=SRR)[0-9]{7}"))
 
 
-sumetaphlanGardCounts <- "./stanUAB_gardMarkerCounts.csv" %>%
+sumetaphlanGardCounts <- "../metaphlan4/stuab_gardMarkerCounts.csv" %>%
   read_csv %>%
   mutate(SampleID=as.character(SampleID))
 
-metaphlanGardCounts <- full_join(sumetaphlanGardCounts, hmp2metaphlanGardCounts)
+metaphlanGardCounts <- full_join(sumetaphlanGardCounts, hmp2metaphlanGardCounts) %>%
+  dplyr::rename(metaphlanGardReads=gardReads)
 nrow(metaphlanGardCounts)
 ```
 
@@ -129,7 +132,7 @@ nrow(metaphlanGardCounts)
 compareDF <- metaphlanGardCounts %>%
   full_join(mapGardCounts, by="SampleID") %>%
   full_join(metaphlanGardAbundance, by="SampleID") %>%
-  replace_na(list(metaphlanReads=0, metaphlanGardAbundance=0, mapReads=0))
+  replace_na(list(metaphlanGardReads=0, metaphlanGardAbundance=0, mapReads=0))
 head(compareDF)
 
 anyNA(compareDF$metaphlanGardAbundance)
@@ -139,27 +142,28 @@ anyNA(compareDF$metaphlanGardAbundance)
  Reads vs. Reads
 ```{r, message=FALSE, warning=FALSE}
 compareDF %>%
-  ggplot(aes(x=mapReads, y=metaphlanReads)) +
+  ggplot(aes(x=mapReads, y=metaphlanGardReads)) +
   geom_abline(color="grey", linetype=2) +
   geom_point(alpha=0.75, size=2) +
   geom_smooth(method="lm", se=FALSE, color="blue", linetype=1) +
   stat_cor(method = "pearson", alternative = "greater", label.sep = "\n") + 
   xlim(0,1000000) +
   coord_fixed() +
-  labs(x=bquote('Aligned'~italic("Gardnerella") ~'Marker Reads - Our Method'), y=bquote('Aligned'~italic("Gardnerella") ~'Marker Reads - Metaphlan2'))
+  labs(x=bquote('Aligned'~italic("Gardnerella") ~'Marker Reads - Our Method'), y=bquote('Aligned'~italic("Gardnerella") ~'Marker Reads - MetaPhlAn4'))
 ```
 
   
 ```{r, message=FALSE, warning=FALSE}
 readsVreadsPlot <- compareDF %>%
-  ggplot(aes(x=mapReads, y=metaphlanReads)) +
+  ggplot(aes(x=mapReads/1000, y=metaphlanGardReads/1000)) +
   geom_abline(color="grey", linetype=2) +
   geom_point(alpha=0.5, size=2) +
   geom_smooth(method="lm", se=FALSE, color="blue", linetype=1) +
-  stat_cor(method = "pearson", alternative = "greater", label.sep = "\n") + 
-  labs(x=bquote('Aligned'~italic("Gardnerella") ~'Marker Reads - Our Method'), y=bquote('Aligned'~italic("Gardnerella") ~'Marker Reads - Metaphlan2'))
+  stat_cor(method = "pearson", alternative = "greater") + 
+  labs(x="Our Method (Thousands)", y="MetaPhlAn4 (Thousands)")
 readsVreadsPlot
 ```
+  
   Reads vs Gardnerella abundance
 ```{r, message=FALSE, warning=FALSE}
 abVreadsPlot <- compareDF %>%
@@ -168,20 +172,18 @@ abVreadsPlot <- compareDF %>%
   geom_smooth(method="lm", se=FALSE, color="blue", linetype=1) +
   stat_cor(method = "pearson", alternative = "greater", label.sep = "\n", label.x = 20000, label.y = 0.125)  +
   ylim(0,1) +
-  labs(x=bquote('Aligned'~italic("Gardnerella") ~'Marker Reads - Our Method'), y=bquote(italic("Gardnerella") ~'Relative Abundance - MetaPhlAn2'))
+  labs(x=bquote('Aligned'~italic("Gardnerella") ~'Marker Reads - Our Method'), y=bquote(italic("Gardnerella") ~'Relative Abundance - MetaPhlAn4'))
 abVreadsPlot
 ```
 
 ## Figure 2D: Gardnerella mapping vs MetaPhlAn
-```{r, message=FALSE, warning=FALSE}
-#fig.width=2.5, fig.height=2
+```{r, message=FALSE, warning=FALSE} 
+#, fig.width=1.5, fig.height=1.2
 plot_grid(readsVreadsPlot, nrow=1, labels = c("D"), label_size = 15)
 #ggsave(filename = file.path(figureOut, paste(Sys.Date(), "Figure2D_mappingVsMetaphlan.png", sep="_")))
 ```
 
 # Session info
 ```{r}
-#save.image("/Users/hlberman/Desktop/saveImage.Rdata")
-#load("/Users/hlberman/Desktop/saveImage.Rdata")
 sessionInfo()
 ```

@@ -34,7 +34,7 @@ refGardDF <- file.path(repoDir, "refGardnerellaCladesGenomos.csv") %>%
   read_csv(); head(refGardDF)
 
 # shotgun metadata
-sgDF <- file.path(repoDir, "sumgsDF.tsv") %>%
+sgDF <- file.path(repoDir, "../METADATA/sumgsDF.tsv") %>%
   read_delim(delim="\t") %>%
   mutate(SampleID=as.character(SampleID), 
          SubjectID=as.character(SubjectID)); head(sgDF)
