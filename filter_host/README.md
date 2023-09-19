@@ -3,9 +3,9 @@
 Read counts in file `./fastq_counts.txt`
 
 ## Filter with BBmap
-1) Download BBmap version 38.44 at `https://sourceforge.net/projects/bbmap/`  unzip/untar file to install
-2) Download GRCh38.p13 reference genome. `ftp://ftp.ncbi.nlm.nih.gov/refseq/H_sapiens/annotation/GRCh38_latest/refseq_identifiers/GRCh38_latest_genomic.fna.gz` Save to `./GRCh38.fna`
-3) Build BBmap index with `./scripts/bbmap_index_db.sh`  
+1) Download BBmap version 38.44 at [https://sourceforge.net/projects/bbmap/](https://sourceforge.net/projects/bbmap/)  unzip/untar file to install
+2) Download GRCh38.p13 reference genome at [https://ftp.ncbi.nlm.nih.gov/refseq/H_sapiens/annotation/GRCh38_latest/refseq_identifiers/GRCh38_latest_genomic.fna.gz](https://ftp.ncbi.nlm.nih.gov/refseq/H_sapiens/annotation/GRCh38_latest/refseq_identifiers/GRCh38_latest_genomic.fna.gz) and save to `./GRCh38.fna`  
+4) Build BBmap index with `./scripts/bbmap_index_db.sh`  
 ```
 bbmap.sh \
 ref=$ref \
@@ -30,7 +30,8 @@ script `./scripts/bbmap_filter_human.sh`:  run for each reads file which uses th
     path=$DB_path \
     build=1
 ```
-note: script  `./scripts/bbmap_cmds.sh` was used to call the `bbmap_filter_human.sh` script for each accession  
+Notes:  
+script  `./scripts/bbmap_cmds.sh` was used to call the `bbmap_filter_human.sh` script for each accession  
 Changed sam to fastq.gz with samtools 1.9 
 
 ## Assessment files:
