@@ -12,7 +12,7 @@ More details on analyses of each of the following steps can be found in the dire
 
 ## Build reference *Gardnerella* phylogeny
 Create a core genome phylogeny from whole-genome sequences of *Gardnerella* isolates from GenBank  
-Code and analyses in `./gard_phylogeny`  
+Code and analyses in [./gard_phylogeny](https://github.com/hannalberman/pregnancy_metagenome/tree/metaphlan4/knit_html_markdowns/gard_phylogeny)  directory
 Knit html markdown of phylogeny information: [./knit_html_markdowns/coreGenomeAndPhylogeny.html](https://github.com/hannalberman/pregnancy_metagenome/tree/metaphlan4/knit_html_markdowns/coreGenomeAndPhylogeny.html)
   
 ## Filter host DNA from shotgun metagenome sequencing data
