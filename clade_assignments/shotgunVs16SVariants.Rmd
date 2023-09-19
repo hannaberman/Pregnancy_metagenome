@@ -1,8 +1,10 @@
 ---
 title: "Shotgun Vs. 16S Gardnerella variants"
-author: "Hanna Berman"
-date: "12/10/2019"
-output: html_document
+author: "Hanna L. Berman"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
 ---
 
   Compare core genome mapping method to 16S rRNA gene amplicon sequencing variants of *Gardnerella*
@@ -24,10 +26,10 @@ library(cowplot)
 ```{r, warning=FALSE, message=FALSE}
 repoDir <- ".."
 dataDir <- "../../"
-figureOut <- "../../FIGURES/submission_manuscript_figures"
+figureOut <- "../../FIGURES/resubmission_manuscript_figures"
 
 #shotgun metadata
-sgDF <- file.path(repoDir, "sumgsDF.tsv") %>%
+sgDF <- file.path(dataDir, "/METADATA/sumgsDF.tsv") %>%
   read_tsv %>%
   mutate(SampleID=as.character(SampleID),
          SubjectID=as.character(SubjectID),
@@ -111,33 +113,6 @@ ggplotShotgunOnly <- list(scale_size_manual(values=c(1.5, 2)),
   scale_shape_manual(values = c(16, 5)))
 ```
 
-## Set up abundance table from MetaPhlAn2 results
-```{r, message=FALSE, warning=FALSE}
-#metaphlan data
-mDF0 <- file.path(dataDir, "/humann2/merged_tables/mergedMetaphlanAbundance.tsv") %>%
-  read_tsv() %>%
-  filter(str_detect(ID, "s__"), !str_detect(ID, "t__")) %>%
-  mutate(Species = str_extract(ID, "(?<=s__)\\w+$")) %>%
-  select(Species, everything(), -ID) %>%
-  as.data.frame()
-
-#make col and row names
-samps <- colnames(mDF0[2:ncol(mDF0)]) %>%
-  str_extract("[0-9]{10}")
-samps
-colnames(mDF0) <- c("Species", samps)
-rownames(mDF0) <- mDF0$Species
-
-#Final edits to table
-mDF <- mDF0 %>%
-  select(-Species) %>%
-  t() %>%
-  as_tibble() %>%
-  mutate_all(funs(./100)) %>%
-  mutate(SampleID=samps) %>% 
-  select(SampleID, everything())
-mDF[1:6,1:5]
-```
 
 # Organize method abundances
 ## Get V4 variants
@@ -176,14 +151,6 @@ PS16S_170 %>%
   select(SampleID, Abundance) %>%
   unique
 ```
-  Two from subject 10623. Was *Gardnerella* found by MetaPhlAn2?
-```{r, message=FALSE, warning=FALSE}
-mDF %>%
-  filter(SampleID %in% noGard16S) %>%
-  select(SampleID, Gardnerella_vaginalis)
-```
-  *Gardnerella* was not found by MetaPhlAn2 or 16S in these two samples.
-
 ### Map variants to clades
   Determine which V4 variants are in each reference WGS isolate
 ```{r, message=FALSE, warning=FALSE}
@@ -296,7 +263,11 @@ gardAllVarDF %>%
   ggplotAll +
   facet_wrap(~SubjectID, nrow=2) +
   labs(x="Gestation weeks at collection", y="Proportion of Gardnerella", shape="Method", color="Variant") +
-  guides(color=guide_legend(override.aes=list(shape=15, size=3))) +
+  guides(color=guide_legend(override.aes=list(shape=15, size=3), ncol=2)) +
+  theme(legend.position = "bottom",
+        legend.direction = "vertical",
+        legend.box = "horizontal",
+        legend.key.size = unit(1, "mm")) + 
   xlim(0,40)
 ```
 
@@ -309,8 +280,12 @@ gardAllVarDF %>%
   ggplotShotgunOnly +
   scale_y_log10() +
   facet_wrap(~SubjectID, nrow=2) +
-  labs(x="Gestation weeks at collection", y="Proportion of Gardnerella", shape="Method", color="Variant") +
-  guides(color=guide_legend(override.aes=list(shape=15, size=3))) +
+  labs(x="Gestation weeks at collection", y="N Gardnerella Reads", shape="Method", color="Variant") +
+  guides(color=guide_legend(override.aes=list(shape=15, size=3), ncol=2)) +
+  theme(legend.position = "bottom",
+        legend.direction = "vertical",
+        legend.box = "horizontal",
+        legend.key.size = unit(1, "mm")) + 
   xlim(0,40)
 ```
   
@@ -339,10 +314,13 @@ gardAllVarDFThresholds %>%
   ggplot(aes(x=Threshold, y=propGard, shape=Method, size=Method, color=Var)) + 
   geom_point() +
   ggplotAll +
-  ylim(0,1) +
+  #ylim(0,1) +
   scale_x_continuous(breaks = seq(0,50, 5)) +
   facet_wrap(~SampleID) +
-  #guides(color=guide_legend(override.aes=list(shape=c(rep(16, 6), rep(5, 5)), size=c(rep(2, 6), rep(4, 5))))) +
+  guides(color=guide_legend(ncol=2)) +
+  theme(legend.position = "bottom", 
+        legend.box = "vertical",
+        legend.key.size = unit(1, "mm")) + 
   labs(x="Threshold (reads ≥ n)", y="Proportion of Gardnerella")
 
 # plot - thresholds 1 to 5
@@ -351,12 +329,17 @@ gardAllVarDFThresholds %>%
   ggplot(aes(x=Threshold, y=propGard, shape=Method, size=Method, color=Var)) + 
   geom_point() +
   ggplotAll +
-  ylim(0,1) +
+  #ylim(0,1) +
   scale_x_continuous(breaks = seq(0,5, 1)) +
   facet_wrap(~SampleID) +
-  #guides(color=guide_legend(override.aes=list(shape=c(rep(16, 6), rep(5, 5)), size=c(rep(2, 6), rep(4, 5))))) +
+  guides(color=guide_legend(ncol=2)) +
+  theme(legend.position = "bottom",
+        legend.direction = "vertical",
+        legend.box = "horizontal",
+        legend.key.size = unit(1, "mm")) + 
   labs(x="Threshold (reads ≥ n)", y="Proportion of Gardnerella")
 ```
+  
   View count of variants over ranges of thresholds
 ```{r, message=FALSE, warning=FALSE}
 #fig.height=5, fig.width=6
@@ -386,8 +369,9 @@ varCounts %>%
 ggplot(aes(x=Threshold, y=nVars, group=Method, color=Method, linetype=Method)) +
   geom_line() +
   facet_wrap(~SampleID, scales="free_y") +
+ scale_linetype_manual(values=c(1,2,3), labels=c("Shotgun Clade", "Shotgun Genomospecies", "V4 variants")) +
   scale_color_manual(values=c("#56B4E9", "#009E73", "#D55E00"), labels=c("Shotgun Clade", "Shotgun Genomospecies", "V4 variants")) +
-  scale_color_manual(values=c("#56B4E9", "#009E73", "#D55E00"), labels=c("Shotgun Clade", "Shotgun Genomospecies", "V4 variants")) +
+      theme(legend.position = "bottom") + 
   labs(x="Threshold (reads≥n)", y="N Variants", color="Method")
 
 varCounts %>%
@@ -397,6 +381,7 @@ ggplot(aes(x=Threshold, y=nVars, group=Method, color=Method, linetype=Method)) +
   xlim(1,5) +
  scale_linetype_manual(values=c(1,2,3), labels=c("Shotgun Clade", "Shotgun Genomospecies", "V4 variants")) +
   scale_color_manual(values=c("#56B4E9", "#009E73", "#D55E00"), labels=c("Shotgun Clade", "Shotgun Genomospecies", "V4 variants")) +
+    theme(legend.position = "bottom") + 
   labs(x="Threshold (reads≥n)", y="N Variants", color="Method")
 ```
 
@@ -726,8 +711,12 @@ ggplot(aes(x=GWcoll, y=propGard, shape=Method, size=Method, color=Var)) +
   ggplotAll +
   facet_wrap(~SubjectID, nrow=2) +
   labs(x="Gestation weeks at collection", y="Proportion of Gardnerella", shape="Method", color="Variant") +
+  theme(legend.position = "bottom",
+        legend.direction = "vertical",
+        legend.box = "horizontal",
+        legend.key.size = unit(1, "mm")) + 
   guides(color=guide_legend(override.aes=list(shape=15, size=3))) +
-  xlim(0,40)
+  xlim(0,40) 
 ```
 
 ## Clades vs. 16S
@@ -753,6 +742,10 @@ gardAllVarDF_withThreshold %>%
   facet_wrap(~SubjectID, nrow=2) +
   labs(x="Gestation weeks at collection", y="Proportion of Gardnerella", shape="Method", color="Variant") +
   guides(color=guide_legend(override.aes=list(shape=15, size=3), ncol=2)) +
+  theme(legend.position = "bottom",
+        legend.direction = "vertical",
+        legend.box = "horizontal",
+        legend.key.size = unit(1, "mm")) +  
   xlim(0,40)
 ```
 
@@ -794,10 +787,12 @@ cladeVs16SPlot <- gardAllVarDF_withThreshold %>%
   ggplot(aes(x=`V4 region 16S amplicon`, y=`Shotgun Clade`)) +
   geom_abline(aes(intercept=0, slope=1), color="gray", linetype=2) +
   geom_smooth(method="lm", se=FALSE, color="black", linetype=1) +
-  stat_cor(method = "pearson", alternative = "two.sided", cor.coef.name = c("R"), p.digits = 3, label.y = 0.875, label.x = 0) +
+  stat_cor(method = "pearson", alternative = "two.sided", cor.coef.name = c("R"), p.digits = 3, label.y = 0.95, label.x = 0) +
   geom_point(aes(color=Var, shape=`≥50% G3`), alpha=0.6, size=2) +
   scale_color_manual(values=c("#b22222", "#214fc6", "#E69F00", "#009E73")) +
-  theme(legend.position = c(0.6, 0.25),
+  theme(legend.position = c(0.375, 0.375),
+        legend.key.size = unit(2, "mm"),
+        legend.justification = c(0, 1),
         legend.direction = "vertical",
         legend.text = element_text(size=7),
         legend.title = element_text(size=8),
@@ -827,10 +822,10 @@ gsVs16SPlot <- gardAllVarDF_withThreshold %>%
                        Var=="Genomospecies 12"~"G4: Clade 5",
                        Var=="Genomospecies 13"~"G5: Clade 6",
                        str_detect(Var, "G")~Var),
-         Var=case_when(Var=="G2: Clades 1/2"~"G2: Genomospeces 1/2/3/4/11",
-                       Var=="G1: Clades 3/4"~"G1: Genomospeces 5/6/7/8/9/10/14",
-                       Var=="G4: Clade 5"~"G4: Genomospecies 12",
-                       Var=="G5: Clade 6"~"G5: Genomospecies 13")) %>%
+         Var=case_when(Var=="G2: Clades 1/2"~"G2: Gardnerella spp. 1/2/3/4/11",
+                       Var=="G1: Clades 3/4"~"G1: Gardnerella spp. 5/6/7/8/9/10/14",
+                       Var=="G4: Clade 5"~"G4: Gardnerella sp. 12",
+                       Var=="G5: Clade 6"~"G5: Gardnerella sp. 13")) %>%
   group_by(SampleID, Method, Var) %>%
   summarise(propGard=sum(propGard)) %>%
   ungroup %>%
@@ -842,16 +837,18 @@ gsVs16SPlot <- gardAllVarDF_withThreshold %>%
   ggplot(aes(x=`V4 region 16S amplicon`, y=`Shotgun Genomospecies`)) +
   geom_abline(aes(intercept=0, slope=1), color="gray", linetype=2) +
   geom_smooth(method="lm", se=FALSE, color="black", linetype=1) +
-  stat_cor(method = "pearson", alternative = "two.sided", cor.coef.name = c("R"), p.digits = 3, label.y = 0.875, label.x = 0) +
+  stat_cor(method = "pearson", alternative = "two.sided", cor.coef.name = c("R"), p.digits = 3, label.y = 0.95, label.x = 0) +
   geom_point(aes(color=Var, shape=`≥50% G3`), alpha=0.6, size=2) +
   scale_color_manual(values=c("#b22222", "#214fc6", "#E69F00", "#009E73")) +
-  theme(legend.position = c(0.675, 0.25),
+  theme(legend.position = c(0.375, 0.375),
+        legend.key.size = unit(2, "mm"),
+        legend.justification = c(0, 1),
         legend.direction = "vertical",
-        legend.text = element_text(size=7),
-        legend.title = element_text(size=8),
+        legend.text = element_text(size=5),
+        legend.title = element_text(size=6),
         legend.background = element_blank()) +
   guides(shape="none") +
-  labs(color="V4 Variant")
+  labs(color="V4 Variant", x="V4 region 16S amplicon", y="Shotgun Species")
 gsVs16SPlot
 ```
 
@@ -880,12 +877,12 @@ cladeVsGsPlot <- gardAllVarDF_withThreshold %>%
                        Var=="Genomospecies 12"~"Clade 5",
                        Var=="Genomospecies 13"~"Clade 6",
                        str_detect(Var, "Clade")~Var),
-         Var=case_when(Var=="Clade 1"~"Clade 1: Genomospeces 1/2",
-                       Var=="Clade 2"~"Clade 2: Genomospeces 3/4/11",
-                       Var=="Clade 3"~"Clade 3: Genomospecies 7/8/9/10/14",
-                       Var=="Clade 4"~"Clade 4: Genomospecies 5/6",
-                       Var=="Clade 5"~"Clade 5: Genomospecies 12",
-                       Var=="Clade 6"~"Clade 6: Genomospecies 13")) %>%
+         Var=case_when(Var=="Clade 1"~"Clade 1: G. vaginalis, Gard. sp. 2",
+                       Var=="Clade 2"~"Clade 2: G. piottii, Gard. spp. 3/11",
+                       Var=="Clade 3"~"Clade 3: Gard. spp. 7/8/9/10/14",
+                       Var=="Clade 4"~"Clade 4: G. leopoldii, G. swidsinskii",
+                       Var=="Clade 5"~"Clade 5: Gard. sp. 12",
+                       Var=="Clade 6"~"Clade 6: Gard. sp. 13")) %>%
   group_by(SampleID, Method, Var) %>%
   summarise(propGard=sum(propGard)) %>%
   ungroup %>%
@@ -895,32 +892,32 @@ cladeVsGsPlot <- gardAllVarDF_withThreshold %>%
   ggplot(aes(x=`Shotgun Clade`, y=`Shotgun Genomospecies`)) +
   geom_abline(aes(intercept=0, slope=1), color="gray", linetype=2) +
   geom_smooth(method="lm", se=FALSE, color="black", linetype=1) +
-  stat_cor(method = "pearson", alternative = "two.sided", cor.coef.name = c("R"), p.digits = 3, label.y = 0.875, label.x = 0) +
+  stat_cor(method = "pearson", alternative = "two.sided", cor.coef.name = c("R"), p.digits = 3, label.y = 0.95, label.x = 0) +
   geom_point(aes(color=Var), alpha=0.6, size=2) +
   scale_color_manual(values=c("#CC79A7", "#D55E00", "#56B4E9", "#0072B2", "#E69F00", "#009E73")) +
-  theme(legend.position = c(0.71, 0.22),
+  theme(legend.position = c(0.375, 0.375),
+        legend.key.size = unit(2, "mm"),
+        legend.justification = c(0, 1),
         legend.direction = "vertical",
-        legend.text = element_text(size=7),
-        legend.title = element_text(size=8),
+        legend.text = element_text(size=5, lineheight=0.2),
+        legend.title = element_text(size=6),
         legend.background = element_blank()) +
-  labs(color="Clade")
+  labs(color="Clade", x="Shotgun Clade", y="Shotgun Species")
 cladeVsGsPlot
 ```
 
 ## Figure 2ABC:
-```{r, message=FALSE, warning=FALSE}
-#fig.width=6, fig.height=2
+```{r, message=FALSE, warning=FALSE, fig.width=8, fig.height=2.67}
+# , fig.width=4, fig.height=1.3
 plot_grid(plotlist=list(cladeVs16SPlot, gsVs16SPlot, cladeVsGsPlot), nrow = 1, labels=c("A", "B", "C"), label_size = 15)
 #ggsave(filename = file.path(figureOut, paste(Sys.Date(), "figure2ABC_mappingvs16S.png", sep="_")))
 ```
 
-  
-# Samples where we lose all Gardnerella
-  In subject 10608: No Gardnerella was detected. Shotgun sequencing can demonstrate less sensitivity than amplicon sequencing.
+# Samples where Gardnerella was detected by 16S but not shotgun sequencing
+  In subject 10608: No Gardnerella was detected by our shotgun sequencing method, but was detected by 16S amplicon sequencing. Shotgun sequencing can demonstrate less sensitivity than amplicon sequencing.
   
   **Subject 10608**
 ```{r, message=FALSE, warning=FALSE}
-#gardnerella found by metaphlan in subject 10608
 gardAllVarDF %>%
   filter(SubjectID==10608) %>%
   select(SampleID, Var, propGard, Method)
@@ -930,11 +927,6 @@ samples10608 <- gardAllVarDF %>%
   .$SampleID %>%
   unique
 samples10608
-
-#percent Gardnerella in these samples
-mDF %>%
-  select(SampleID, Gardnerella_vaginalis) %>%
-  filter(SampleID %in% samples10608)
 
 #read depth of these samples
 sgDF %>%
@@ -954,7 +946,6 @@ ggplot(data=sgDF) +
   
   **Sample 1050801318**
 ```{r, message=FALSE, warning=FALSE}
-#No gardnerella found by metaphlan in sample 1050801318
 gardAllVarDF %>%
   filter(SubjectID=="10508") %>%
   select(SampleID, Var, propGard, Method)
@@ -971,32 +962,6 @@ ggplot(data=sgDF) +
   geom_vline(xintercept = sgDF$bbmapFiltered_pairs[sgDF$SampleID=="1050801308"], color="red", show.legend = TRUE) +
   geom_vline(xintercept = sgDF$bbmapFiltered_pairs[sgDF$SampleID=="1050835178"], color="green", show.legend = TRUE)
 ```
-
-# Compare to Gardnerella found by MetaPhlAn2
-## Gardnerella in MetaPhlAn2 but not this method
-  Assess uncharacterized *Gardnerella* when measuring clades:
-```{r, message=FALSE, warning=FALSE}
-sgCladeDF %>%
-  filter(n>=2) %>%
-  group_by(SampleID) %>%
-  summarise(n=sum(n)) %>%
-  full_join(mDF[,c("SampleID", "Gardnerella_vaginalis")], by="SampleID") %>%
-  filter(is.na(n), Gardnerella_vaginalis>0)
-```
-  
-  No uncharacterized *Gardnerella* when measuring clades.
-  
-  Assess uncharacterized *Gardnerella* when measuring genomospecies:
-```{r, message=FALSE, warning=FALSE}
-sgGenomoDF %>%
-  filter(n>=2) %>%
-  group_by(SampleID) %>%
-  summarise(n=sum(n)) %>%
-  full_join(mDF[,c("SampleID", "Gardnerella_vaginalis")], by="SampleID") %>%
-  filter(is.na(n), Gardnerella_vaginalis>0)
-```
-  
-  One sample with uncharacterized *Gardnerella* by genomospecies.
 
 # Session Info
 ```{r}

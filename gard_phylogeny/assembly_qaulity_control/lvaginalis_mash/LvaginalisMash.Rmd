@@ -1,0 +1,196 @@
+---
+title: "Assessment of non Gardnerella Assemblies"
+author: "HLB"
+date: "September 2023"
+output:
+  html_document: 
+    toc: true
+    toc_float: true
+---
+  
+  Two isolates (GCA_002871555.1; GCA_902362445.1) were found to potentially be *Lactobacillus vaginalis* when blasted against nr/nt . To further assess their identities, these genomes were aligned against the following pre-sketched mash databases:
+  
+1. `refseq.genomes.k21s1000.msh`: Sketched database of RefSeq assemblies from Mash developers. Downloaded at `https://mash.readthedocs.io/en/latest/tutorials.html#querying-read-sets-against-an-existing-refseq-sketch`
+2. `Bacteria_Archaea_type_assembly_set.msh`: Sketched database of type strain Bacteria and Archea assemblies from NCBI. Curation described in:
+  Sánchez-Reyes, A. & Fernández-López, M. G. Sketched reference databases for genome-based taxonomy and comparative genomics. Braz. J. Biol. 84, e256673 (2022)
+  Downloaded at `https://figshare.com/articles/online_resource/Mash_Sketched_databases_for_Accessible_Reference_Data_for_Genome-Based_Taxonomy_and_Comparative_Genomics/14408801?file=30851626`. 
+
+# Set Up
+## Packages
+```{r, message=FALSE,warning=FALSE}
+library(tidyverse)
+library(jsonlite)
+library(formattable)
+```
+
+## File Paths
+```{r, message=FALSE,warning=FALSE}
+repoPath <- "/Users/hlberman/Library/CloudStorage/GoogleDrive-hlberman@ncsu.edu/My Drive/Callahan Lab/metagenome_gardnerella/pregnancy_metagenome/gard_phylogeny"
+dataPath <- "/Users/hlberman/Library/CloudStorage/GoogleDrive-hlberman@ncsu.edu/My Drive/Callahan Lab/metagenome_gardnerella/gardPhylogeny"
+
+fastasDir <- file.path(dataPath, "_ncbi_downloads/genomes")
+lvaginalisAssemblyPaths <- fastasDir %>%
+  list.files(pattern = ".fna", full.names = TRUE) %>%
+  .[str_detect(., "GCA_002871555.1|GCA_902362445.1")]
+lvaginalisAssemblyPaths
+```
+
+## Sketched Database paths
+```{r, message=FALSE, warning=FALSE}
+#RefSeq Database
+refSeqDB <- "/Users/hlberman/Applications/mash-OSX64-v2.2/sketched_databases/refseq.genomes.k21s1000.msh"
+
+# Bacteria and Archea Database
+BADB <- "/Users/hlberman/Applications/mash-OSX64-v2.2/sketched_databases/Bacteria_Archaea_type_assembly_set.msh"
+```
+
+# Mash Distances 
+  Software info:
+  Mash for performing alignments
+```{r, warning=FALSE}
+system("mash -v", intern = TRUE)
+```
+
+  Datasets from NCBI to get organism names from accession numbers
+```{r, warning=FALSE}
+system("datasets --version", intern = TRUE)
+
+# create function to pull organism names
+get_organism_name <- function(accession){
+  a <- paste0("datasets summary genome accession ", accession, " --report genome") %>%
+    system(., intern = TRUE)
+  b <- jsonlite::fromJSON(a, simplifyDataFrame=TRUE)
+  c <- b$reports$organism$organism_name
+  return(c)
+  }
+```
+
+
+## RefSeq Database
+### GCA_002871555.1
+  Run Mash
+```{r, message=FALSE,warning=FALSE}
+GCA_002871555.1_refseq <- paste0("mash dist ", refSeqDB, " ", "'", lvaginalisAssemblyPaths[1], "'") %>%
+  system(.,  intern=TRUE) %>%
+  as.data.frame %>%
+  separate(".",into = c("Database", "Assembly", "distance", "p", "Matching_hashes/1000"), sep="\t") %>%
+  mutate(Database=str_extract(Database, "GCF_.{11}"),
+         Assembly=str_extract(Assembly, "GCA_.{11}"),
+         distance=as.numeric(distance),
+         p=as.numeric(p),
+         `Matching_hashes/1000`=str_extract(`Matching_hashes/1000`, "[0-9]+"),
+         `Matching_hashes/1000`=as.numeric(`Matching_hashes/1000`)) %>%
+  filter(`Matching_hashes/1000` > "0") %>%
+  arrange(-`Matching_hashes/1000`)
+
+GCA_002871555.1_refseq_top20 <- GCA_002871555.1_refseq %>%
+  dplyr::slice(., 1:20)
+```
+  Add organism names
+```{r, message=FALSE, warning=FALSE}
+GCA_002871555.1_refseq_matches <- GCA_002871555.1_refseq_top20$Database %>%
+  map(get_organism_name) %>%
+  unlist
+
+GCA_002871555.1_refseq_top20 %>%
+  mutate(organism_name=GCA_002871555.1_refseq_matches) %>%
+  select(organism_name, everything()) %>%
+  formattable()
+```
+
+### GCA_902362445.1
+```{r, message=FALSE,warning=FALSE}
+GCA_902362445.1_refseq <- paste0("mash dist ", refSeqDB, " ", "'", lvaginalisAssemblyPaths[2], "'") %>%
+  system(.,  intern=TRUE) %>%
+  as.data.frame %>%
+  separate(".",into = c("Database", "Assembly", "distance", "p", "Matching_hashes/1000"), sep="\t") %>%
+  mutate(Database=str_extract(Database, "GCF_.{11}"),
+         Assembly=str_extract(Assembly, "GCA_.{11}"),
+         distance=as.numeric(distance),
+         p=as.numeric(p),
+         `Matching_hashes/1000`=str_extract(`Matching_hashes/1000`, "[0-9]+"),
+         `Matching_hashes/1000`=as.numeric(`Matching_hashes/1000`)) %>%
+  filter(`Matching_hashes/1000` > "0") %>%
+  arrange(-`Matching_hashes/1000`)
+
+GCA_902362445.1_refseq_top20 <- GCA_902362445.1_refseq %>%
+  dplyr::slice(., 1:20)
+```
+
+```{r, message=FALSE, warning=FALSE}
+GCA_902362445.1_refseq_matches <- GCA_902362445.1_refseq_top20$Database %>%
+  map(get_organism_name) %>%
+  unlist
+
+GCA_902362445.1_refseq_top20 %>%
+  mutate(organism_name=GCA_002871555.1_refseq_matches) %>%
+  select(organism_name, everything()) %>%
+  formattable()
+```
+
+
+## Bacteria and Archea Database
+### GCA_002871555.1
+```{r, message=FALSE,warning=FALSE}
+GCA_002871555.1_BADB <- paste0("mash dist ", BADB, " ", "'", lvaginalisAssemblyPaths[1], "'") %>%
+  system(.,  intern=TRUE) %>%
+  as.data.frame %>%
+  separate(".",into = c("Database", "Assembly", "distance", "p", "Matching_hashes/1000"), sep="\t") %>%
+  mutate(Database=str_extract(Database, "GCA_.{11}"),
+         Assembly=str_extract(Assembly, "GCA_.{11}"),
+         distance=as.numeric(distance),
+         p=as.numeric(p),
+         `Matching_hashes/1000`=str_extract(`Matching_hashes/1000`, "[0-9]+"),
+         `Matching_hashes/1000`=as.numeric(`Matching_hashes/1000`)) %>%
+  filter(`Matching_hashes/1000` > "0") %>%
+  arrange(-`Matching_hashes/1000`)
+
+GCA_002871555.1_BADB_top20 <- GCA_002871555.1_BADB %>%
+  dplyr::slice(., 1:20)
+```
+
+```{r, message=FALSE, warning=FALSE}
+GCA_002871555.1_BADB_matches <- GCA_002871555.1_BADB_top20$Database %>%
+  map(get_organism_name) %>%
+  unlist
+
+GCA_002871555.1_BADB_top20 %>%
+  mutate(organism_name=GCA_002871555.1_BADB_matches) %>%
+  select(organism_name, everything()) %>%
+  formattable()
+```
+
+### GCA_902362445.1
+```{r, message=FALSE,warning=FALSE}
+GCA_902362445.1_BADB <- paste0("mash dist ", BADB, " ", "'", lvaginalisAssemblyPaths[2], "'") %>%
+  system(.,  intern=TRUE) %>%
+  as.data.frame %>%
+  separate(".",into = c("Database", "Assembly", "distance", "p", "Matching_hashes/1000"), sep="\t") %>%
+  mutate(Database=str_extract(Database, "GCA_.{11}"),
+         Assembly=str_extract(Assembly, "GCA_.{11}"),
+         distance=as.numeric(distance),
+         p=as.numeric(p),
+         `Matching_hashes/1000`=str_extract(`Matching_hashes/1000`, "[0-9]+"),
+         `Matching_hashes/1000`=as.numeric(`Matching_hashes/1000`)) %>%
+  filter(`Matching_hashes/1000` > "0") %>%
+  arrange(-`Matching_hashes/1000`)
+
+GCA_902362445.1_BADB_top20 <- GCA_902362445.1_BADB %>%
+  dplyr::slice(., 1:20)
+```
+
+```{r, message=FALSE, warning=FALSE}
+GCA_902362445.1_BADB_matches <- GCA_902362445.1_BADB_top20$Database %>%
+  map(get_organism_name) %>%
+  unlist
+
+GCA_902362445.1_BADB_top20 %>%
+  mutate(organism_name=GCA_002871555.1_BADB_matches) %>%
+  select(organism_name, everything()) %>%
+  formattable()
+```
+
+# Session Info
+```{r}
+sessionInfo()
+```

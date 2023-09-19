@@ -1,19 +1,20 @@
 ---
-title: "Gardnerella Diversity Across Cohorts"
-author: "Hanna Berman & Megan Anderson"
-output:
+title: "*Gardnerella* Diversity Across Cohorts"
+author: "Hanna L. Berman & Megan Anderson"
+output: 
   html_document:
     toc: true
     toc_float: true
 ---
 
   Asses the abundance and prevalence of *Gardnerella* ASVs across different cohorts from 16S amplicon sequencing studies using the V4 region. The data was selected from the following studies:
-  + [Tabatabei et al., 2019 *BJOG*](http://doi.org//10.1111/1471-0528.15299)
-  + [Elovitz et al., 2019 *Nature Communications*](https://doi.org/10.1038/s41467-019-09285-9)
-  + [Blostein et al., 2020 *Annals of Epidemiology*](https://doi.org/10.1016/j.annepidem.2019.11.004)
-  + [DiGiulio et al., 2015 *PNAS*](http://doi.org/10.1073/pnas.1502875112)
-  + [Callahan et al., 2017 *PNAS*](http://doi.org/10.1073/pnas.1705899114)
-  + [Subramaniam et al., 2016 *American Journal Perinatology*](http://doi.org/10.1055/s-0035-1565919)
+  
+* [Tabatabei et al., 2019 *BJOG*](http://doi.org//10.1111/1471-0528.15299)
+* [Elovitz et al., 2019 *Nature Communications*](https://doi.org/10.1038/s41467-019-09285-9)
+* [Blostein et al., 2020 *Annals of Epidemiology*](https://doi.org/10.1016/j.annepidem.2019.11.004)
+* [DiGiulio et al., 2015 *PNAS*](http://doi.org/10.1073/pnas.1502875112)
+* [Callahan et al., 2017 *PNAS*](http://doi.org/10.1073/pnas.1705899114)
+* [Subramaniam et al., 2016 *American Journal Perinatology*](http://doi.org/10.1055/s-0035-1565919)
 
 ```{r, warning=FALSE}
 library(tidyverse)
@@ -52,7 +53,8 @@ quadColors <- list(scale_color_manual(values=c("#D55E00", "#009E73", "#CC79A7", 
   Set file paths and organize data
 ```{r, message=FALSE, warning=FALSE}
 load("./Data/multistudy_gardnerella_asvs.Rdata")
-figureOut <- "../../FIGURES/submission_manuscript_figures"
+figureOut <- "../../FIGURES/resubmission_manuscript_figures"
+tmpFigureOut <- "../../FIGURES/resubmission_manuscript_figures/tmp"
 ```
 
 ```{r, message=FALSE, warning=FALSE}
@@ -74,11 +76,28 @@ v4DF <- phyloseq(sample_data(gv_v4$v4_meta),
   replace_na(list(Var="Unmapped", Clade="Unknown")) %>%
   mutate(Var=case_when(Var=="Unmapped"~"Unmapped",
                        Var!="Unmapped"~paste0("G", str_extract(Var, "(?<=G4_)[0-9]"))))
+
+#v4 amplicon lengths
+#all 
+v4DF$OTU %>%
+  unique %>%
+  nchar %>%
+  table
+
+#mapped only
+v4DF %>%
+  filter(Var!="Unmapped") %>%
+  .$OTU %>%
+  unique %>%
+  nchar %>%
+  table
+
 ```
 
 # Descriptives
   Describe cohorts and samples
-## Table
+
+## Table 2: Descriptives of 16S Amplicon Studies
 ```{r, message=FALSE, warning=FALSE}
 mDF <- v4DF %>%
   select("Study", "Abbr", "SubjectID", "PTB", "GAAD", "mAge", "mBMI", "mRace") %>%
@@ -135,14 +154,14 @@ v4_study_table <- sample_counts %>%
   left_join(participant_race, by="Study") %>%
   left_join(participant_BMI, by="Study") %>%
   left_join(study_locations, by="Study") %>%
-  kbl(caption = "Table S3. V4 16S Amplicon Studies") %>%
+  kbl(caption = "Table 2. V4 16S Amplicon Studies") %>%
   kable_classic(full_width=TRUE, html_font = "Arial")
 
 v4_study_table
-#save_kable(v4_study_table, file = file.path(figureOut, paste(Sys.Date(), "TableS3_metadata.png", sep="_")), zoom=5)
+#save_kable(v4_study_table, file = file.path(figureOut, paste(Sys.Date(), "Table2_metadata.png", sep="_")), zoom=5)
 ```
 
-## Figures
+## Descriptives Figures
 ### PTB
 ```{r, message=FALSE, warning=FALSE}
 v4DF %>%
@@ -221,10 +240,8 @@ v4DF %>%
   summarize(top5percent=sum(percent))
 ```
 
-
-
 ## The abundance of ASVs in each study
-```{r, message=FALSE, warning=FALSE}
+```{r, message=FALSE, warning=FALSE, fig.width=14, fig.height=8}
 #fig.width=7, fig.height=4
 v4DF %>%
   #with_groups(c(Study, ASVnum, Clade), summarize, Abundance=mean(Abundance)) %>%
@@ -267,10 +284,51 @@ ASVrelAb <- v4DF %>%
   geom_bar(stat="identity") +
   facet_grid(.~Var) +
   scale_fill_manual(values=c("#b22222", "#6f2da8", "#214fc6", "#E69F00", "#009E73", "#A9A9A9")) +
-  theme(axis.text.x = element_text(angle=45, size=9),
+  theme(axis.text.x = element_text(angle=45, size=8.5),
         legend.position = "bottom") +
   labs(x="Study", y="Relative Abundance")
 ASVrelAb
+```
+
+### Proportion of all reads as mapped and unmapped ASVs
+```{r, message=FALSE, warning=FALSE}
+# total samples for denominator of read counts, proportion of each should sum to 1
+totalSamples <- n_distinct(v4DF$Sample)
+```
+
+```{r, message=FALSE, warning=FALSE}
+v4DF %>%
+  mutate(cladeKnown=Clade!="Unknown") %>%
+  group_by(cladeKnown) %>%
+  summarize(readsProps=sum(Abundance)) %>%
+  mutate(percentAllReads=readsProps/totalSamples*100)
+```
+
+  Reads from *Gardnerella* ASVs found in reference phylogeny represent 6.8% of all reads, whereas reads from the other ASVs represent only 0.07% of all reads.
+  
+### Proportion of *Gardnerella* reads as mapped and unmapped ASVs
+```{r, message=FALSE, warning=FALSE}
+# total proportion for denominator of gardnerella read counts
+totalGardProp <- v4DF %>%
+  summarise(x=sum(Abundance)) %>%
+  .$x
+totalGardProp
+```
+
+```{r, message=FALSE, warning=FALSE}
+v4DF %>%
+  mutate(cladeKnown=Clade!="Unknown") %>%
+  group_by(cladeKnown) %>%
+  summarize(readsProps=sum(Abundance)) %>%
+  mutate(percentAllGardReads=readsProps/totalGardProp*100)
+```
+
+```{r, message=FALSE, warning=FALSE}
+v4DF %>%
+  mutate(clade1_4=Var %in% c("G1", "G2", "G3")) %>%
+  group_by(clade1_4) %>%
+  summarize(readsProps=sum(Abundance)) %>%
+  mutate(percentAllGardReads=readsProps/totalGardProp*100)
 ```
 
 ## ASV Prevalence
@@ -318,7 +376,7 @@ ASVperSample <- v4DF %>%
   theme(legend.position="none") + #No legend present
   facet_wrap(~Study) +
   scale_x_continuous(breaks=seq(0,8,1)) +
-  labs(x="Gardnerella ASVs per sample")
+  labs(x="Gardnerella ASVs per sample", y="proportion")
 ASVperSample
 ```
 
@@ -332,13 +390,15 @@ ASVbyPTB <- v4DF %>%
   ggplot(aes(x=PTB, y=meanAbundance, color=PTB)) +
   geom_jitter(alpha=0.5) +
   geom_boxplot(alpha=0, color="black") +
-  facet_grid(Abbr~Var) +
+  facet_grid(Var~Abbr) +
   theme(legend.position = "none") +
   binaryColors +
   labs(x=NULL, y="Relative Abundance")
 ASVbyPTB
 ```
+  
 # Linear mixed model
+
 ## Data distribution and transformation
 ```{r, message=FALSE, warning=FALSE}
 v4DF %>%
@@ -387,15 +447,42 @@ modelPlot <-models %>%
 modelPlot
 ```
 
-# Figure 7: Gardnerella ASVs in 7 previous studies
-```{r, message=FALSE, warning=FALSE}
+# Figure 7: *Gardnerella* ASVs in 7 previous studies
+```{r, message=FALSE, warning=FALSE, fig.width=11, fig.height=8.5}
 #fig.width=5, fig.height=4
 fig7AB <- plot_grid(ASVperSample, ASVrelAb, nrow = 1, labels = c("A", "B"), label_size = 15)
 fig7CD <- plot_grid(ASVbyPTB, modelPlot,  nrow = 1, labels = c("C", "D"), label_size = 15)
 plot_grid(fig7AB, fig7CD, nrow=2, rel_heights = c(1, 1.25))
-#ggsave(filename = file.path(figureOut, paste(Sys.Date(), "Figure7_multistudyASVs.png")))
+#ggsave(filename = file.path(figureOut, paste(Sys.Date(), "Figure7_multistudyASVs.png", sep = "_")))
 ```
 
+# ASV and clade tables
+```{r, message=FALSE, warning=FALSE}
+gv_v4$v4_taxa_gv %>%
+  rownames_to_column(var="ASV") %>%
+  select(Clade, Var) %>%
+  filter(!is.na(Clade))
+```
+
+```{r, message=FALSE, warning=FALSE}
+asvCladeTable <- tribble(~Clade, ~`Gardnerella V4 ASVs`,
+        "C1", "G2, G3",
+        "C2", "G2, G3",
+        "C3", "G1, G3",
+        "C4", "G1",
+        "C5", "G4",
+        "C6", "G5") %>%
+  kbl() %>%
+  #kbl(caption = "Table X. V4 ASV Clade Mappings") %>%
+  #kableExtra::kable_styling(full_width = FALSE) %>%
+  kable_classic(full_width=FALSE, html_font = "Arial")
+
+asvCladeTable
+
+asvCladeTablePngPath <- file.path(figureOut, paste(Sys.Date(), "FigureS2_asvCladeTableComponent.png", sep="_"))
+asvCladeTable %>%
+  save_kable(file = asvCladeTablePngPath, zoom=5)
+```
 
 # Race
   Abundance of mapped variants by self-reported subject race

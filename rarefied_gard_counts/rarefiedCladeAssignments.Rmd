@@ -1,6 +1,6 @@
 ---
 title: "Assign Clades and Genomospecies to Short Reads After Rarefying"
-author: "Hanna Berman"
+author: "Hanna L.  Berman"
 output: html_document
 ---
 
@@ -18,6 +18,7 @@ options(scipen=10000)
 ```{r, warning=FALSE}
 # Directories
 repoDir <- ".."
+metadataDir <- "/Users/hlberman/Library/CloudStorage/GoogleDrive-hlberman@ncsu.edu/My Drive/Callahan Lab/metagenome_gardnerella/METADATA"
 gardTreeDir <- file.path(repoDir, "gard_phylogeny")
 dataOut <- "/Volumes/GoogleDrive-103667279570938865306/My Drive/Callahan Lab/metagenome_gardnerella/rarefiedCladeAssignments"
 figureOut <- "/Users/hlberman/Desktop/rarefiedGardFigures"
@@ -34,13 +35,13 @@ refGardDF <- file.path(repoDir, "refGardnerellaCladesGenomos.csv") %>%
   read_csv(); head(refGardDF)
 
 # Stanford and UAB metadata
-suDF <- file.path(repoDir, "sumgsDF.tsv") %>%
+suDF <- file.path(metadataDir, "sumgsDF.tsv") %>%
   read_delim(delim="\t") %>%
   mutate(SampleID=as.character(SampleID), 
          SubjectID=as.character(SubjectID)); head(suDF)
 
 # HMP2 metadata
-hmp2DF <- file.path(repoDir, "hmp2mgsDF.tsv") %>%
+hmp2DF <- file.path(metadataDir, "hmp2mgsDF.tsv") %>%
   read_delim(delim="\t") %>%
   mutate(SampleID=as.character(SampleID), 
          SubjectID=as.character(SubjectID)); head(suDF)
@@ -71,9 +72,9 @@ okabeIto <- c("#E69F00", "#F0E442", "#0072B2", "#009E73", "#56B4E9", "#D55E00", 
 ## Load alignment data
 ```{r, message=FALSE, warning=FALSE}
 # alns <- list.files(usearchAlns, all.files = FALSE, full.names = TRUE) %>%
-#    map(read_delim, delim="\t", col_names=c("query", "reference", "pcntid", "length", "mismatch", "gap_open", "qstart", "qend", "rstart", "rend", "evalue", "bitscore")) #read in blast tables
+#   map(read_delim, delim="\t", col_names=c("query", "reference", "pcntid", "length", "mismatch", "gap_open", "qstart", "qend", "rstart", "rend", "evalue", "bitscore")) #read in blast tables
 # names(alns) <-  list.files(usearchAlns, all.files = FALSE, full.names = FALSE) %>%
-#    str_extract("[0-9]+(?=\\.txt)") # add sample names to alns object
+#   str_extract("[0-9]+(?=\\.txt)") # add sample names to alns object
 # save(alns, file="./alns.Rdata")
 load("./alns.Rdata")
 ```

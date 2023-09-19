@@ -1,7 +1,5 @@
 ---
-title: "Compare metaphlan and clade results"
-author: "Hanna Berman"
-date: "11/4/2019"
+title: "Compare Filtering"
 output: html_document
 ---
 

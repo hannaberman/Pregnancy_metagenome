@@ -1,7 +1,6 @@
 ---
-title: "Gardnerella ASVs from Meta-Analysis Data"
-author: "Hanna Berman"
-date: "7/26/2021"
+title: "Gardnerella ASVs from Previously Conducted Microbiome and Preterm Birth Studies"
+author: "Hanna L. Berman"
 output: html_document
 ---
 
@@ -11,7 +10,7 @@ library(dada2)
 `%!in%` <- negate(`%in%`)
 ```
 
-  Downloaded updated data from CH on 7/26/21. Data in "/Volumes/GoogleDrive/My Drive/Callahan Lab/TriCEM_grad_award/Data/ASV_meta.Rdata".
+  Downloaded updated data from CH on 7/26/21
 
   Updated data has been further truncated and metadata has been updated (ie race). Taxa have not been assigned for all ASVs. The following is to:
   1) Assign taxa to all ASVs in each study
@@ -22,7 +21,7 @@ library(dada2)
   Load in data and create some helpful objects to store names of studies.
 ```{r, message=FALSE, warning=FALSE}
 # data directory outside repository for larger items
-data_dir <- "/Volumes/GoogleDrive/My Drive/Callahan Lab/TriCEM_grad_award/Data"
+data_dir <- "/Users/hlberman/Library/CloudStorage/GoogleDrive-hlberman@ncsu.edu/My Drive/Callahan Lab/TriCEM_grad_award/Data"
 
 # reference Gardnerella sequences and clades
 clade_df <- read_csv("./Data/refGardnerellaCladesGenomos.csv")
@@ -50,6 +49,7 @@ names(ASV_meta$ASV$original)[str_detect(names(ASV_meta$ASV$original), "v1")]
 names(ASV_meta$ASV$original)[str_detect(names(ASV_meta$ASV$original), "v4")]
 ```
 
+
 # Assign taxa
 ## V1-V2 region
   1) Select studies that use V1-V2 region and create ASV table to input into assignTaxonomy() command.
@@ -60,6 +60,8 @@ v1_ASV_seqs <- ASV_meta$ASV$original[str_detect(names(ASV_meta$ASV$original), "v
   unique()
 
 head(v1_ASV_seqs)
+nchar(v1_ASV_seqs) %>%
+  summary
 ```
 
   2) Run assignTaxonomy with Silva training set version 138.1
