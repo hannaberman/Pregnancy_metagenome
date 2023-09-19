@@ -1,11 +1,10 @@
 ---
 title: "Assess Human Filtering"
-author: "Hanna Berman"
-date: "3/5/2019"
+author: "Hanna L. Berman"
 output: html_document
 ---
 
-**ADDING READ COUNTS TO METADATA MOVED TO METADATA .Rmd FILE**
+Determine how well host reads were filtered from shotgun metagenomic sequencing data.
 
 # Set up
 ## Packages

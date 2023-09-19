@@ -1,6 +1,6 @@
 ---
 title: "Assign Clades and Genomospecies to Short Reads After Rarefying"
-author: "Hanna Berman"
+author: "Hanna L.  Berman"
 output: html_document
 ---
 
