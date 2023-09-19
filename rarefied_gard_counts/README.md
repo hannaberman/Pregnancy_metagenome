@@ -1,7 +1,6 @@
 # Rarefying reads to assess *Gardnerella* clade/genomospecies count with same bacterial library size
 
-## Purpose
-Rarefying human-filtered reads to common read depth to ensure that associations of *Gardnerella* clade counts are not due to read depth.
+Rarefy human-filtered reads to common read depth to ensure that associations of *Gardnerella* clade counts are not due to read depth.
 
 ## Download seqtk version 1.3
 Download and install per instructions from: [https://github.com/lh3/seqtk](https://github.com/lh3/seqtk)
