@@ -1,7 +1,9 @@
-# Phylogeny of NCBI Gardnerella Genome Assemblies
+# Phylogeny of NCBI *Gardnerella* Genome Assemblies
+
+Create reference *Gardnerella* phylogeny from whole genome assemblies
 
 ## Genomes
-Download 124 Gardnerella genomes from GenBank October 1 2020 and extract metadata using script in `./referenceGenomeMetadata.Rmd`
+Download 124 *Gardnerella* genomes from GenBank October 1 2020 and extract metadata using script in `./referenceGenomeMetadata.Rmd`
 
 ## Quality control
 Choose which assemblies to use in *Gardnerella* reference phylogeny
