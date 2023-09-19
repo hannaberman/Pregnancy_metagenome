@@ -1,25 +1,8 @@
 # Filtering host reads from shotgun reads 
 
-## Attempt with Bowtie 2
-Reads filtered with Bowtie2. v2.1.0  
-Database used: GCA_000001405.15_GRCh38: Indexed database of NCBI GRCh38 downloaded from [http://bowtie-bio.sourceforge.net/bowtie2/manual.shtml#the-bowtie2-build-indexer](http://bowtie-bio.sourceforge.net/bowtie2/manual.shtml#the-bowtie2-build-indexer) on 03/04/2019
+Read counts in file `./fastq_counts.txt`
 
-Alignment called using the following:  
-```
-bowtie2 \
-    -x $DB_path \
-    -1 $reads_path/${accession}_1.fastq.gz \
-    -2 $reads_path/${accession}_2.fastq.gz \
-    -U $reads_path/${accession}_S.fastq.gz \
-    -p 8 \
-    --very-sensitive \
-    --un-conc-gz $out_path/${accession}_%.fastq.gz \
-    --un-gz $out_path/${accession}_S.fastq.gz \
-```  
-
-note: read counts in file `./fastq_counts.txt`
-
-## Attempt with BBmap
+## Filter with BBmap
 1) Download BBmap version 38.44 at `https://sourceforge.net/projects/bbmap/`  unzip/untar file to install
 2) Download GRCh38.p13 reference genome. `ftp://ftp.ncbi.nlm.nih.gov/refseq/H_sapiens/annotation/GRCh38_latest/refseq_identifiers/GRCh38_latest_genomic.fna.gz` Save to `./GRCh38.fna`
 3) Build BBmap index with `./scripts/bbmap_index_db.sh`  
@@ -51,5 +34,4 @@ note: script  `./scripts/bbmap_cmds.sh` was used to call the `bbmap_filter_human
 Changed sam to fastq.gz with samtools 1.9 
 
 ## Assessment files:
-1) `assessFiltering.Rmd`
-2) `uploadVbbmap.Rmd`  
+`uploadVbbmap.Rmd`: Assess number of reads filtered.
