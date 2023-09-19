@@ -1,7 +1,6 @@
 ---
 title: "Gardnerella Reference Genome Assemblies"
-author: "HLB"
-date: "October 1 2020"
+author: "Hanna L. Berman"
 output: 
   html_document:
     toc: TRUE
