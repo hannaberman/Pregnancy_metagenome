@@ -1,6 +1,5 @@
 # Clade and Genomospecies Assignments
 
-## Purpose
 Determine clades and genomospecies of Gardnerella reads using a two step alingment process to filter and align reads. Input reads are bbmap filtered to remove human sequences. Input is paired bbmap filtered reads only. 
 
 ## Perform alignments
