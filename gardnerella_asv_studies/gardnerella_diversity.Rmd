@@ -139,8 +139,8 @@ participant_race <- mDF %>%
 participant_BMI <- mDF %>%
   group_by(Study) %>%
   summarise(BMI=round(mean(mBMI,na.rm=TRUE), 1),
-            min=min(mBMI, na.rm=TRUE),
-            max=max(mBMI,na.rm = TRUE)) %>%
+            min=round(min(mBMI,na.rm=TRUE), 1),
+            max=round(max(mBMI,na.rm=TRUE), 1)) %>%
   mutate(`Maternal BMI (mean, range)`=paste0(BMI," (", min, "-", max, ")"),
          `Maternal BMI (mean, range)`=na_if(`Maternal BMI (mean, range)`, "NaN (Inf--Inf)")) %>%
   select(Study, `Maternal BMI (mean, range)`)
