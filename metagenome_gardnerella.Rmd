@@ -2085,7 +2085,7 @@ cladeRelativeTransfs$shapiro_results %>%
 
   2. Perform logistic regression on mean differences to see if they vary by term or preterm birth
   Null hypothesis is that coefficients = 0
-  Model: $y_{ij}=\beta_{0i} + x_{ij}\beta_{1ij}+e{ij}$
+  Model: $y_{i}=\beta_{0} + x_{i}\beta_{1}+e{i}$
 ```{r, message=FALSE, warning=FALSE}
 # function for performing logistic regression on mean differences of clade abundances
 meanDiffLogisticRegression <- function(inputDF, transformation){
